@@ -18,14 +18,14 @@ canvas{display:block}
   background:#fff;border-radius:28px;padding:10px 26px 12px;text-align:center;box-shadow:0 6px 0 #22314a22;
   opacity:0;transition:opacity .2s,transform .25s cubic-bezier(.3,1.6,.5,1);pointer-events:none;max-width:calc(100% - 32px)}
 #bubble.show{opacity:1;transform:translateX(-50%) scale(1)}
+@media (orientation:portrait){#bubble{top:calc(env(safe-area-inset-top,0px) + 54px)}} /* clear of the star + mic row */
 #bubble .fa{font-family:var(--fa);font-size:clamp(34px,7vw,56px);font-weight:800;line-height:1.2;direction:rtl}
 #bubble .tr{font-size:18px;opacity:.65;font-weight:600}
 .col{position:fixed;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:var(--g);z-index:3}
 #colL{left:calc(env(safe-area-inset-left,0px) + 12px)}#colR{right:calc(env(safe-area-inset-right,0px) + 12px)}
 #acts{display:contents}
-@media (orientation:portrait){ /* upright: everything in thumb reach: room tabs at the very bottom, this screen's buttons in a row (two at most) just above (width: resize()) */
-  #acts{display:flex;flex-wrap:wrap;justify-content:center;gap:10px var(--g);position:fixed;z-index:3;left:50%;transform:translateX(-50%);
-    width:calc(100% - 24px);bottom:calc(env(safe-area-inset-bottom,0px) + var(--b) + 24px)}.col{display:contents}}
+@media (orientation:portrait){ /* upright: rails sit just above the room tabs (thumb reach), Googoo stands between them */
+  .col{top:auto;transform:none;bottom:calc(env(safe-area-inset-bottom,0px) + var(--b) + var(--g) + 10px)}#nav{gap:8px}}
 #nav{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);transform:translateX(-50%);display:flex;gap:var(--g);z-index:3}
 .rb{width:var(--b);height:var(--b);border-radius:50%;border:0;padding:0;font-size:calc(var(--b)*.5);line-height:1;display:grid;place-items:center;
   cursor:pointer;box-shadow:0 5px 0 #0003;transition:transform .1s,box-shadow .1s;touch-action:manipulation}
@@ -33,6 +33,10 @@ canvas{display:block}
 .rb:focus-visible{outline:4px solid var(--ink);outline-offset:3px}
 #nav .rb{background:#ffffffcc}#nav .rb.cur{background:#ffd34d;box-shadow:0 0 0 4px #fff,0 5px 0 #0003}
 @media (min-width:700px) and (min-height:700px){:root{--b:68px;--g:18px}}
+@media (orientation:portrait) and (max-width:370px),(orientation:portrait) and (max-height:700px){:root{--b:48px;--g:10px}}
+#top{position:fixed;z-index:4;left:calc(env(safe-area-inset-left,0px) + 10px);top:calc(env(safe-area-inset-top,0px) + 10px);display:flex;align-items:center;gap:8px}
+#score{height:36px;box-sizing:border-box;padding:0 12px;border-radius:18px;background:#ffffffcc;font:800 17px/36px var(--display);font-variant-numeric:tabular-nums}
+#top #bTalk{width:38px;height:38px;font-size:19px;box-shadow:0 3px 0 #0003}
 @media (max-height:440px){:root{--g:8px;--b:52px}}
 #fade{position:fixed;inset:0;background:#fff7ea;opacity:0;pointer-events:none;transition:opacity .3s;z-index:4}#fade.on{opacity:1}
 #card{position:fixed;left:30%;top:50%;transform:translate(-50%,-50%);z-index:2;background:#fffffff0;border-radius:32px;padding:10px 26px 6px;
@@ -48,7 +52,7 @@ canvas{display:block}
 #micHelp h2{font:800 22px var(--display);margin:0 0 6px}
 #micHelp p{margin:0 0 10px}
 #micHelp button{font:800 18px var(--display);background:var(--ink);color:#fff;border:0;border-radius:16px;padding:8px 20px;cursor:pointer}
-#parentBtn{position:fixed;left:10px;top:calc(env(safe-area-inset-top,0px) + 10px);width:34px;height:34px;border-radius:50%;border:0;
+#parentBtn{position:fixed;right:10px;top:calc(env(safe-area-inset-top,0px) + 10px);width:34px;height:34px;border-radius:50%;border:0;
   background:#ffffff66;color:#22314a88;font-size:18px;z-index:4;cursor:pointer;-webkit-touch-callout:none}
 #parentBtn.holding{background:#fff;color:var(--ink);box-shadow:0 0 0 6px #ffffff88}
 #parent{position:fixed;inset:0;background:#22314a99;z-index:7;display:grid;place-items:center;padding:16px}
@@ -72,13 +76,13 @@ canvas{display:block}
 #start button{font:800 34px var(--display);background:var(--coral);color:#fff;border:0;border-radius:40px;padding:18px 44px;
   box-shadow:0 8px 0 #0003;cursor:pointer}
 #start p{text-align:center;margin:14px 16px 0;font-size:16px;opacity:.7}
-#hint{position:fixed;right:16px;top:calc(env(safe-area-inset-top,0px) + 14px);font-size:13px;background:var(--card);
+#hint{position:fixed;right:16px;top:calc(env(safe-area-inset-top,0px) + 56px);font-size:13px;background:var(--card);
   border-radius:12px;padding:6px 10px;max-width:220px;line-height:1.35}
 @media (max-width:520px){#hint{display:none}.say #bubble .tr{display:none}}
 /* #deck: big tappable emoji cards for the card games, picture book and stories (robot steps aside, like Say it) */
 #deck{position:fixed;z-index:2;left:calc(env(safe-area-inset-left,0px) + var(--b) + 28px);right:42%;top:calc(env(safe-area-inset-top,0px) + 100px);
   bottom:calc(env(safe-area-inset-bottom,0px) + var(--b) + 26px);display:flex;flex-wrap:wrap;align-items:center;align-content:center;justify-content:center;gap:14px;pointer-events:none}
-@media (orientation:portrait){#deck{left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 96px);bottom:50%;align-content:flex-end}} /* upright: cards sit just above the robot's face (resize() puts him under them) */
+@media (orientation:portrait){#deck{left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 96px);bottom:calc(env(safe-area-inset-bottom,0px) + 5*var(--b) + 4*var(--g) + 20px);align-content:flex-end}} /* upright: cards sit just above the robot's face (resize() puts him under them) */
 #bubble{width:max-content}body:has(#deck.story:not([hidden])) #bubble .fa{font-size:clamp(20px,3.6vw,30px)}
 @media (orientation:portrait){body:has(#deck.story:not([hidden])) #bubble .tr{display:none}}
 @media (orientation:portrait) and (max-width:600px){body:has(#deck:not([hidden])) #bubble .tr{display:none}}
@@ -117,6 +121,7 @@ canvas{display:block}
 <div id="stage"></div>
 <div id="bubble"><div class="fa" id="bfa"></div><div class="tr" id="btr"></div></div>
 <div id="hint">Find, Feed and Say it are Farsi games. Just talk to Pash: when he's standing still he listens and repeats it in a funny voice. The Talk button turns his ears on and off. Poke his head, tummy (try 3 times fast!), ears, feet, antenna or face. Drag to spin him. Tap the empty floor to call him home. Grown-ups: Farsi lines show here and will play your recorded voice later.</div>
+<div id="top"><div id="score">⭐ <span id="scoreN">0</span></div><button id="bTalk" class="rb" style="background:#ff4f6d" aria-label="Talk (microphone on/off)">🎤</button></div>
 <div id="acts"><div id="colL" class="col"></div><div id="colR" class="col"></div></div>
 <div id="nav"><button class="rb" data-r="home" aria-label="Home">🏠</button><button class="rb" data-r="play" aria-label="Play room">🧸</button>
   <button class="rb" data-r="bed" aria-label="Bedroom">🛏️</button><button class="rb" data-r="say" aria-label="Say it">🗣️</button>
@@ -125,7 +130,6 @@ canvas{display:block}
 <div id="card" hidden><div class="em" id="cardEm"></div><div class="fa" id="cardFa"></div></div>
 <div id="fade"></div>
 <div id="btns" hidden><!-- side buttons; showScreen() moves the current screen's ones into #colL/#colR -->
-  <button id="bTalk" class="rb" style="background:#ff4f6d" aria-label="Talk (microphone on/off)">🎤</button>
   <button id="bFind" class="rb" style="background:#2bb673" aria-label="Find">🔍</button>
   <button id="bMoves" class="rb" style="background:#00a6a6" aria-label="Moves">🤸</button>
   <button id="bSing" class="rb" style="background:#ffb703" aria-label="Sing">🎵</button>
@@ -528,8 +532,10 @@ function poke(part,point){
   else if(part==='arm'){SFX.boing();say('arm');setFace('happy',800);arms.forEach(a=>a.vel+=a.s*12);kick('squash',3)}
   else if(part==='ear'){setMode('fly');say('fly');setFace('laugh',2600);for(let i=0;i<14;i++)tone(220+i*12,240+i*12,.09,'sawtooth',.05,i*.12)}
   else if(part==='feet'){SFX.giggle();say('feet');setFace('laugh',1200);jump(6);setTimeout(()=>jump(5),450)}
+  const pw=PART_WORD[part];if(pw&&HAS.has(pw)&&!(part==='belly'&&!tummyHits.length))setTimeout(()=>{if(st.mode!=='sleep'&&!game.type)say(pw)},2800); // then the Farsi word
   speak();
 }
+const PART_WORD={head:'w_head',face:'w_face',arm:'w_hand',belly:'w_belly',feet:'w_feet',ear:'w_ear'};
 function speak(){mouthT=performance.now()+700}
 let mouthT=0,antAng=0,antVel=0;
 
@@ -1008,7 +1014,8 @@ let statsDirty=false;
 function saveStats(){if(!statsDirty)return;statsDirty=false;try{localStorage.setItem(STATS_KEY,JSON.stringify(stats))}catch(e){}}
 function wordOf(k){const m=k.match(/^(?:w|where|this|say|want)_(.+)$/);if(!m)return null;const id=m[1];
   return (WORDS[id]||BODY[id]||FURN[id]||SW[id])?id:null}
-function statAdd(id,field){if(!id)return;const w=stats.words[id]||(stats.words[id]={heard:0,right:0,miss:0,said:0});w[field]=(w[field]||0)+1;if(field==='said')w.ts=Date.now();statsDirty=true}
+function statAdd(id,field){if(!id)return;const w=stats.words[id]||(stats.words[id]={heard:0,right:0,miss:0,said:0});w[field]=(w[field]||0)+1;if(field==='said')w.ts=Date.now();statsDirty=true;if(field==='right')showStars()}
+function showStars(){document.getElementById('scoreN').textContent=Object.values(stats.words).reduce((n,w)=>n+(w.right||0),0)}showStars();
 function statHeard(k){statAdd(wordOf(k),'heard')}
 const today=()=>new Date().toISOString().slice(0,10);
 setInterval(()=>{if(document.getElementById('start').hidden&&document.visibilityState==='visible'){stats.secs+=5;stats.days[today()]=(stats.days[today()]||0)+5;statsDirty=true}saveStats()},5000);
@@ -1045,7 +1052,7 @@ function renderParent(){
   document.getElementById('pcClose').onclick=()=>{document.getElementById('parent').hidden=true;const r=document.getElementById('pcReset');r.classList.remove('armed');r.textContent='Reset stats'};
   const reset=document.getElementById('pcReset');
   reset.onclick=()=>{if(!reset.classList.contains('armed')){reset.classList.add('armed');reset.textContent='Tap again to erase all stats';return}
-    stats={words:{},secs:0,days:{},sessions:0};statsDirty=true;saveStats();reset.classList.remove('armed');reset.textContent='Reset stats';renderParent()};
+    stats={words:{},secs:0,days:{},sessions:0};statsDirty=true;saveStats();showStars();reset.classList.remove('armed');reset.textContent='Reset stats';renderParent()};
 })();
 
 // ---------- Talk-back: Pash repeats what you say in a funny voice ----------
@@ -1192,8 +1199,9 @@ setInterval(()=>{if(!document.getElementById('start').hidden)return;if(curRoom!=
 
 // ---------- Rooms (home, play, bed) + the Say it screen, switched from #nav ----------
 let curRoom='home',scr='home';
-const SCREENS={home:[['bTalk','bFeed','bJump','bLamp'],['bSing','bDance','bMoves','bPeek']],play:[['bBall','bFind','bDark','bColour','bCount'],['bAnimals','bBubbles','bDisco','bTalk']],
-  bed:[['bSleep','bPeek','bLamp'],['bTalk']],night:[['bSleep','bPeek','bLamp'],['bTalk','bStars','bNStory']],say:[['bTalk','bRepeat'],['bNext']],book:[['bBookHome'],['bStories']]};
+const LEARN=['bFind','bColour','bCount','bAnimals']; // right rail, same in every room; left = this room's actions. Off screen for now: bJump, bMoves, bDark (bTalk lives in #top)
+const SCREENS={home:[['bFeed','bDance','bSing','bLamp'],LEARN],play:[['bBall','bBubbles','bDisco','bPeek'],LEARN],
+  bed:[['bSleep','bLamp','bPeek','bNStory'],LEARN],night:[['bSleep','bLamp','bStars','bNStory'],LEARN],say:[['bRepeat'],['bNext']],book:[['bBookHome'],['bStories']]};
 const WALL={home:0xffffff,play:0xfff27a,bed:0x6f9cff};
 function showScreen(s){const old=scr;scr=s;
   if(s!==old){disco(false,1);if(!lightsOn&&(old==='home'||old==='play'||ROOM_HI[s]&&s!=='bed'))setLights(true)} // leaving a room: normal lights (bedroom lamp stays as it was)
@@ -1220,12 +1228,10 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
   renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);camera.aspect=w/h;
   camera.fov=portrait?50:40;camera.position.set(0,3.4,portrait?(cards||toys?11:9.5):9);camera.lookAt(0,1.2,0);
   const sq=Math.min(1,(portrait?.3:.35)+w/h*.75);furnGroup.children.forEach(g=>g.position.x=g.userData.x0*sq); // portrait: pull furniture toward the middle so it stays on screen
-  camera.clearViewOffset();camera.updateProjectionMatrix();acts.style.width='';
-  if(portrait){ // upright: buttons in balanced rows; Pash stands just above them, drops below the cards, or steps back for the toys
-    const bs=[...acts.querySelectorAll('.rb')],bw=bs.length?bs[0].offsetWidth:0,g=parseFloat(getComputedStyle(acts).columnGap)||0,fit=Math.max(1,Math.floor((w-24+g)/(bw+g)));
-    if(bs.length)acts.style.width=Math.ceil(bs.length/Math.ceil(bs.length/fit))*(bw+g)-g+'px';
-    const top=acts.getBoundingClientRect().top,el=scr==='say'?document.getElementById('card'):deck,
-      [p,y]=cards?[new THREE.Vector3(0,2.85,0),el.getBoundingClientRect().bottom+8]:toys?[new THREE.Vector3(0,0,1.9),top-60]:[new THREE.Vector3(0,0,0),top+4];
+  camera.clearViewOffset();camera.updateProjectionMatrix();
+  if(portrait){ // upright: Googoo stands between the two rails, drops below the cards, or steps back for the toys
+    const mid=h*.6,el=scr==='say'?document.getElementById('card'):deck,
+      [p,y]=cards?[new THREE.Vector3(0,2.85,0),el.getBoundingClientRect().bottom+8]:toys?[new THREE.Vector3(0,0,1.9),mid-40]:[new THREE.Vector3(0,0,0),mid];
     p.project(camera);camera.setViewOffset(w,h,0,(1-p.y)/2*h-y,w,h)}
   else if(cards)camera.setViewOffset(w,h,-w*.2,0,w,h); // Say it / cards: robot moves aside for the card
   camera.updateProjectionMatrix()}

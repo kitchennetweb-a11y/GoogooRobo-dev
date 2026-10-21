@@ -42,3 +42,7 @@ Newest decisions are at the bottom of each section.
 ## Git and hosting
 - Repo: `kitchennetweb-a11y/Pash` (`main` branch). GitHub Pages serves `main` from `/` (root).
 - Commits are authored as `Claude <noreply@anthropic.com>`.
+
+## Navigation (2026-10-21)
+- Phone layout: left rail = this room's actions, right rail = the four learning games (same in every room), small mic + star counter top left (away from the bottom so frustrated taps miss it), gear alone top right, room tabs along the bottom.
+- Later: house rooms stay as tabs; outside places (courtyard, street, shop, park, farm) are reached by a map tab/button plus doors in the scene, and unlock with stars. Not built yet.
