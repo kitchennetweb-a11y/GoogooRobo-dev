@@ -1237,6 +1237,7 @@ document.querySelectorAll('#nav .rb').forEach(b=>b.onclick=()=>{st.lastPoke=perf
 const acts=document.getElementById('acts');
 // Rest-pose size of the robot, measured once (animations move parts); call measureRobot() again when the model is swapped (Tripo GLB)
 let RB={h:3.6,w:2.4,y0:0};
+const SIZE=.9; // Googoo's size knob: 1 = fills top..bot (or the rail gap), centred in that band
 function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(robot);RB={h:b.max.y-b.min.y,w:b.max.x-b.min.x,y0:b.min.y-robot.position.y};resize()}
 function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;
   renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);camera.aspect=w/h;
@@ -1247,7 +1248,7 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
   const b=document.querySelector('#nav .rb').offsetWidth,top=portrait?.12:.08,bot=Math.min(portrait?.82:.84,(h-b-24)/h),gap=w-2*(b+34),cy=RB.y0+RB.h/2,
     P=(x,y)=>new THREE.Vector3(x,y,0).project(camera),aim=d=>{camera.position.set(0,3.4,d);camera.lookAt(0,cy,0);camera.updateMatrixWorld();camera.updateProjectionMatrix()};
   aim(10);const hp=(P(0,RB.y0+RB.h).y-P(0,RB.y0).y)/2*h,wp=(P(RB.w/2,cy).x-P(-RB.w/2,cy).x)/2*w;
-  aim(10*Math.max(hp/((bot-top)*h),wp/gap)*(portrait&&(cards||toys)?1.16:1));
+  aim(10*Math.max(hp/((bot-top)*h),wp/gap)*(portrait&&(cards||toys)?1.16:1)/SIZE);
   const hn=(P(0,RB.y0+RB.h).y-P(0,RB.y0).y)/2*h, y0=(1-P(0,RB.y0+RB.h).y)/2*h; // his current height and top edge in pixels
   if(portrait){ // upright: Googoo stands between the two rails, drops below the cards, or steps back for the toys
     const el=scr==='say'?document.getElementById('card'):deck,
