@@ -46,3 +46,5 @@ Newest decisions are at the bottom of each section.
 ## Navigation (2026-10-21)
 - Phone layout: left rail = this room's actions, right rail = the four learning games (same in every room), small mic + star counter top left (away from the bottom so frustrated taps miss it), gear alone top right, room tabs along the bottom.
 - Later: house rooms stay as tabs; outside places (courtyard, street, shop, park, farm) are reached by a map tab/button plus doors in the scene, and unlock with stars. Not built yet.
+
+- **No text bubbles for the child (2026-10-21):** he can't read, so words show as pictures on Googoo's face screen (tiny picture bubble only when the face is hidden); lines without a picture show nothing. Parents can switch on a small Farsi-only caption ("Show words" in the parent corner, off by default).
