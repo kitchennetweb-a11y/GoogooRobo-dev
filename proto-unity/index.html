@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Googoo Robo (Unity test)</title>
+<style>
+html,body{margin:0;height:100%;background:#2a1f1a;overflow:hidden}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+#bar{position:fixed;left:25%;right:25%;top:50%;height:12px;border-radius:6px;background:#00000055}
+#fill{height:100%;width:0;background:#46ebff;border-radius:6px;transition:width .2s}
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="-1"></canvas>
+<div id="bar"><div id="fill"></div></div>
+<script src="Build/proto-unity.loader.js"></script>
+<script>
+createUnityInstance(document.getElementById("c"), {
+  dataUrl: "Build/proto-unity.data.unityweb",
+  frameworkUrl: "Build/proto-unity.framework.js.unityweb",
+  codeUrl: "Build/proto-unity.wasm.unityweb",
+  streamingAssetsUrl: "StreamingAssets",
+  companyName: "Kitchennet",
+  productName: "Googoo Robo",
+  productVersion: "0.1.0",
+  devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2)
+}, p => document.getElementById("fill").style.width = (100 * p) + "%")
+.then(u => { document.getElementById("bar").remove(); window.unityInstance = u; })
+.catch(e => { document.getElementById("bar").textContent = e; console.error(e); });
+</script>
+</body>
+</html>
