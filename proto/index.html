@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#e9dccb">
+<title>Googoo 3D prototype</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#e9dccb;font-family:system-ui,sans-serif;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+canvas{display:block;touch-action:none}
+#btns{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;justify-content:center;gap:22px;z-index:2}
+#btns button{width:68px;height:68px;border-radius:50%;border:0;background:#ffffffd8;box-shadow:0 6px 0 #0003;font-size:34px;cursor:pointer;touch-action:manipulation}
+#btns button.on{background:#ffd34d}
+#btns button:active{transform:translateY(3px);box-shadow:0 3px 0 #0003}
+#start{position:fixed;inset:0;display:grid;place-items:center;background:#bfe3f2cc;z-index:5}
+#start button{font:800 30px system-ui,sans-serif;background:#ff7a59;color:#fff;border:0;border-radius:40px;padding:18px 40px;box-shadow:0 8px 0 #0003;cursor:pointer}
+#start p{text-align:center;margin:14px 16px 0;font-size:15px;opacity:.7}
+</style></head><body>
+<div id="btns"><button id="bDance" aria-label="Dance">💃</button><button id="bWhisper" aria-label="Whisper">🤫</button></div>
+<div id="start"><div><button id="go">Wake up Googoo!</button><p id="load">Loading Googoo…</p></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+'use strict';
+// ---------- Sound (same synth as the game's SFX / music) ----------
+let AC=null;const ac=()=>AC||(AC=new (window.AudioContext||window.webkitAudioContext)());
+function tone(f1,f2,dur,type='sine',vol=.25,delay=0){const a=ac(),t=a.currentTime+delay,o=a.createOscillator(),g=a.createGain();
+  o.type=type;o.frequency.setValueAtTime(f1,t);o.frequency.exponentialRampToValueAtTime(Math.max(f2,20),t+dur);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+.02)}
+const SFX={
+  boing:()=>tone(180,700,.35,'triangle',.3),
+  giggle:()=>{for(let i=0;i<5;i++)tone(700+(i%2)*200,900,.08,'sine',.2,i*.1)},
+  beep:()=>{tone(880,880,.08,'square',.1);tone(1320,1320,.1,'square',.1,.1)},
+  dizzy:()=>{for(let i=0;i<6;i++)tone(500+i*120,300+i*60,.12,'triangle',.15,i*.09)},
+};
+let musicTimer=null;
+function music(on){clearInterval(musicTimer);if(!on)return;const notes=[523,659,784,659,587,698,880,698];let i=0;
+  musicTimer=setInterval(()=>{tone(notes[i%8],notes[i%8],.18,'square',.07);if(i%2==0)tone(130,60,.12,'sine',.35);i++},220)}
+// voice clips: the mouth follows the clip's loudness through an AnalyserNode
+const VOICE={};let voiceSrc=null,analyser=null,abuf=null,vPeak=.02;
+const loadVoice=k=>VOICE[k]||(VOICE[k]=fetch('../audio/'+k+'.mp3').then(r=>{if(!r.ok)throw r.status;return r.arrayBuffer()})
+  .then(b=>new Promise((ok,no)=>ac().decodeAudioData(b,ok,no))).catch(e=>{delete VOICE[k];console.warn('voice',k,e);return null}));
+async function playVoice(k){const b=await loadVoice(k);if(!b)return 0;const a=ac();try{voiceSrc&&voiceSrc.stop()}catch(e){}
+  if(!analyser){analyser=a.createAnalyser();analyser.fftSize=512;abuf=new Float32Array(analyser.fftSize);analyser.connect(a.destination)}
+  const s=a.createBufferSource();s.buffer=b;s.connect(analyser);s.start();voiceSrc=s;vPeak=.02;s.onended=()=>{if(voiceSrc===s)voiceSrc=null};return b.duration}
+function voiceLevel(){if(!voiceSrc)return 0;analyser.getFloatTimeDomainData(abuf);let r=0;for(const v of abuf)r+=v*v;r=Math.sqrt(r/abuf.length);
+  vPeak=Math.max(vPeak*.995,r);return Math.min(1,r/(vPeak*.8))} // normalised to the clip's own peak, so whispers move the mouth as much as normal lines
+
+// ---------- Renderer, scene, room (from the game: wood floor, rug, painted walls, window with day/night sky) ----------
+const SMALL=Math.min(screen.width,screen.height)<500;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=SMALL?THREE.PCFShadowMap:THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xe9dccb);
+const camera=new THREE.PerspectiveCamera(45,1,.1,60);
+const hemi=new THREE.HemisphereLight(0xdfeeff,0xb08a5e,.3);scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xfff1dc,.95);sun.position.set(-3.5,9,5.5);sun.castShadow=true; // the one shadow-casting light
+sun.shadow.mapSize.setScalar(SMALL?1024:2048);sun.shadow.bias=-.0004;sun.shadow.normalBias=.02;Object.assign(sun.shadow.camera,{left:-7,right:7,top:7,bottom:-7,far:30});scene.add(sun);
+const fill=new THREE.DirectionalLight(0xffe2c4,.18);fill.position.set(5,4,8);scene.add(fill);
+function canvasTex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1])}return t}
+const rnd=(a,b)=>a+Math.random()*(b-a),M=(c,r=.45,m=.1)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+function part(geo,mat,x=0,y=0,z=0){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;return m}
+const room=new THREE.Group();scene.add(room);
+const RW=16,RD=13,RH=7,BACK=-5.2;
+const woodTex=canvasTex(1024,1024,(x,w,h)=>{const rows=8,ph=h/rows;
+  for(let r=0;r<rows;r++){let xo=-rnd(0,w*.6);while(xo<w){const len=rnd(w*.35,w*.7),b=[rnd(176,206),rnd(128,150),rnd(86,104)];
+      x.fillStyle=`rgb(${b[0]|0},${b[1]|0},${b[2]|0})`;x.fillRect(xo,r*ph,len,ph);
+      for(let g=0;g<26;g++){const y=r*ph+rnd(2,ph-2);x.strokeStyle=`rgba(90,55,30,${rnd(.04,.13)})`;x.lineWidth=rnd(.6,2);x.beginPath();
+        x.moveTo(xo,y);for(let s=0;s<=8;s++)x.lineTo(xo+len*s/8,y+Math.sin(s*rnd(.5,1.3)+g)*rnd(1,4));x.stroke()}
+      x.fillStyle='rgba(60,35,18,.55)';x.fillRect(xo,r*ph,2,ph);xo+=len}
+    x.fillStyle='rgba(60,35,18,.6)';x.fillRect(0,r*ph,w,2)}},[3,3]);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(RW,RD),new THREE.MeshStandardMaterial({map:woodTex,roughness:.55}));
+floor.rotation.x=-Math.PI/2;floor.position.set(0,0,BACK+RD/2);floor.receiveShadow=true;room.add(floor);
+const rugTex=canvasTex(1024,1024,(x,w)=>{const cx=w/2,cols=['#e76f51','#f4a261','#fbe8c8','#2a9d8f','#f4a261','#fbe8c8','#e76f51','#e9c46a'];
+  for(let i=0;i<cols.length;i++){x.fillStyle=cols[i];x.beginPath();x.arc(cx,cx,cx*(1-i/cols.length),0,7);x.fill()}
+  for(let k=0;k<9000;k++){const a=rnd(0,7),r=rnd(0,cx);x.fillStyle=`rgba(${Math.random()<.5?'255,255,255':'60,30,20'},${rnd(.03,.08)})`;x.fillRect(cx+Math.cos(a)*r,cx+Math.sin(a)*r,rnd(2,5),1.5)}
+  x.strokeStyle='rgba(255,255,255,.5)';x.setLineDash([6,8]);x.lineWidth=3;x.beginPath();x.arc(cx,cx,cx-10,0,7);x.stroke()});
+const rug=new THREE.Mesh(new THREE.CircleGeometry(3.4,64),new THREE.MeshStandardMaterial({map:rugTex,roughness:.95}));
+rug.rotation.x=-Math.PI/2;rug.position.y=.008;rug.receiveShadow=true;room.add(rug);
+const wallTex=canvasTex(512,512,(x,w,h)=>{x.fillStyle='#e8d9c4';x.fillRect(0,0,w,h);
+  for(let k=0;k<5000;k++){x.fillStyle=`rgba(${Math.random()<.5?'255,255,255':'120,90,60'},${rnd(.015,.045)})`;x.fillRect(rnd(0,w),rnd(0,h),rnd(2,8),rnd(2,8))}},[3,2]);
+const wallMat=new THREE.MeshStandardMaterial({map:wallTex,roughness:.92,color:0x6f9cff}); // bedroom wall colour (game: WALL.bed)
+const backW=new THREE.Mesh(new THREE.PlaneGeometry(RW,RH),wallMat);backW.position.set(0,RH/2,BACK);backW.receiveShadow=true;room.add(backW);
+for(const s of[-1,1]){const w=new THREE.Mesh(new THREE.PlaneGeometry(RD,RH),wallMat);w.rotation.y=-s*Math.PI/2;w.position.set(s*RW/2,RH/2,BACK+RD/2);w.receiveShadow=true;room.add(w)}
+const skirt=new THREE.Mesh(new THREE.BoxGeometry(RW,.28,.06),M(0xfaf6ef,.5));skirt.position.set(0,.14,BACK+.03);room.add(skirt);
+const skyTex=canvasTex(256,256,(x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#8fc8f0');g.addColorStop(.75,'#d6eefb');g.addColorStop(1,'#bfe0c0');x.fillStyle=g;x.fillRect(0,0,w,h);
+  x.fillStyle='rgba(255,255,255,.9)';for(const [cx,cy,r] of[[70,70,22],[95,62,28],[125,72,20],[190,110,16],[210,104,20]]){x.beginPath();x.arc(cx,cy,r,0,7);x.fill()}
+  x.fillStyle='#7fb069';x.beginPath();x.moveTo(0,h);x.quadraticCurveTo(w*.3,h*.72,w*.6,h*.85);x.quadraticCurveTo(w*.85,h*.75,w,h*.8);x.lineTo(w,h);x.fill()});
+const nightTex=canvasTex(256,256,(x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#0b1236');g.addColorStop(1,'#2a3570');x.fillStyle=g;x.fillRect(0,0,w,h);
+  x.fillStyle='#fff';for(let i=0;i<40;i++){x.globalAlpha=.4+Math.random()*.6;x.beginPath();x.arc(Math.random()*w,Math.random()*h*.75,Math.random()*1.6+.4,0,7);x.fill()}
+  x.globalAlpha=1;x.fillStyle='#fff6c8';x.shadowColor='#fff6c8';x.shadowBlur=18;x.beginPath();x.arc(180,70,26,0,7);x.fill();
+  x.shadowBlur=0;x.fillStyle='#0b1236';x.beginPath();x.arc(194,62,24,0,7);x.fill();
+  x.fillStyle='#1d3a2c';x.beginPath();x.moveTo(0,h);x.quadraticCurveTo(w*.3,h*.72,w*.6,h*.85);x.quadraticCurveTo(w*.85,h*.75,w,h*.8);x.lineTo(w,h);x.fill()});
+const WX=-1.2,WY=3.9,WW=3.2,WH=2.4;
+const skyMat=new THREE.MeshBasicMaterial({map:skyTex,toneMapped:false});
+const sky=new THREE.Mesh(new THREE.PlaneGeometry(WW,WH),skyMat);sky.position.set(WX,WY,BACK+.01);room.add(sky);
+const frameMat=M(0xffffff,.45);
+const bar=(w,h,x,y)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,.12),frameMat);m.position.set(x,y,BACK+.06);room.add(m)};
+bar(WW+.24,.14,WX,WY+WH/2);bar(WW+.24,.14,WX,WY-WH/2);bar(.14,WH,WX-WW/2,WY);bar(.14,WH,WX+WW/2,WY);bar(.08,WH,WX,WY);bar(WW,.08,WX,WY);
+const sill=new THREE.Mesh(new THREE.BoxGeometry(WW+.6,.1,.4),frameMat);sill.position.set(WX,WY-WH/2-.1,BACK+.2);room.add(sill);
+const curtainMat=new THREE.MeshStandardMaterial({color:0x7aa7c7,roughness:.9,side:THREE.DoubleSide});
+for(const s of[-1,1]){const cg=new THREE.PlaneGeometry(.9,WH+1.1,12,1),pa=cg.attributes.position;for(let i=0;i<pa.count;i++)pa.setZ(i,Math.sin(pa.getX(i)*14)*.07);cg.computeVertexNormals();
+  const cu=new THREE.Mesh(cg,curtainMat);cu.position.set(WX+s*(WW/2+.45),WY-.25,BACK+.18);room.add(cu)}
+const windowGlow=new THREE.PointLight(0xcfe8ff,.45,9,2);windowGlow.position.set(WX,WY,BACK+1.2);scene.add(windowGlow);
+let dayEnv;(function(){const pm=new THREE.PMREMGenerator(renderer),es=new THREE.Scene(); // soft room reflections, as in the game
+  es.add(new THREE.Mesh(new THREE.BoxGeometry(20,10,20),new THREE.MeshBasicMaterial({color:0x5e5244,side:THREE.BackSide})));
+  const win=new THREE.Mesh(new THREE.PlaneGeometry(6,4),new THREE.MeshBasicMaterial({color:0xbfc8d0}));win.position.set(-2,4,-9.9);es.add(win);
+  dayEnv=pm.fromScene(es,.04).texture;scene.environment=dayEnv;pm.dispose()})();
+// furniture (bed, lamp, night stand); x0 = wanted x, pulled in on narrow screens by resize()
+const furn=new THREE.Group();scene.add(furn);
+function add(id,g,x,z,ry=0){g.position.set(x,0,z);g.rotation.y=ry;g.traverse(o=>{o.userData.furn=id;if(o.isMesh)o.castShadow=o.receiveShadow=true});g.userData.x0=x;furn.add(g);
+  const bb=new THREE.Box3().setFromObject(g),sz=new THREE.Vector3(),c=new THREE.Vector3();bb.getSize(sz);bb.getCenter(c);g.worldToLocal(c); // invisible tap box
+  const hb=new THREE.Mesh(new THREE.BoxGeometry(sz.x+.3,sz.y+.3,sz.z+.3),new THREE.MeshBasicMaterial({visible:false}));hb.position.copy(c);hb.rotation.y=-ry;hb.userData.furn=id;g.add(hb);return g}
+function rbox(w,h,d,r,mat){w-=2*r;h-=2*r;const rr=r;r=Math.min(w,h)*.25;const s=new THREE.Shape(),x=-w/2,y=-h/2;
+  s.moveTo(x+r,y);s.lineTo(x+w-r,y);s.quadraticCurveTo(x+w,y,x+w,y+r);s.lineTo(x+w,y+h-r);s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  s.lineTo(x+r,y+h);s.quadraticCurveTo(x,y+h,x,y+h-r);s.lineTo(x,y+r);s.quadraticCurveTo(x,y,x+r,y);
+  const g=new THREE.ExtrudeGeometry(s,{depth:d-rr*2,bevelEnabled:true,bevelThickness:rr,bevelSize:rr*.95,bevelSegments:4,curveSegments:8});g.translate(0,0,-(d-rr*2)/2);return new THREE.Mesh(g,mat)}
+const dark=M(0x8a5a33,.7);
+{const bed=new THREE.Group(),fr=rbox(2.2,.45,1.3,.1,dark);fr.position.y=.32;bed.add(fr);
+  const mt=rbox(2.05,.25,1.2,.12,M(0xf6f1e7,.9));mt.position.y=.62;bed.add(mt);
+  const bl=rbox(1.3,.12,1.24,.08,M(0x5aa9ff,.8));bl.position.set(.35,.75,0);bed.add(bl);
+  const pi=rbox(.5,.18,.8,.09,M(0xffffff,.9));pi.position.set(-.75,.8,0);bed.add(pi);
+  const hd=rbox(.14,1.1,1.3,.06,dark);hd.position.set(-1.1,.6,0);bed.add(hd);add('bed',bed,3.2,-3.3,-.35)}
+const shadeMat=new THREE.MeshStandardMaterial({color:0xffe08a,emissive:0xffc94d,emissiveIntensity:.6,roughness:.6,side:THREE.DoubleSide});
+const lamp=new THREE.Group();lamp.add(part(new THREE.CylinderGeometry(.3,.36,.08,24),M(0x3d4a63,.5),0,.04,0));
+lamp.add(part(new THREE.CylinderGeometry(.04,.04,1.6,10),M(0x3d4a63,.5),0,.84,0));lamp.add(part(new THREE.CylinderGeometry(.28,.45,.5,24,1,true),shadeMat,0,1.75,0));
+add('lamp',lamp,-3.2,-3.6);
+const lampLight=new THREE.PointLight(0xffc77a,0,8,2);lampLight.position.set(0,1.6,0);lamp.add(lampLight);
+{const ns=new THREE.Group();ns.add(part(new THREE.BoxGeometry(.7,.62,.55),M(0xf4f7fb,.6),0,.31,0));ns.add(part(new THREE.SphereGeometry(.04,8,6),M(0xffc93c,.4),0,.4,.29));add('nightstand',ns,1.6,-4.4,-.2)}
+// day / night (the game's ROOM_DAY / ROOM_NIGHT, plus a soft moon fill so Googoo is still readable)
+const DAY={bg:0xe9dccb,sun:.95,hemi:.3,win:.45,fill:.18,exp:.9},NIGHT={bg:0x2b2f45,sun:.05,hemi:.1,win:0,fill:.06,exp:.85};
+let lightsOn=true;
+function setLights(on){lightsOn=on;const L=on?DAY:NIGHT;sun.intensity=L.sun;hemi.intensity=L.hemi;windowGlow.intensity=L.win;fill.intensity=L.fill;
+  renderer.toneMappingExposure=L.exp;scene.background.setHex(L.bg);scene.environment=on?dayEnv:null;skyMat.map=on?skyTex:nightTex;skyMat.needsUpdate=true;
+  shadeMat.emissiveIntensity=on?.6:2.2;lampLight.intensity=on?0:1.8;document.querySelector('meta[name=theme-color]').content=on?'#e9dccb':'#2b2f45'}
+
+// ---------- Face screen: the game's drawFace on a canvas texture ----------
+// The screen sheet is ~0.30 x 0.21 (aspect 1.43); the game's face is 512x300, drawn centred in a 512x358 canvas.
+// glTF UVs have v=0 at the top, so flipY=false keeps the canvas upright.
+const fc=document.createElement('canvas');fc.width=512;fc.height=358;const fx=fc.getContext('2d');
+const faceTex=new THREE.CanvasTexture(fc);faceTex.encoding=THREE.sRGBEncoding;faceTex.flipY=false;
+let face='happy',blink=0,mouthOpen=0,faceUntil=0;
+function drawFace(t){fx.setTransform(1,0,0,1,0,0);fx.fillStyle='#0f1a2e';fx.fillRect(0,0,512,358);fx.translate(0,29);
+  const glow=face==='sleep'?'#7aa2ff':face==='dizzy'?'#ffd34d':'#5ff2d0';
+  fx.strokeStyle=glow;fx.fillStyle=glow;fx.lineWidth=18;fx.lineCap='round';fx.shadowColor=glow;fx.shadowBlur=25;
+  const eye=x=>{
+    if(face==='dizzy'){fx.beginPath();for(let a=0;a<12;a+=.3){const r=a*3.2;fx.lineTo(x+Math.cos(a+t*8)*r,120+Math.sin(a+t*8)*r)}fx.stroke();return}
+    if(face==='sleep'||blink>0){fx.beginPath();fx.moveTo(x-38,125);fx.quadraticCurveTo(x,face==='sleep'?145:130,x+38,125);fx.stroke();return}
+    if(face==='laugh'){fx.beginPath();fx.moveTo(x-38,135);fx.quadraticCurveTo(x,85,x+38,135);fx.stroke();return}
+    fx.beginPath();fx.ellipse(x,120,34,44,0,0,7);fx.fill();
+    fx.fillStyle='#0f1a2e';fx.shadowBlur=0;fx.beginPath();fx.arc(x+12,104,11,0,7);fx.fill();fx.fillStyle=glow;fx.shadowBlur=25};
+  eye(165);eye(347);fx.beginPath();
+  if(mouthOpen>.05||face==='laugh'){const h=20+mouthOpen*40;fx.ellipse(256,222,face==='laugh'?60:34,h/2,0,0,7);fx.fill()}
+  else if(face==='sleep'){fx.arc(256,225,10,0,7);fx.stroke()}
+  else if(face==='dizzy'){fx.moveTo(200,225);for(let i=0;i<=6;i++)fx.lineTo(200+i*19,225+(i%2?-14:14));fx.stroke()}
+  else{fx.moveTo(196,212);fx.quadraticCurveTo(256,262,316,212);fx.stroke()}
+  if(face==='laugh'){fx.fillStyle='#ff7a9a';fx.shadowBlur=0;fx.globalAlpha=.6;fx.beginPath();fx.arc(95,200,28,0,7);fx.arc(417,200,28,0,7);fx.fill();fx.globalAlpha=1}
+  fx.shadowBlur=0;faceTex.needsUpdate=true}
+const setFace=(f,ms=1500)=>{face=f;faceUntil=performance.now()+ms};
+const restFace=()=>lightsOn?'happy':'sleep'; // lamp off: sleepy eyes
+
+// ---------- Googoo ----------
+const H=2.7; // his height in the room (model is 1 unit tall)
+const googoo=new THREE.Group();scene.add(googoo); // wrapper: bounce, squash and turn live here so the clips keep the bones
+let hit=null; // his body mesh (raycast in the rest pose: close enough for taps)
+let mixer=null,A={},B={},REST={},BASE={},ready=false;
+const loadMsg=document.getElementById('load');
+new THREE.GLTFLoader().load('googoo_rigged.glb',g=>{
+  const m=g.scene;m.scale.setScalar(H);googoo.add(m);
+  m.traverse(o=>{if(o.isMesh){o.userData.googoo=1;o.castShadow=true;o.receiveShadow=o.name!=='Googoo_face_screen';o.frustumCulled=false}
+    if(o.isBone){B[o.name]=o;REST[o.name]=o.quaternion.clone();BASE[o.name]=o.quaternion.clone()}});BASE.hipsPos=B.Hips.position.clone();
+  hit=m.getObjectByName('Googoo_body');const scr=m.getObjectByName('Googoo_face_screen');scr.material=new THREE.MeshBasicMaterial({map:faceTex,toneMapped:false});scr.castShadow=false;
+  mixer=new THREE.AnimationMixer(m);for(const c of g.animations)A[c.name]=mixer.clipAction(c);
+  for(const k of['wave','nod']){A[k].setLoop(THREE.LoopOnce,1);A[k].clampWhenFinished=true}
+  A.idle.play();
+  mixer.addEventListener('finished',e=>{e.action.fadeOut(.3);A.idle.reset().fadeIn(.3).play()});
+  ready=true;loadMsg.textContent='';window.__googoo={ms:Math.round(performance.now())}},
+  p=>{if(p.total)loadMsg.textContent='Loading Googoo… '+Math.round(p.loaded/p.total*100)+'%'},
+  e=>{loadMsg.textContent='Could not load the model';console.error(e)});
+function playClip(k){if(!A[k])return;A.idle.fadeOut(.25);for(const n of['wave','nod'])if(n!==k&&A[n].isRunning())A[n].fadeOut(.2);A[k].reset().fadeIn(.25).play()}
+
+// procedural layers on top of the clips: rotations in the parent bone's space (the spine bones have no rest rotation, so that is model space)
+const _q=new THREE.Quaternion(),_e=new THREE.Euler();
+function rot(n,x,y,z){const b=B[n];if(!b)return;_e.set(x,y,z);_q.setFromEuler(_e);b.quaternion.premultiply(_q)}
+let mode='idle',danceT0=0,react=null,look={y:0,x:0,ty:0,tx:0,next:0},jump={v:0,y:0},squash=0,nextBlink=2;
+
+// ---------- Input ----------
+const ray=new THREE.Raycaster(),ptr=new THREE.Vector2();
+renderer.domElement.addEventListener('pointerdown',e=>{ptr.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(ptr,camera);
+  const h=ray.intersectObjects(hit?[hit,furn]:[furn],true)[0];if(!h)return;
+  if(h.object.userData.googoo)return poke(h.point.y/H);
+  if(h.object.userData.furn==='lamp'){setLights(!lightsOn);SFX.beep();if(!voiceSrc&&mode!=='dance')setFace(lightsOn?'happy':'sleep',600);wig(lamp)}
+  else wig(furn.children.find(g=>g.userData.furn===h.object.userData.furn))});
+function wig(g){if(!g)return;g.userData.wig=performance.now()}
+function poke(y){if(!ready)return;SFX.giggle();SFX.boing();setFace('laugh',1400);jump.v=Math.max(jump.v,3.2);squash=1;
+  react={t0:clock.elapsedTime,dir:Math.random()<.5?-1:1,arm:Math.random()<.5?'Left':'Right',head:y>.62};
+  if(mode!=='dance')playClip(Math.random()<.5?'wave':'nod')}
+const bDance=document.getElementById('bDance'),bWhisper=document.getElementById('bWhisper');
+bDance.onclick=()=>{if(!ready)return;if(mode==='dance'){mode='idle';music(false);bDance.classList.remove('on');setFace('dizzy',1600);SFX.dizzy();A.idle.reset().fadeIn(.3).play();return}
+  mode='dance';danceT0=clock.elapsedTime;music(true);bDance.classList.add('on');setFace('laugh',900)};
+bWhisper.onclick=async()=>{if(mode==='dance')bDance.onclick();bWhisper.classList.add('on');const d=await playVoice('ww_cat');setTimeout(()=>bWhisper.classList.remove('on'),d*1000+200)};
+document.getElementById('go').onclick=()=>{ac().resume();document.getElementById('start').remove();setTimeout(()=>playVoice('hi'),300)};
+loadVoice('hi');loadVoice('ww_cat'); // decodes after the context exists; cheap (two small mp3s)
+
+// ---------- Framing ----------
+function resize(){const w=innerWidth,h=innerHeight,portrait=w<h;
+  renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);
+  camera.aspect=w/h;camera.fov=portrait?50:38;camera.updateProjectionMatrix();
+  const span=portrait?.6:.7,tan=Math.tan(camera.fov*Math.PI/360),d=Math.max(H/span,H*1.05/camera.aspect)/(2*tan); // he spans up to 60% (portrait) / 70% (landscape) of the height, and his dance arm span (~1 H) fits the width
+  const cy=H*.47;camera.position.set(0,cy+H*.28,d);camera.lookAt(0,cy,0);
+  // shift him up a little so the buttons have room under his feet
+  camera.setViewOffset(w,h,0,h*(portrait?.025:.04),w,h);camera.updateProjectionMatrix();
+  // narrow screens: pull the furniture in so the lamp and bed stay in view
+  for(const g of furn.children){const dz=d-g.position.z,half=dz*tan*camera.aspect;g.position.x=Math.sign(g.userData.x0)*Math.min(Math.abs(g.userData.x0),half*.72)}}
+addEventListener('resize',resize);resize();
+
+// ---------- Loop ----------
+const clock=new THREE.Clock();let raf=0;
+function frame(){raf=requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.1),t=clock.elapsedTime,now=performance.now();
+  // face
+  if(now>faceUntil&&!(mode==='dance'))face=restFace();
+  if(mode==='dance'&&now>faceUntil)face=Math.sin(t*2)>0?'laugh':'happy';
+  if(voiceSrc&&face==='sleep')face='happy';
+  if(t>nextBlink){blink=.13;nextBlink=t+rnd(2.2,5)}blink-=dt;
+  const lvl=voiceLevel();mouthOpen+=(lvl-mouthOpen)*Math.min(1,dt*25);if(!voiceSrc&&mouthOpen<.05)mouthOpen=0;
+  drawFace(t);
+  if(ready){
+    // three's mixer only writes a bone when its clip value changes, so undo last frame's procedural layer first (BASE = mixer output)
+    for(const n in B)B[n].quaternion.copy(BASE[n]);B.Hips.position.copy(BASE.hipsPos);
+    if(mode==='dance'){for(const n in B)B[n].quaternion.copy(REST[n])} // dance owns the bones; clips paused
+    else{mixer.update(dt);for(const n in B)BASE[n].copy(B[n].quaternion);BASE.hipsPos.copy(B.Hips.position)}
+    // breathing + slow look-around
+    if(t>look.next){look.ty=rnd(-.35,.35);look.tx=rnd(-.08,.12);look.next=t+rnd(1.8,4)}
+    if(voiceSrc){look.ty=0;look.tx=.12} // leans in while whispering
+    look.y+=(look.ty-look.y)*Math.min(1,dt*2.5);look.x+=(look.tx-look.x)*Math.min(1,dt*2.5);
+    rot('Chest',Math.sin(t*2.2)*.025,0,0);rot('Neck',look.x*.5,look.y*.5,0);rot('Head',look.x*.5,look.y*.5,0);
+    if(mode==='dance'){const w=Math.PI*2/.88,u=(t-danceT0)*w,s=Math.sin(u),b=Math.abs(Math.sin(u));
+      rot('Hips',0,Math.sin(u/2)*.25,s*.14);B.Hips.position.x+=s*.02;B.Hips.position.y-=b*.018;
+      rot('Spine',0,0,-s*.09);rot('Chest',0,0,-s*.06);rot('Head',Math.sin(u*2)*.14,0,s*.12);
+      rot('LeftUpperArm',0,0,.4+.75*(.5+.5*s));rot('RightUpperArm',0,0,-(.4+.75*(.5-.5*s)));
+      rot('LeftLowerArm',0,0,.3*b);rot('RightLowerArm',0,0,-.3*b);
+      rot('LeftUpperLeg',0,0,-.05-.05*s);rot('RightUpperLeg',0,0,.05-.05*s);
+      googoo.position.y=b*.06;googoo.rotation.y=Math.sin(u/4)*.25}
+    else{googoo.rotation.y*=.9}
+    if(react){const r=(t-react.t0)/.9;if(r>=1)react=null;else{const e=Math.sin(Math.PI*r);
+      rot('Head',0,0,react.dir*.35*e);rot('Spine',-.1*e,0,react.dir*.06*e);
+      if(mode==='dance'||!A.wave.isRunning())rot(react.arm+'UpperArm',0,0,(react.arm==='Left'?1:-1)*1.1*e*Math.abs(Math.sin(r*Math.PI*3)))}}
+  }
+  // bounce (spring + gravity) and squash on the wrapper
+  jump.v-=dt*14;jump.y=Math.max(0,jump.y+jump.v*dt);if(jump.y===0)jump.v=Math.max(0,jump.v);
+  squash=Math.max(0,squash-dt*3);const sq=Math.sin(squash*Math.PI)*.08,br=1+Math.sin(t*2.2)*.006;
+  googoo.scale.set(1+sq,(1-sq)*br,1+sq);if(mode!=='dance')googoo.position.y=jump.y;else googoo.position.y+=jump.y;
+  // furniture wiggle
+  for(const g of furn.children){const a=(now-(g.userData.wig||0))/600;g.rotation.z=a<1?Math.sin(a*Math.PI*4)*.06*(1-a):0}
+  renderer.render(scene,camera)}
+frame();
+document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(raf);raf=0;AC&&AC.suspend()}else if(!raf){clock.getDelta();frame();AC&&AC.resume()}});
+</script>
+</body></html>
