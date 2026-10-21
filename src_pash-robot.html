@@ -22,7 +22,10 @@ canvas{display:block}
 #bubble .tr{font-size:18px;opacity:.65;font-weight:600}
 .col{position:fixed;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:var(--g);z-index:3}
 #colL{left:calc(env(safe-area-inset-left,0px) + 12px)}#colR{right:calc(env(safe-area-inset-right,0px) + 12px)}
-@media (orientation:portrait){.col{top:70%}} /* upright: buttons sit on the empty floor, not over the furniture */
+#acts{display:contents}
+@media (orientation:portrait){ /* upright: everything in thumb reach: room tabs at the very bottom, this screen's buttons in a row (two at most) just above (width: resize()) */
+  #acts{display:flex;flex-wrap:wrap;justify-content:center;gap:10px var(--g);position:fixed;z-index:3;left:50%;transform:translateX(-50%);
+    width:calc(100% - 24px);bottom:calc(env(safe-area-inset-bottom,0px) + var(--b) + 24px)}.col{display:contents}}
 #nav{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);transform:translateX(-50%);display:flex;gap:var(--g);z-index:3}
 .rb{width:var(--b);height:var(--b);border-radius:50%;border:0;padding:0;font-size:calc(var(--b)*.5);line-height:1;display:grid;place-items:center;
   cursor:pointer;box-shadow:0 5px 0 #0003;transition:transform .1s,box-shadow .1s;touch-action:manipulation}
@@ -30,7 +33,7 @@ canvas{display:block}
 .rb:focus-visible{outline:4px solid var(--ink);outline-offset:3px}
 #nav .rb{background:#ffffffcc}#nav .rb.cur{background:#ffd34d;box-shadow:0 0 0 4px #fff,0 5px 0 #0003}
 @media (min-width:700px) and (min-height:700px){:root{--b:68px;--g:18px}}
-@media (max-height:440px){:root{--g:8px;--b:50px}}
+@media (max-height:440px){:root{--g:8px;--b:52px}}
 #fade{position:fixed;inset:0;background:#fff7ea;opacity:0;pointer-events:none;transition:opacity .3s;z-index:4}#fade.on{opacity:1}
 #card{position:fixed;left:30%;top:50%;transform:translate(-50%,-50%);z-index:2;background:#fffffff0;border-radius:32px;padding:10px 26px 6px;
   text-align:center;box-shadow:0 8px 0 #22314a22;pointer-events:none}
@@ -75,9 +78,10 @@ canvas{display:block}
 /* #deck: big tappable emoji cards for the card games, picture book and stories (robot steps aside, like Say it) */
 #deck{position:fixed;z-index:2;left:calc(env(safe-area-inset-left,0px) + var(--b) + 28px);right:42%;top:calc(env(safe-area-inset-top,0px) + 100px);
   bottom:calc(env(safe-area-inset-bottom,0px) + var(--b) + 26px);display:flex;flex-wrap:wrap;align-items:center;align-content:center;justify-content:center;gap:14px;pointer-events:none}
-@media (orientation:portrait){#deck{left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 120px);bottom:47%}}
+@media (orientation:portrait){#deck{left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 96px);bottom:50%;align-content:flex-end}} /* upright: cards sit just above the robot's face (resize() puts him under them) */
 #bubble{width:max-content}body:has(#deck.story:not([hidden])) #bubble .fa{font-size:clamp(20px,3.6vw,30px)}
 @media (orientation:portrait){body:has(#deck.story:not([hidden])) #bubble .tr{display:none}}
+@media (orientation:portrait) and (max-width:600px){body:has(#deck:not([hidden])) #bubble .tr{display:none}}
 @media (orientation:portrait){#deck.story{flex-wrap:wrap}#deck.story .ec.scene{flex-basis:100%;order:-1;font-size:min(12vh,20vw)}} /* upright: story picture gets its own big row */
 @media (max-height:500px){#deck{top:calc(env(safe-area-inset-top,0px) + 76px);gap:10px}}
 .ec{pointer-events:auto;border:0;border-radius:28px;background:#fffffff0;box-shadow:0 8px 0 #22314a22;color:var(--ink);font:inherit;font-size:min(17vh,12vw);
@@ -87,7 +91,7 @@ canvas{display:block}
 .ec.nav{font-size:calc(var(--b)*.5);width:var(--b);height:var(--b);padding:0;border-radius:50%;background:#ffffffcc;box-shadow:0 5px 0 #0003}
 .ec.many,.ec.scene{font-size:min(11vh,8vw)}.ec.scene{flex:1;min-width:0}
 .grid .ec{font-size:min(9vh,7vw);padding:6px 10px;border-radius:20px}
-@media (orientation:portrait){.ec:not(.nav,.many,.scene){font-size:min(13vh,18vw)}.grid .ec{font-size:min(7vh,11vw)}}
+@media (orientation:portrait){.ec:not(.nav,.many,.scene){font-size:min(13vh,18vw)}.grid .ec{font-size:min(5.5vh,10vw)}#deck.grid{gap:8px}}
 .ec:active,.ec.win{transform:scale(1.08)}.ec.win{box-shadow:0 0 0 6px #ffd34d,0 8px 0 #22314a22}
 .wig{animation:wig .5s}@keyframes wig{25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
 .pc-card h3{font:800 17px var(--display);margin:14px 0 6px}.pc-chips{display:flex;flex-wrap:wrap;gap:6px}
@@ -113,7 +117,7 @@ canvas{display:block}
 <div id="stage"></div>
 <div id="bubble"><div class="fa" id="bfa"></div><div class="tr" id="btr"></div></div>
 <div id="hint">Find, Feed and Say it are Farsi games. Just talk to Pash: when he's standing still he listens and repeats it in a funny voice. The Talk button turns his ears on and off. Poke his head, tummy (try 3 times fast!), ears, feet, antenna or face. Drag to spin him. Tap the empty floor to call him home. Grown-ups: Farsi lines show here and will play your recorded voice later.</div>
-<div id="colL" class="col"></div><div id="colR" class="col"></div>
+<div id="acts"><div id="colL" class="col"></div><div id="colR" class="col"></div></div>
 <div id="nav"><button class="rb" data-r="home" aria-label="Home">🏠</button><button class="rb" data-r="play" aria-label="Play room">🧸</button>
   <button class="rb" data-r="bed" aria-label="Bedroom">🛏️</button><button class="rb" data-r="say" aria-label="Say it">🗣️</button>
   <button class="rb" data-r="book" aria-label="Picture book">📖</button></div>
@@ -226,7 +230,9 @@ function loadVoice(k){if(VOICE[k])return Promise.resolve(VOICE[k]);if(!HAS.has(k
     .then(b=>VOICE[k]=b).catch(()=>{delete VLOAD[k];return null}))}
 const loadVoices=keys=>Promise.all(keys.map(loadVoice));
 // core = every clip that isn't a per-word line; word clips load when needed
-const loadCore=()=>MANIFEST.then(()=>loadVoices([...HAS].filter(k=>!/^(w|ww|wn|where|this|say|want|song|surprise)_/.test(k))));
+// core = Pash's own reactions (pokes, greetings, variants), loaded one at a time so the phone stays responsive; word, game, book and story lines load when needed
+const loadCore=()=>MANIFEST.then(()=>[...HAS].filter(k=>!/^(w|ww|wn|where|this|say|want|song|surprise|st|book|ask|snd|hunt|count|night|dark|disco|lamp|invite)_/.test(k))
+  .reduce((p,k)=>p.then(()=>loadVoice(k)),Promise.resolve()));
 let voiceSrc=null,voiceEnd=0;
 function playVoice(k){const b=VOICE[k];if(!b||!AC)return 0;try{voiceSrc&&voiceSrc.stop()}catch(e){}
   const s=AC.createBufferSource(),g=AC.createGain();g.gain.value=k==='name'?.9:1;s.buffer=b;s.connect(g).connect(AC.destination);s.start(AC.currentTime+.05);voiceSrc=s;voiceEnd=AC.currentTime+.05+b.duration;return b.duration}
@@ -279,7 +285,7 @@ function say(k){k=pickVar(k);lastSaid=k;try{statHeard(k)}catch(e){}hush(1600);co
   if(VOICE[k]||!HAS.has(k))go();else loadVoice(k).then(()=>{if(lastSaid===k)go()})}
 
 // ---------- Scene ----------
-const stage=document.getElementById('stage');
+const stage=document.getElementById('stage');let portrait=innerWidth<innerHeight;
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputEncoding=THREE.sRGBEncoding;stage.appendChild(renderer.domElement);
@@ -295,7 +301,9 @@ const rug=new THREE.Mesh(new THREE.CircleGeometry(3.2,48),new THREE.MeshStandard
 rug.rotation.x=-Math.PI/2;rug.position.y=.005;rug.receiveShadow=true;scene.add(rug);
 // ---------- A real-looking playroom: walls, window, wood floor, woven rug, soft daylight ----------
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap;sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.02;
+// phones: fewer pixels (resize) and cheaper shadows; low-end phones: no shadows
+const SMALL=Math.min(window.screen.width,window.screen.height)<500,LOW=SMALL&&(navigator.hardwareConcurrency||8)<=4||(navigator.deviceMemory||8)<=2;
+renderer.shadowMap.enabled=!LOW;renderer.shadowMap.type=SMALL?THREE.PCFShadowMap:THREE.PCFSoftShadowMap;sun.shadow.mapSize.setScalar(SMALL?1024:2048);sun.shadow.bias=-0.0004;sun.shadow.normalBias=0.02;
 scene.fog=null;scene.background=new THREE.Color(0xe9dccb);
 floor.visible=false;rug.visible=false;
 function canvasTex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);
@@ -552,7 +560,7 @@ const bubMat=new THREE.MeshStandardMaterial({color:0xaee8ff,transparent:true,opa
 let popped=0;
 function blowBubbles(){say('bubbles');popped=0;
   for(let i=0;i<8;i++){const b=new THREE.Mesh(new THREE.SphereGeometry(.22+Math.random()*.18,20,14),bubMat);
-    b.position.set((Math.random()-.5)*5,.3-Math.random()*2,1+Math.random()*1.5);b.userData={bubble:true,ph:Math.random()*6,sp:.35+Math.random()*.35};bubbleGroup.add(b)}
+    b.position.set((Math.random()-.5)*(portrait?2.6:5),.3-Math.random()*2,1+Math.random()*1.5);b.userData={bubble:true,ph:Math.random()*6,sp:.35+Math.random()*.35};bubbleGroup.add(b)}
   for(let i=0;i<4;i++)tone(600+i*90,900+i*90,.15,'sine',.1,i*.1)}
 function popBubble(b){bubbleGroup.remove(b);tone(900,1600,.08,'square',.12);
   emit('spark',b.position.clone(),8,{size:.2,life:.4,g:0,vel:()=>new THREE.Vector3((Math.random()-.5)*3,(Math.random()-.5)*3,(Math.random()-.5)*3)});
@@ -655,10 +663,11 @@ const MAKE={
 function spawnItems(ids,xs){
   clearItems();
   ids.forEach((id,i)=>{const g=MAKE[id]();g.traverse(o=>o.userData.item=id);
-    g.position.set(xs?xs[i]:(i-(ids.length-1)/2)*(innerWidth<innerHeight?1.75:2.5),0,ids.length>1&&!xs&&i===1?1.0:(innerWidth<innerHeight?1.9:1.5));g.scale.setScalar(.01);
+    g.position.set(xs?xs[i]:(i-(ids.length-1)/2)*(innerWidth<innerHeight?1.25:2.5),0,ids.length>1&&!xs&&i===1?1.0:(innerWidth<innerHeight?1.9:1.5));g.scale.setScalar(.01);
     g.userData={item:id,born:performance.now()+i*120,wig:0,baseX:g.position.x};itemsGroup.add(g)});
+  resize(); // upright: camera makes room for the toys above the buttons
 }
-function clearItems(){while(itemsGroup.children.length)itemsGroup.remove(itemsGroup.children[0])}
+function clearItems(){if(!itemsGroup.children.length)return;while(itemsGroup.children.length)itemsGroup.remove(itemsGroup.children[0]);resize()}
 function itemById(id){return itemsGroup.children.find(g=>g.userData.item===id)}
 function animateItems(t,dt){
   const now=performance.now();
@@ -818,7 +827,7 @@ function pickSay(not){const ids=Object.keys(SW),has=ids.filter(id=>HAS.has('w_'+
   return pool[Math.floor(Math.random()*pool.length)]}
 async function sayRound(id){
   const tok=startGame('say');sayCur=id;sayNext=pickSay(id);loadVoices(['say_'+sayNext,'w_'+sayNext]);
-  document.getElementById('cardEm').textContent=SW[id].pic;document.getElementById('cardFa').textContent=SW[id].fa;
+  document.getElementById('cardEm').textContent=SW[id].pic;document.getElementById('cardFa').textContent=SW[id].fa;resize();
   game.busy=true;await sayAsync('say_'+id);game.busy=false;if(!alive(tok))return;
   const heard=await hear(8000,3500);
   if(!alive(tok))return;
@@ -1206,19 +1215,32 @@ async function setRoom(s){if(s===scr&&ROOM_HI[s])return;const f=document.getElem
 document.querySelectorAll('#nav .rb').forEach(b=>b.onclick=()=>{st.lastPoke=performance.now();setRoom(b.dataset.r)});
 
 // ---------- Layout ----------
-function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h);camera.aspect=w/h;
-  const far=w<h?12:9;camera.position.set(0,3.4,far);camera.lookAt(0,1.2,0);
-  const sq=Math.min(1,.35+w/h*.75);furnGroup.children.forEach(g=>g.position.x=g.userData.x0*sq); // portrait: pull furniture toward the middle so it stays on screen
-  if(scr==='say'||!deck.hidden)camera.setViewOffset(w,h,w<h?0:-w*.2,w<h?-h*.2:0,w,h);else camera.clearViewOffset(); // Say it: robot moves aside for the card
+const acts=document.getElementById('acts');
+function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;
+  renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);camera.aspect=w/h;
+  camera.fov=portrait?50:40;camera.position.set(0,3.4,portrait?(cards||toys?11:9.5):9);camera.lookAt(0,1.2,0);
+  const sq=Math.min(1,(portrait?.3:.35)+w/h*.75);furnGroup.children.forEach(g=>g.position.x=g.userData.x0*sq); // portrait: pull furniture toward the middle so it stays on screen
+  camera.clearViewOffset();camera.updateProjectionMatrix();acts.style.width='';
+  if(portrait){ // upright: buttons in balanced rows; Pash stands just above them, drops below the cards, or steps back for the toys
+    const bs=[...acts.querySelectorAll('.rb')],bw=bs.length?bs[0].offsetWidth:0,g=parseFloat(getComputedStyle(acts).columnGap)||0,fit=Math.max(1,Math.floor((w-24+g)/(bw+g)));
+    if(bs.length)acts.style.width=Math.ceil(bs.length/Math.ceil(bs.length/fit))*(bw+g)-g+'px';
+    const top=acts.getBoundingClientRect().top,el=scr==='say'?document.getElementById('card'):deck,
+      [p,y]=cards?[new THREE.Vector3(0,2.85,0),el.getBoundingClientRect().bottom+8]:toys?[new THREE.Vector3(0,0,1.9),top-60]:[new THREE.Vector3(0,0,0),top+4];
+    p.project(camera);camera.setViewOffset(w,h,0,(1-p.y)/2*h-y,w,h)}
+  else if(cards)camera.setViewOffset(w,h,-w*.2,0,w,h); // Say it / cards: robot moves aside for the card
   camera.updateProjectionMatrix()}
-addEventListener('resize',resize);showScreen('home');
+addEventListener('resize',resize);addEventListener('load',resize);showScreen('home');
 
 // ---------- Loop ----------
-const clock=new THREE.Clock();let nextBlink=2;
+const clock=new THREE.Clock();let nextBlink=2,faceKey='',raf=0;
+// page hidden (app switched, screen locked): stop drawing and pause all sound; pick up where he was on return
+document.addEventListener('visibilitychange',()=>{cancelAnimationFrame(raf);
+  if(document.hidden){music(false);AC&&AC.suspend()}else{AC&&AC.resume();clock.getDelta();loop()}});
+addEventListener('pointerdown',()=>{if(AC&&AC.state!=='running'&&!document.hidden)AC.resume()}); // iOS can leave sound paused after an interruption
 const spr=(k,stiff,damp,dt,target=0)=>{st[k+'Vel']+=(-(st[k]-target)*stiff-st[k+'Vel']*damp)*dt;st[k]+=st[k+'Vel']*dt};
 const ROBOT_POSES=[[2.6,.3],[.3,2.6],[1.6,1.6],[3,3]];
 function loop(){
-  requestAnimationFrame(loop);
+  raf=requestAnimationFrame(loop);
   const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime,now=performance.now();st.modeT+=dt;
   spr('squash',140,9,dt);spr('lean',60,6,dt);spr('head',50,4,dt);
   st.spin+=st.spinVel*dt;st.spinVel*=Math.pow(.25,dt);
@@ -1288,8 +1310,9 @@ function loop(){
   peekDip+=((armFwd?1:0)-peekDip)*Math.min(1,dt*8);neck.position.y-=peekDip*.3;head.rotation.x=peekDip*.08;
   if(ball.visible){bv.y-=9.8*dt;ball.position.addScaledVector(bv,dt);
     if(ball.position.y<.3){ball.position.y=.3;bv.y*=-.6;bv.x*=.85;bv.z*=.85;if(Math.abs(bv.y)>1)tone(300,200,.05,'sine',.1)}
-    ball.position.x=THREE.MathUtils.clamp(ball.position.x,-4.5,4.5);ball.position.z=THREE.MathUtils.clamp(ball.position.z,-3,3);
-    if(Math.abs(ball.position.x)>=4.5)bv.x*=-.8;if(Math.abs(ball.position.z)>=3)bv.z*=-.8;
+    const bx=portrait?1.4:4.5,bz=portrait?1:3; // upright: keep the ball on screen and above the buttons
+    ball.position.x=THREE.MathUtils.clamp(ball.position.x,-bx,bx);ball.position.z=THREE.MathUtils.clamp(ball.position.z,-3,bz);
+    if(Math.abs(ball.position.x)>=bx)bv.x*=-.8;if(ball.position.z>=bz||ball.position.z<=-3)bv.z*=-.8;
     ball.rotation.x+=bv.z*dt*3;ball.rotation.z-=bv.x*dt*3}
   animateItems(t,dt);animateFurniture(t,dt);if(discoOn)discoTick(t);
   for(const b of [...bubbleGroup.children]){const u=b.userData;b.position.y+=u.sp*dt;b.position.x+=Math.sin(t*1.5+u.ph)*dt*.3;
@@ -1302,10 +1325,12 @@ function loop(){
     if(p.life>p.max){scene.remove(p.s);p.s.material.dispose();parts.splice(i,1)}}
   if(now>faceUntil&&face!=='happy'&&st.mode!=='sleep'&&st.mode!=='listen'&&!(st.mode==='peek'&&face==='hidden'))face='happy';
   nextBlink-=dt;if(nextBlink<0){blink=.12;nextBlink=2+Math.random()*3}blink-=dt;
-  if(talk.an){const b=new Float32Array(talk.an.fftSize);talk.an.getFloatTimeDomainData(b);let q=0;for(const v of b)q+=v*v;talk.level=Math.sqrt(q/b.length)}
+  if(talk.an){const b=talk.buf||(talk.buf=new Float32Array(talk.an.fftSize));talk.an.getFloatTimeDomainData(b);let q=0;for(const v of b)q+=v*v;talk.level=Math.sqrt(q/b.length)}
   mouthOpen=talk.playing?Math.min(1,talk.level*7):now<mouthT?Math.abs(Math.sin(now/70)):0;
-  drawFace(t);
+  const fk=face+(blink>0)+(mouthOpen>.05?Math.round(mouthOpen*8):0);if(fk!==faceKey||face==='dizzy'){faceKey=fk;drawFace(t)} // redraw the face only when it changes
   renderer.render(scene,camera);
 }
 loop();
+// installable app: offline cache (sw.js); skipped where service workers aren't allowed (file://, artifact viewer)
+if('serviceWorker' in navigator&&/^http/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>

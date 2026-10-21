@@ -1,4 +1,4 @@
-# Pash handoff (moving from a cloud session to Claude Code)
+﻿# Pash handoff (moving from a cloud session to Claude Code)
 
 ## What Pash is
 A 3D robot virtual pet that teaches a 3-year-old Farsi through play. My son played with it for hours on day one. Live: https://kitchennetweb-a11y.github.io/Pash/
@@ -43,6 +43,8 @@ Done and live: everything listed in decisions.md under Product, apart from the i
 
 - Vocabulary games (2026-10-08): card Find (🔍, every 3rd press the old 3D Find), colour hunt (🎨), counting (🔢), animal sounds (🐮), picture book + 4 stories (📖 screen), parent progress summary. Shared helpers: `showDeck`, `cardAsk`, `hear`, `sayIf`. Content: `vocab/lines_games_v2.csv`, `vocab/stories.json`, `col` field in `words_v2.json`.
 
+- Phone-first draft (2026-10-21, dev only): portrait puts the room tabs and the screen's action buttons in rows at the bottom (`resize()` sizes them); landscape keeps side columns. Perf: DPR cap 1.5 phones / 2 else, lighter or no shadows on phones, face canvas redrawn only on change, render + audio pause when hidden, `loadCore` preloads only reaction clips. PWA: `manifest.webmanifest`, `sw.js` (versioned caches written by build.py; network-first for page/data, cache-first for audio), `icons/`. The user wants a different phone layout; this is a first draft.
+
 ### Next
 1. (done: all 200 words generated)
 2. Phone portrait: bed and toy shelf are mostly off-screen; iPad portrait bedroom: mic button overlaps the bed.
@@ -55,3 +57,28 @@ Done and live: everything listed in decisions.md under Product, apart from the i
 - Clip timings: `sayAsync` waits for the decoded duration plus 250 ms. Padded clips make games slightly slower; that's acceptable.
 - Large single HTML files load slowly on iPad, which is another reason to split the audio out.
 - Stray `[hidden]` CSS: the page sets `[hidden]{display:none!important}` itself, because the hosted build has no artifact skeleton reset.
+
+## Connectors (Claude Code MCP, set up for your whole PC)
+
+Check status any time: open a terminal and type `claude mcp list`.
+
+| Connector | Status |
+|---|---|
+| Playwright (browser control) | Working. Nothing to do. |
+| GitHub | Added, needs a step (1 below). |
+| ElevenLabs (voice/audio) | Added, needs `uv` installed (2 below). Your API key is already on the PC; it is not stored in any config file. |
+| Blender | Blender 5.2 is installed. Added, needs `uv` (2) plus the addon (3). |
+| Penpot | Added, only works while Penpot's MCP is running (4). |
+
+Steps for you:
+1. GitHub: GitHub's server does not support automatic sign-in from Claude Code. Create a Personal Access Token at github.com/settings/tokens, then run:
+   `claude mcp remove github --scope user` then
+   `claude mcp add --scope user --transport http github https://api.githubcopilot.com/mcp/ --header "Authorization: Bearer YOUR_TOKEN"`
+   (The `gh` command line tool is already signed in and keeps working without this.)
+2. Install uv (one line, in PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"` then restart Claude Code.
+3. Blender: download the addon file `addon.py` from github.com/ahujasid/blender-mcp. In Blender: Edit > Preferences > Add-ons > Install from Disk, pick the file, tick it on. In the 3D view press N, open the "BlenderMCP" tab, click "Connect to Claude".
+4. Penpot: in a terminal run `npx -y @penpot/mcp@latest` and leave it open. In Penpot, load the plugin from `http://localhost:4400/manifest.json`, open it and click "Connect to MCP server". Penpot desktop app is not installed (it is a web app); use design.penpot.app or your own instance.
+5. Restart Claude Code, then run `claude mcp list` to confirm.
+
+**Status 2026-10-21 (after setup):** uv installed (winget), Unity Hub installed (winget). Connected: Playwright, Blender: official Blender Lab extension installed from the Claude app (follow its add-on instructions at lab.blender.org); the community `uvx blender-mcp` was removed, ElevenLabs (`uvx --python 3.12 elevenlabs-mcp`, key from the user env var). GitHub MCP skipped by decision (the `gh` CLI already has access). Penpot: set up when layout design starts. New connectors appear in new sessions.
+- **Pending:** add Unity's official Claude Code plugin (Anthropic Directory, "Unity", 0.1.2-beta, 31 skills) after the Unity editor is installed; then check whether it can drive the Unity editor (would let Claude test the Unity prototype itself).

@@ -16,6 +16,9 @@ Newest decisions are at the bottom of each section.
 - **Vocabulary grows by 200 words** with emoji picture cards. The list is in `vocab/words.py` and `vocab/words.json`.
 - **Parent corner** sits behind a press-and-hold (2 seconds) on the gear icon. Stats are stored on the device in localStorage.
 
+- **Business model (2026-10-21): free 7-day trial, then US$59 lifetime unlock.** Sold via App Store / Google Play (Capacitor wrap, Android first); the web version stays a free demo (GitHub Pages forbids selling). Trial = in-app 7-day timer started by a free trial item (store-native trials are subscription-only). Claude's note: $59 is high for kids apps (typ. $5-20); consider an early-family launch price. Full plan: docs/monetization-plan.md.
+- **Engine upgrade (three.js r128 → current) comes after the phone layout is approved.** The user will specify their own phone layout; the agent-built one is only a first draft.
+
 ## Voice
 - **ElevenLabs Persian voice.** Use one voice ID for everything, with no filters or effects; the user found effects worse. The first 21 clips had a robot effect baked in from the ElevenLabs website, so they are being re-recorded clean.
 - **Clips must not end early.** Trim only the leading silence, keep the natural ending, then pad about 0.35 s of silence at the end. Browsers drop about 50 ms from the end of short MP3s, which caused cut-off words.
@@ -26,6 +29,8 @@ Newest decisions are at the bottom of each section.
 - **v2 voice (2026-10-08): ElevenLabs `eleven_v4`, voice "Setareh" (`8Ebkg5uUcbSbeqGucAoR`), with English emotion tags** in the text ([excited], [whispers], [yawns], ...). Lines are in `vocab/lines_existing_v2.csv` (Pash's lines + 57 longer `p_` phrases) and `vocab/lines_words_v2.csv` (200 reviewed words, `vocab/words_v2.json`). Bubble text comes from the CSV `display_text` via `audio/manifest.json`.
 - **Pitch +2 semitones, formants shifted ("up2 cute")**, applied in `tools/process_robo_clips.py`. This is the one effect the user approved after listening.
 - **Generation is budgeted:** 15,000 characters were used first; remaining words wait for a top-up (see `vocab/voice_status.md`).
+
+- **Licence check (2026-10-21):** speech clips are OK for a paid app with conditions: the account is paid (payg), you own the output, no attribution, and Setareh is an ElevenLabs-generated Library voice with a 365-day notice period (clips already made stay valid; generate everything needed and keep the files). Eleven v4 appears to be a production model (re-check the Beta addendum). **Music (`music_v1`, only `song_bed.mp3`) is unconfirmed for paid apps**: decided: replace it later with a backing track made on the paid Suno plan. Keep invoices as proof.
 
 ## Tech
 - **Platform: web for now (three.js r128 from cdnjs).** One page; the hosted build is `index.html` on GitHub Pages: https://kitchennetweb-a11y.github.io/Pash/ (capital P). A Claude artifact copy also exists, but the microphone is blocked there, so GitHub Pages is the real version.
