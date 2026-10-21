@@ -286,6 +286,7 @@ const pbub=document.getElementById('pbub');let pbT,facePic='';
 function say(k){k=pickVar(k);lastSaid=k;try{statHeard(k)}catch(e){}hush(1600);const fa=(LINES[k]||[''])[0],pic=picFor(k);
   if(document.body.classList.contains('words')&&fa){document.getElementById('bfa').textContent=fa;bubble.classList.add('show')}
   const go=()=>{const dur=playVoice(k),ms=Math.max(1500,(dur+.4)*1000);if(dur){mouthT=performance.now()+dur*1000;hush(dur*1000+600)}
+    clearTimeout(pbT);pbub.classList.remove('show'); // never two pictures at once
     if(pic){ // the picture goes on his face screen; tiny round bubble beside his head only when the screen is hidden or he sleeps
       if(st.mode==='sleep'||st.mode==='peek'||face==='hidden'){const v=new THREE.Vector3();head.getWorldPosition(v);v.project(camera);
         pbub.textContent=pic;pbub.style.left=Math.min(innerWidth-60,(v.x+1)/2*innerWidth+50)+'px';pbub.style.top=Math.max(8,(1-v.y)/2*innerHeight-40)+'px';pbub.classList.add('show');clearTimeout(pbT);pbT=setTimeout(()=>pbub.classList.remove('show'),ms)}
@@ -1347,6 +1348,7 @@ function loop(){
     else{p.v.y+=p.g*dt;p.s.position.addScaledVector(p.v,dt)}
     p.s.scale.multiplyScalar(1+p.grow*dt);p.s.material.opacity=1-Math.pow(p.life/p.max,3);
     if(p.life>p.max){scene.remove(p.s);p.s.material.dispose();parts.splice(i,1)}}
+  if(pbub.classList.contains('show')&&st.mode!=='sleep'&&st.mode!=='peek'&&face!=='hidden')pbub.classList.remove('show'); // he woke up: bubble goes
   if(now>faceUntil&&face!=='happy'&&st.mode!=='sleep'&&st.mode!=='listen'&&!(st.mode==='peek'&&face==='hidden'))face='happy';
   nextBlink-=dt;if(nextBlink<0){blink=.12;nextBlink=2+Math.random()*3}blink-=dt;
   if(talk.an){const b=talk.buf||(talk.buf=new Float32Array(talk.an.fftSize));talk.an.getFloatTimeDomainData(b);let q=0;for(const v of b)q+=v*v;talk.level=Math.sqrt(q/b.length)}

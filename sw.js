@@ -1,6 +1,6 @@
 // Googoo Robo service worker. tools/build.py rewrites the two versions below on every build:
 // a new page build = new shell cache, new/changed audio = new audio cache; old caches are deleted on activate.
-const SHELL_V='0a7a990403',AUDIO_V='92904cdb22',SHELL='googoo-shell-'+SHELL_V,AUDIO='googoo-audio-'+AUDIO_V;
+const SHELL_V='8d4f186c9f',AUDIO_V='92904cdb22',SHELL='googoo-shell-'+SHELL_V,AUDIO='googoo-audio-'+AUDIO_V;
 const PRE=['./','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/apple-touch-icon.png','audio/manifest.json','vocab/stories.json',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
   'https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Vazirmatn:wght@600;800&display=swap'];
