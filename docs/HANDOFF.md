@@ -1,4 +1,24 @@
-﻿# Pash handoff (moving from a cloud session to Claude Code)
+# Googoo Robo handoff (formerly Pash)
+
+## START HERE (new session, last updated 2026-10-21)
+- **Ground rules (from the user):** every question is multiple choice (AskUserQuestion); nothing is built straight away: short answer, plan, honest opinion, then a multiple-choice yes/no; the main session is the orchestrator and work runs in delegated agents or sessions, with the right model and effort, in parallel where possible; write everything down before the user clears a session. The user is not a developer; keep explanations short.
+- **Two copies:** `Documents\Virtual Pet\Pash` (branch `main`) = the live game his son plays -> https://kitchennetweb-a11y.github.io/Pash/ . `Documents\Virtual Pet\Pash-dev` (git worktree, branch `dev`) = all new work -> test site https://kitchennetweb-a11y.github.io/GoogooRobo-dev/ (push with `git push devsite dev:main`; also `git push origin dev` as a backup). Merge `dev` into `main` only when the user approves. These docs on `dev` are the newest; `main`'s docs are older.
+- **Read next:** docs/decisions.md (settled decisions, incl. the name, business model, licences) and docs/monetization-plan.md.
+
+### Open threads (where we stopped)
+1. **Phone layout:** the agent-built draft (buttons in rows at the bottom) is on the test site. The user will **describe their own layout in chat**; sketch it back (e.g. an ASCII or image mock-up) for approval before building. The speed, battery and installable-app parts of the draft stay whatever the layout.
+2. **Engine: prototype both** web (three.js) and Unity with the same small scene: the Tripo robot in the bedroom, lamp on/off, tap to react and dance, one whispered line with the face screen. Waiting on the user: (a) Unity Hub is installed; they sign in, pick the Personal licence, install the LTS editor with Android Build Support; (b) then add Unity's official Claude Code plugin (Anthropic Directory "Unity", beta) and check whether it can drive the editor; (c) buy Tripo (US$28 for one month), re-generate the robot as **Private** with multi-view (front, side and back images in `Downloads\Pash 3D\`), Generate in Parts on, about 30k polygons, export **GLB** to `Downloads\Pash 3D\`. The first Tripo result (free plan, public) looked good; its face is painted on, so cover it with our animated canvas face screen. Animate the rigid parts in code (no skinning). Pro Refine (a human fix, about $10) is not needed yet.
+3. **three.js upgrade (r128 -> current)** only after the phone layout is approved (needed for glTF-Transform, three-pathfinding etc.; switch to an import map).
+4. **Open world idea (agreed direction, not started):** keep the house as home base, then a small Persian neighbourhood: courtyard with a pool (حیاط، حوض) -> street (کوچه) -> fruit shop -> park -> farm (-> beach). Tap-to-walk plus a big picture map; no joystick. Props from Tripo in one style; KayKit (CC0) only if its style matches.
+5. **Paid app:** free 7-day trial then US$59 lifetime (Claude flagged that this is high; suggest an early-family price). Capacitor wrap, Android first, iOS via a cloud Mac (Codemagic), RevenueCat. Before the stores: a real parent gate (the 2 s gear hold isn't one), bundle three.js and the fonts locally, don't ship `name.mp3` (it has the son's name), a privacy policy, replace `song_bed.mp3` with a Suno track.
+6. **Vocabulary and voice overhaul later:** the robot is now "Googoo", but the voice lines and stories still say پاش. Keep them for now; only add new lines for new words. A full rewrite and re-record comes later (Setareh voice, Eleven v4, tags, +2 st pitch).
+7. **Songs:** traditional rhymes stay as rhythmic chants (Suno flagged اتل متل as copyrighted). The user will write original lyrics for Suno in a separate session; free Suno songs are for personal use only.
+8. Smaller leftovers: colour hunt skips pink/purple/black (tag more words); unused phrases (food, say-it prompts, goodbye, countdown); on phones the bed is mostly behind the robot; long bubbles on small phones.
+
+### Shortlists (researched 2026-10-21)
+- **Repos to use (web):** glTF-Transform (shrink the models), Capacitor, RevenueCat purchases-capacitor, three-pathfinding (tap-to-walk), Kenney (CC0 icons, props and sounds), Vazirmatn font (bundle locally); maybe KayKit Furniture Bits, jsfxr. The Unity-only repos (RTLTMPro, UniTask, PrimeTween, YarnSpinner, ...) only matter if Unity wins.
+- **Skills already installed that help:** impeccable / frontend-design (UI), agentic-council pathfinder-* (mobile and Capacitor), guardian-compliance-review (kids' privacy), design:accessibility-review, herald-monetization-design, agent-browser. Later: parallax-threejs, Mobile Release Check.
+
 
 ## What Pash is
 A 3D robot virtual pet that teaches a 3-year-old Farsi through play. My son played with it for hours on day one. Live: https://kitchennetweb-a11y.github.io/Pash/
@@ -45,40 +65,24 @@ Done and live: everything listed in decisions.md under Product, apart from the i
 
 - Phone-first draft (2026-10-21, dev only): portrait puts the room tabs and the screen's action buttons in rows at the bottom (`resize()` sizes them); landscape keeps side columns. Perf: DPR cap 1.5 phones / 2 else, lighter or no shadows on phones, face canvas redrawn only on change, render + audio pause when hidden, `loadCore` preloads only reaction clips. PWA: `manifest.webmanifest`, `sw.js` (versioned caches written by build.py; network-first for page/data, cache-first for audio), `icons/`. The user wants a different phone layout; this is a first draft.
 
-### Next
-1. (done: all 200 words generated)
-2. Phone portrait: bed and toy shelf are mostly off-screen; iPad portrait bedroom: mic button overlaps the bed.
-3. Colour hunt skips pink/purple/black (fewer than 2 tagged words); tag more words to enable them. Unused phrases: food (p_nam_nam..., p_ah_ino...), say-it prompts (p_hala_to_begu, p_chi_gofti_nashenidam), goodbye, countdown.
-
 ### Known gotchas
-- Mic and volume on iOS: echo cancellation/AGC are off, because they put iOS in "voice chat" mode, which ducks all app sound. `audioSession('play-and-record')` is used only while the mic is on, `'playback'` otherwise. The mic is ignored while Pash's voice or the song bed plays (`voiceEnd`, `bedSrc`). Sensitivity knob: `MIC_FLOOR`.
+- Mic and volume on iOS: echo cancellation and AGC are ON (turning them off made the mic too quiet on the iPad). `audioSession('auto')` while the mic is on, `'playback'` when it's off or denied (this fixed the whole app going quiet). The mic is ignored while Pash's voice or the song bed plays (`voiceEnd`, `bedSrc`). Sensitivity knob: `MIC_FLOOR`.
 - iPad and Safari need one tap before audio or the mic will start (the "Wake up" button does both).
 - The mic only works over https on GitHub Pages; it's blocked inside the Claude artifact viewer.
 - Clip timings: `sayAsync` waits for the decoded duration plus 250 ms. Padded clips make games slightly slower; that's acceptable.
 - Large single HTML files load slowly on iPad, which is another reason to split the audio out.
 - Stray `[hidden]` CSS: the page sets `[hidden]{display:none!important}` itself, because the hosted build has no artifact skeleton reset.
 
-## Connectors (Claude Code MCP, set up for your whole PC)
-
-Check status any time: open a terminal and type `claude mcp list`.
-
+## Connectors (Claude Code, user scope; check with `claude mcp list`)
 | Connector | Status |
 |---|---|
-| Playwright (browser control) | Working. Nothing to do. |
-| GitHub | Added, needs a step (1 below). |
-| ElevenLabs (voice/audio) | Added, needs `uv` installed (2 below). Your API key is already on the PC; it is not stored in any config file. |
-| Blender | Blender 5.2 is installed. Added, needs `uv` (2) plus the addon (3). |
-| Penpot | Added, only works while Penpot's MCP is running (4). |
+| Playwright | Working (`npx @playwright/mcp`). |
+| ElevenLabs | Working (`uvx --python 3.12 elevenlabs-mcp`; key from the Windows user env var `ELEVENLABS_API_KEY`, never stored in a config). |
+| Blender | Working: the official Blender Lab extension. In Blender 5.2: Preferences -> Add-ons -> MCP -> "Use Autostart" ticked; the bridge listens on localhost:9876. Blender must be open. Ask before changing a scene. |
+| Penpot | Added (`http://localhost:4401/mcp`) but needs `npx -y @penpot/mcp@latest` running plus the Penpot plugin; set up only if we design in Penpot. |
+| GitHub | Skipped (the `gh` CLI is already signed in). |
+| Unity plugin | Pending until the Unity editor is installed. |
 
-Steps for you:
-1. GitHub: GitHub's server does not support automatic sign-in from Claude Code. Create a Personal Access Token at github.com/settings/tokens, then run:
-   `claude mcp remove github --scope user` then
-   `claude mcp add --scope user --transport http github https://api.githubcopilot.com/mcp/ --header "Authorization: Bearer YOUR_TOKEN"`
-   (The `gh` command line tool is already signed in and keeps working without this.)
-2. Install uv (one line, in PowerShell): `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"` then restart Claude Code.
-3. Blender: download the addon file `addon.py` from github.com/ahujasid/blender-mcp. In Blender: Edit > Preferences > Add-ons > Install from Disk, pick the file, tick it on. In the 3D view press N, open the "BlenderMCP" tab, click "Connect to Claude".
-4. Penpot: in a terminal run `npx -y @penpot/mcp@latest` and leave it open. In Penpot, load the plugin from `http://localhost:4400/manifest.json`, open it and click "Connect to MCP server". Penpot desktop app is not installed (it is a web app); use design.penpot.app or your own instance.
-5. Restart Claude Code, then run `claude mcp list` to confirm.
-
-**Status 2026-10-21 (after setup):** uv installed (winget), Unity Hub installed (winget). Connected: Playwright, Blender: official Blender Lab extension installed from the Claude app (follow its add-on instructions at lab.blender.org); the community `uvx blender-mcp` was removed, ElevenLabs (`uvx --python 3.12 elevenlabs-mcp`, key from the user env var). GitHub MCP skipped by decision (the `gh` CLI already has access). Penpot: set up when layout design starts. New connectors appear in new sessions.
-- **Pending:** add Unity's official Claude Code plugin (Anthropic Directory, "Unity", 0.1.2-beta, 31 skills) after the Unity editor is installed; then check whether it can drive the Unity editor (would let Claude test the Unity prototype itself).
+Installed on the PC: uv (winget), Unity Hub (winget), ffmpeg (winget), Playwright and Chromium (pip), Blender 5.2.
+Voice generation: `python tools/gen_voices.py 8Ebkg5uUcbSbeqGucAoR eleven_v4 [files]` -> `Downloads\Virtual Pet Sounds\v2\`, then `python tools/process_robo_clips.py ...` -> `audio/`, then `python tools/build.py`.
+Tests: the Playwright scripts were in the session scratchpad (temporary); re-create them if needed (serve `Pash-dev` on port 8766 with `python -m http.server`, and `Pash` on 8765).
