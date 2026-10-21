@@ -19,6 +19,10 @@ Newest decisions are at the bottom of each section.
 - **Business model (2026-10-21): free 7-day trial, then US$59 lifetime unlock.** Sold via App Store / Google Play (Capacitor wrap, Android first); the web version stays a free demo (GitHub Pages forbids selling). Trial = in-app 7-day timer started by a free trial item (store-native trials are subscription-only). Claude's note: $59 is high for kids apps (typ. $5-20); consider an early-family launch price. Full plan: docs/monetization-plan.md.
 - **Engine upgrade (three.js r128 → current) comes after the phone layout is approved.** The user will specify their own phone layout; the agent-built one is only a first draft.
 
+- **Engine (2026-10-22): leaning Unity** ("looks more alive"); final decision after the Tripo-rig + face-kit step. Both prototypes are on the test site (/proto/ = web, /proto-unity/ = Unity WebGL); Unity project at Documents\Virtual Pet\GoogooRobo-Unity (editor 6000.6.7f1 has WebGL, 6000.3 LTS has Android).
+- **Character rig: Tripo auto-rig (Mixamo skeleton, 65 bones, 14 clips)** in `Downloads\Pash 3D\GooGoo-Robo+Tripo-rig.glb` is the main rig; Mixamo's library can add more animations. Hands entering the big head are fixed with a head sphere + arm IK, with manual keyframe edits only where needed. Our own Blender rig (`googoo_rigged_v2.glb`, finger bones) is the fallback.
+- **Face: redraw to match the reference sheet exactly** (glossy eyes with blue iris and sparkles, cyan brows, reference mouths), **no rosy cheeks**. One shared face kit (PNG layers + face_kit.json in `Downloads\Pash 3Dace_kit\`) for both engines.
+
 ## Voice
 - **ElevenLabs Persian voice.** Use one voice ID for everything, with no filters or effects; the user found effects worse. The first 21 clips had a robot effect baked in from the ElevenLabs website, so they are being re-recorded clean.
 - **Clips must not end early.** Trim only the leading silence, keep the natural ending, then pad about 0.35 s of silence at the end. Browsers drop about 50 ms from the end of short MP3s, which caused cut-off words.
