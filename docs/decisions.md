@@ -4,6 +4,8 @@ Pash is a Farsi-learning virtual pet for my 3-year-old son, with a possible futu
 Newest decisions are at the bottom of each section.
 
 ## Product
+- **Name: Googoo Robo; the robot is "Googoo" for short** (2026-10-21). Existing voice lines and stories still say پاش; keep them for now and only add new lines for new words. A full rewrite and re-record comes later with the vocabulary overhaul.
+- **Two copies:** `Pash/` (branch `main`) is the live game he plays: https://kitchennetweb-a11y.github.io/Pash/ . `Pash-dev/` (branch `dev`, a git worktree) is where new work happens; it's published to the test site https://kitchennetweb-a11y.github.io/GoogooRobo-dev/ (repo `GoogooRobo-dev`, remote `devsite`). Merge `dev` into `main` only when the user approves.
 - **Fun first, learning hidden inside play.** About 70% silly and reactive, 30% structured learning. Wrong answers are never punished: Pash names what was tapped, then asks again.
 - **The character is a robot, not a Persian cat.** My son loves robots, and a rigid robot can be built well in code without an art or rigging pipeline. The original plan (Persian cat, Meshy/Tripo, Blender, rigging) was dropped.
 - **Talking-Tom-style talk-back is core.** Pash listens hands-free (voice detection) whenever he's idle and repeats the child's words in a squeaky voice. Talking wakes him when he's asleep. The Talk button is now only a mic on/off switch for parents.

@@ -6,7 +6,7 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 HEAD = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
         '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">'
-        '<meta name="apple-mobile-web-app-title" content="Pash"><meta name="theme-color" content="#bfe3f2"></head><body>\n')
+        '<meta name="apple-mobile-web-app-title" content="Googoo Robo"><meta name="theme-color" content="#bfe3f2"></head><body>\n')
 
 # bubble text per key, from any CSV that has display_text (the v2 line files)
 text = {}
