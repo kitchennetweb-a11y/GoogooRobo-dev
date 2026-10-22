@@ -4,6 +4,8 @@ Replaces the rough list in `docs/tripo-objects.md`. Goal: every 3D prop and worl
 
 > **Style locked (owner, 2026-10-21):** the plain style prompt above is the base for everything. **Light sci-fi touch** only on hero house pieces (sofa, samovar, lamps, TV, fridge, bed, and similar "Googoo's home" tech); food, animals and most other props stay plain. Sci-fi line, inserted before "Object:": *"Playful friendly sci-fi twist, as if it belongs in a cheerful robot's home of the future: smooth rounded retro-futuristic shell, thin soft glowing cyan light strips, small rounded robot-style details, gently floating parts held by soft light."* Chosen images (docs/style-tests/): apple = right of anchor-apple.png; sofa = left of scifi-sofa.png (hovering, curved cyan side glow); samovar = right of scifi-samovar.png (round, floating teapot). Floating parts (teapot, sofa pads) must be made with Generate in Parts so they can bob in the engine.
 
+> **Pilot picks (owner, 2026-10-21, docs/style-tests/pilot-*.png):** lamp = left (floating shade, Generate in Parts), teddy = left (sitting), bed = right (floating side pods, glowing floor: watch the 3D for loose pieces), cow = right, living room shell = right (painted window view).
+
 > **Tested 2026-10-21 in Tripo (Nano Banana, 1:1, 2 images, free):** the first version of the style prompt said "with cream and royal-blue accents where they fit" and painted blue stripes on the apple; it was removed. The 3 anchors (apple, sofa, samovar) then came out clean.
 
 ## 0. Rules for every model
