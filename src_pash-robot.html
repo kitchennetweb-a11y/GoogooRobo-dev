@@ -169,6 +169,7 @@ body:not(.words) #bubble{display:none}
 <div id="start"><div><button id="go">Wake up Googoo!</button><p>Tap to start (turns on sounds and the microphone)</p></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 // ---------- Sound (synthesised, no files) ----------
 let AC=null;
@@ -891,7 +892,7 @@ async function storyPage(s,i){const tok=startGame('story'),p=s.pages[i];try{voic
 // ---------- Room furniture: tap to hear the word ----------
 const furnGroup=new THREE.Group();scene.add(furnGroup);
 const hemiLight=scene.children.find(o=>o.isHemisphereLight);let tvMat;
-let lightsOn=true;
+let lightsOn=true,addF;
 function makeFurniture(){
   const wood=M(0xc98b52,.7),dark=M(0x8a5a33,.7);
   const add=(id,g,x,z,ry=0,rm='home')=>{g.position.set(x,0,z);g.rotation.y=ry;g.traverse(o=>{o.userData.furn=id;if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
@@ -899,7 +900,7 @@ function makeFurniture(){
     // invisible tap area covering the whole piece, so taps between legs still count
     const bb=new THREE.Box3().setFromObject(g),sz=new THREE.Vector3(),c=new THREE.Vector3();bb.getSize(sz);bb.getCenter(c);g.worldToLocal(c);
     const hb=new THREE.Mesh(new THREE.BoxGeometry(sz.x+.2,sz.y+.2,sz.z+.2),new THREE.MeshBasicMaterial({visible:false}));hb.position.copy(c);hb.rotation.y=-ry;hb.userData.furn=id;g.add(hb);
-    return g};
+    addF=add;return g};
   // bed
   const bed=new THREE.Group();const frame=rbox(2.2,.45,1.3,.1,dark);frame.position.y=.32;bed.add(frame);
   const mat=rbox(2.05,.25,1.2,.12,M(0xf6f1e7,.9));mat.position.y=.62;bed.add(mat);
@@ -957,6 +958,17 @@ function makeFurniture(){
   add('star',mob,-1.7,-2.4,0,'bed').position.y=4.3;mob.userData.spin=.5;
 }
 makeFurniture();
+// Tripo GLB props (models/, real size: Googoo = 1) loaded lazily after start; each replaces its primitive group only once it has loaded, so a failed load keeps the old piece
+// id: [file, x tweak factor, ry]; scale = RB.h * tweak (cow: new big toy, play room)
+const PROPS={bed:['bedroom_bed',.4,-.35],lamp:['bedroom_lamp',1.2,0],teddy:['toy_teddy_bear',.7,.3],cow:['farm_cow',.65,-.7,2.6,-4.6,'play']};
+function loadProps(){if(!THREE.GLTFLoader)return;const ld=new THREE.GLTFLoader();
+  for(const id in PROPS){const[f,k,ry,cx,cz,rm]=PROPS[id];ld.load('models/'+f+'.glb',gl=>{try{
+    const m=gl.scene,old=furnById(id);m.scale.setScalar(RB.h*k);m.updateMatrixWorld(true);
+    const g=new THREE.Group();g.add(m);
+    if(old){furnGroup.remove(old);addF(id,g,old.userData.x0,old.position.z,ry,old.userData.room)}else addF(id,g,cx,cz,ry,rm);
+    g.visible=g.userData.room===curRoom;
+    if(id==='lamp'){const mt=g.userData.shade=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0xffc94d);mt.emissiveMap=mt.map;mt.emissiveIntensity=lightsOn?.15:.6;if(lampLight.parent)g.add(lampLight)}
+    resize()}catch(e){console.warn('prop',id,e)}},0,e=>console.warn('prop',id,e))}}
 function furnById(id){return furnGroup.children.find(g=>g.userData.furn===id)}
 const lampLight=new THREE.PointLight(0xffc77a,0,7,2);
 function setLights(on){lightsOn=on;const L=on?ROOM_DAY:ROOM_NIGHT;sun.intensity=L.sun;if(hemiLight)hemiLight.intensity=L.hemi;
@@ -979,7 +991,7 @@ async function tapFurniture(id){
   if(id==='chair'){await sayAsync('w_chair');pose={name:'sit',until:performance.now()+1500};setMode('game');say('x_beshin');await wait(1600);if(st.mode==='game'&&!game.type)setMode('idle');return}
   // new pieces: a little reaction, and Pash names it when there's a clip
   ({tv:()=>{tvMat.emissive.setHex(tvMat.emissive.getHex()?0:0x3a86ff);SFX.beep()},drum:()=>{tone(140,55,.3,'sine',.6);noise(.1,.3,900);jump(5)},
-    teddy:()=>{SFX.giggle();emit('heart',new THREE.Vector3(-1.9,1.8,-3.4),5,{size:.3,life:1.2,g:.5})},star:()=>{[1047,1319,1568].forEach((f,i)=>tone(f,f,.2,'triangle',.08,i*.15))}}[id]||SFX.boing)();
+    teddy:()=>{SFX.giggle();emit('heart',new THREE.Vector3(-1.9,1.8,-3.4),5,{size:.3,life:1.2,g:.5})},cow:()=>{SFX.giggle();emit('heart',furnById('cow').position.clone().setY(2.5),5,{size:.3,life:1.2,g:.5})},star:()=>{[1047,1319,1568].forEach((f,i)=>tone(f,f,.2,'triangle',.08,i*.15))}}[id]||SFX.boing)();
   setFace('shock',500);kick('squash',4);if(HAS.has('w_'+id)||FURN[id])await sayAsync('w_'+id);setFace('laugh',800);
 }
 function animateFurniture(t,dt){for(const g of furnGroup.children){const u=g.userData;
@@ -1188,7 +1200,7 @@ onBtn('bLamp',()=>{if(curRoom==='bed')return tapFurniture('lamp');setLights(!lig
 onBtn('bDisco',()=>disco(!discoOn));onBtn('bDark',()=>playFindCards(true));onBtn('bStars',playStars);
 onBtn('bNStory',async()=>{const s=STORIES.find(s=>s.id==='bedtime')||STORIES[0];if(!s)return;await sayIf('night_story');if(scr==='bed'&&!game.type)storyPage(s,0)});
 onBtn('bSleep',()=>{setMode('sleep');say(HAS.has('x_khabam_miad')&&Math.random()<.5?'x_khabam_miad':'sleep');setFace('sleep',1e9);music(false)});
-document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false);await Promise.race([MANIFEST.then(()=>loadVoices(['name','hi'])),wait(2500)]);loadCore();document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;say(HAS.has('name')?'name':'hi');SFX.beep();kick('squash',8);speak()};
+document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false);await Promise.race([MANIFEST.then(()=>loadVoices(['name','hi'])),wait(2500)]);loadCore();loadProps();document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;say(HAS.has('name')?'name':'hi');SFX.beep();kick('squash',8);speak()};
 
 // ---------- Bedtime invite (after 3 finished games or ~6 min away from the bedroom) + hidden surprises ----------
 let doneN=0,awayT=0,bedInvite=false,surp=null,surpAt=Infinity;
