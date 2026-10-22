@@ -300,3 +300,13 @@ Voice lines: 50 distinct Farsi words in this list are not in words_v2 or the sta
 4. Check the result in Tripo's viewer: shape matches the image, soft rounded edges, no holes or spikes, clean textures with no baked shadows or text, scale looks right. Redo with another image if not.
 5. Export GLB.
 6. Save as `C:\Users\ahmma\Downloads\Pash 3D\props\<file>.glb` using the exact file name in the row (for example `bedroom_lamp.glb`). Tick it off in your list; note any prop that needed a redo and why.
+
+## Other asset sources (owner's list, 2026-10-21)
+| Source | Use for Googoo | Note |
+|---|---|---|
+| KayKit Furniture Bits (CC0, glTF/FBX) | Quick fillers and placeholders (shelves, small decor) | Low-poly flat style; may clash with the smooth Tripo look, so test one next to a Tripo prop first. |
+| KhronosGroup/glTF-Blender-IO (Apache-2.0) | Blender import/export of props and Googoo | Built into Blender. |
+| KhronosGroup/UnityGLTF (MIT) | Optional glTF loader for Unity | The Unity project already uses glTFast; keep one importer. |
+| donmccurdy/glTF-Transform (MIT) | Compress and optimise GLBs before shipping (meshopt/Draco, KTX2 textures) | Could also do the real-size step; check compression works in both three.js r128 and glTFast. |
+| chr15m/jsfxr (Unlicense) | Robot bleeps, boops and reaction sounds | Authoring tool; export WAV/MP3 into audio/. |
+| Kenney assets (CC0, check each pack's licence) | UI icons, extra props, sound effects | Download from kenney.nl; keep each pack's licence file. |
