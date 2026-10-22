@@ -208,11 +208,13 @@ Rule from `tripo-objects.md`: build in 3D only what the child touches or what ma
 ## Owner's answers (2026-10-21)
 | Question | Decision |
 |---|---|
-| Star unlocks | Total reached, never spent. **Lower thresholds plus simple achievements, so kids see everything sooner.** New star targets: courtyard 5, street 15, shops 30, park 50, farm 75, school 100, beach 130, clinic 160 (tune after testing). Achievements = simple firsts ("fed Googoo", "first story", "10 words") that give stars and stickers. |
+| Star unlocks | Total reached, never spent. **Lower thresholds plus simple achievements, so kids see everything sooner.** New star targets: courtyard 5, street 15, shops 30, park 50, farm 75, school 100, beach 130, moon 160 (tune after testing). Achievements = simple firsts ("fed Googoo", "first story", "10 words") that give stars and stickers. |
 | Routine | Follows the real clock, with a parent switch. |
 | Googoo's needs | **None.** No hunger, dirt or sleep meters; routine hints are suggestions only. |
 | First outside place | Courtyard حیاط. |
 | Store v1 | House (5 rooms) + courtyard, street, shops, park, farm + school. Beach and the 8th place come later as free updates. |
 | School | Opens with stars; a parent can open it early. |
-| 8th place | **Doctor's clinic** (replaces the zoo): body and feelings words, helps with real visits. |
+| 8th place | **The moon, reached by rocket** (replaces the zoo and the clinic): rocket launch from the park or courtyard, moon walk, stars and planets, space words (ماه، ستاره، موشک، فضانورد). |
 | Price | 7-day trial, then **US$14.99 lifetime** (US$9.99 early-family price). Replaces US$59. |
+
+**Art direction (2026-10-21):** the team leans towards Unity with slightly nicer 3D; the whole world (rooms, sky, floors, lighting), not just the props, gets upgraded to match Googoo's new style.

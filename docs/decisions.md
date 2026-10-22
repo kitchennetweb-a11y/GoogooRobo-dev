@@ -56,6 +56,6 @@ Newest decisions are at the bottom of each section.
 ## Game plan decisions (2026-10-21, see docs/game-plan.md "Owner's answers")
 - Stars: total reached, never spent; low thresholds and simple achievements so kids see places sooner.
 - Real-clock routine with a parent switch; Googoo has no needs or meters.
-- Map order: courtyard first; 8th place = doctor's clinic (not the zoo).
-- Store v1 = house + courtyard, street, shops, park, farm, school; beach and clinic as free updates.
+- Map order: courtyard first; 8th place = the moon, reached by rocket (not the zoo or a clinic).
+- Store v1 = house + courtyard, street, shops, park, farm, school; beach and moon as free updates.
 - Price: 7-day trial then US$14.99 lifetime (US$9.99 early families). Supersedes US$59.
