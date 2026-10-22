@@ -116,13 +116,28 @@ body:not(.words) #bubble{display:none}
 @keyframes pop{from{transform:translate(-50%,-50%) scale(0)}}@keyframes bob{50%{transform:translate(-50%,-62%)}}
 @media (orientation:portrait){#surp{left:18%;top:34%}}
 @media (prefers-reduced-motion:reduce){#nav .rb.invite,#nav .rb.surp::after,#surp{animation:none}}
+/* free placement (Design mode, layout ui.free): buttons moved into #free and placed in px by applyFree() */
+#free{position:fixed;inset:0;pointer-events:none;z-index:3}#free>*{position:fixed;pointer-events:auto;margin:0;right:auto;bottom:auto}
+#free [data-r]{background:#ffffffcc}#free [data-r].cur{background:#ffd34d;box-shadow:0 0 0 4px #fff,0 5px 0 #0003}#free [data-r].invite{animation:inv 1.4s ease-in-out infinite}
+#free [data-r].surp{box-shadow:0 0 0 4px #fff,0 0 20px 6px #ffd34d}#free #bTalk{width:38px;height:38px;font-size:19px;box-shadow:0 3px 0 #0003}
+/* "jelly bubble" buttons (layout ui.style, default): squishy candy blobs, glossy top, darker lip, soft drop shadow; tap = squash and wobble; very slow idle wobble. CSS only */
+body.jelly .rb,body.jelly .ec.nav{position:relative;border-radius:42% 58% 55% 45%/50% 45% 55% 50%;animation:jidle 7s ease-in-out infinite;
+  box-shadow:inset 0 calc(var(--b)*-.09) 0 #00000029,inset 0 calc(var(--b)*.06) calc(var(--b)*.08) #ffffff73,0 6px 12px #22314a40}
+body.jelly .rb:nth-child(3n+2),body.jelly .ec.nav:nth-child(3n+2){border-radius:55% 45% 48% 52%/45% 55% 45% 55%;animation-delay:-2.3s;animation-duration:8s}
+body.jelly .rb:nth-child(3n),body.jelly .ec.nav:nth-child(3n){border-radius:48% 52% 42% 58%/56% 48% 52% 44%;animation-delay:-4.6s;animation-duration:6.5s}
+body.jelly #parentBtn,body.jelly #score{box-shadow:inset 0 -3px 0 #00000014,0 4px 10px #22314a26}body.jelly #parentBtn{border-radius:45% 55% 52% 48%/52% 46% 54% 48%}body.jelly #score{border-radius:20px 24px 22px 18px/22px 18px 24px 20px}
+body.jelly :is(.rb,.ec.nav)::before{content:'';position:absolute;left:20%;top:9%;width:46%;height:26%;border-radius:50%;background:linear-gradient(#ffffff8c,#fff0);pointer-events:none}
+body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:jtap .35s cubic-bezier(.3,1.4,.5,1)}
+@keyframes jidle{0%,100%{transform:rotate(0) scale(1)}33%{transform:rotate(1.2deg) scale(1.025,.975)}66%{transform:rotate(-1deg) scale(.98,1.02)}}
+@keyframes jtap{0%{transform:scale(1)}22%{transform:scale(.88,.84)}48%{transform:scale(1.1,1.05)}68%{transform:scale(.96,1.02)}85%{transform:scale(1.02,.99)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){body.jelly .rb,body.jelly .ec.nav,body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:none}}
 </style>
 
 <div id="stage"></div>
 <div id="bubble"><div class="fa" id="bfa"></div></div><div id="pbub"></div>
 <div id="hint">Find, Feed and Say it are Farsi games. Just talk to Pash: when he's standing still he listens and repeats it in a funny voice. The Talk button turns his ears on and off. Poke his head, tummy (try 3 times fast!), ears, feet, antenna or face. Drag to spin him. Tap the empty floor to call him home. Grown-ups: Farsi lines show here and will play your recorded voice later.</div>
 <div id="top"><div id="score">⭐ <span id="scoreN">0</span></div><button id="bTalk" class="rb" style="background:#ff4f6d" aria-label="Talk (microphone on/off)">🎤</button></div>
-<div id="acts"><div id="colL" class="col"></div><div id="colR" class="col"></div></div>
+<div id="acts"><div id="colL" class="col"></div><div id="colR" class="col"></div></div><div id="free"></div><div id="safeProbe" style="position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)"></div>
 <div id="nav"><button class="rb" data-r="home" aria-label="Home">🏠</button><button class="rb" data-r="play" aria-label="Play room">🧸</button>
   <button class="rb" data-r="bed" aria-label="Bedroom">🛏️</button><button class="rb" data-r="say" aria-label="Say it">🗣️</button>
   <button class="rb" data-r="book" aria-label="Picture book">📖</button></div>
@@ -1304,20 +1319,34 @@ function loadProp(id,ld=new THREE.GLTFLoader()){const P=PROPS[id],room=P.room;ld
 const SITS={lamp:'nightstand'}; // "sits on" links when the layout says nothing (on:null = stands free): the lamp stands on the nightstand's real top
 let HOME={x:0,z:0,ry:0,s:1},CAMAUTO=null;const GOO={},CAMS={},BUILT={}; // Googoo's place/size and the saved camera per room (layout.json), set by setHome() in resize()
 function setHome(){const g=GOO[curRoom]||{},p=portrait&&g.portrait||{};HOME={x:p.x??g.x??0,z:p.z??g.z??0,ry:p.ry??g.ry??0,s:p.s??g.s??1}}
+// free placement: FREE[phone|wide][id] = {ax:'l'|'r', ay:'t'|'b', x, y} (% of the screen from the nearest edges); ids: rail buttons, score, bTalk, parentBtn, tab-<room>
+let FREE={},NAVORDER=['home','play','bed','say','book'],TOPORDER=['score','bTalk'];
+const safeIns=()=>{if(window.__safe)return window.__safe;const c=getComputedStyle(document.getElementById('safeProbe'));return {t:parseFloat(c.paddingTop)||0,r:parseFloat(c.paddingRight)||0,b:parseFloat(c.paddingBottom)||0,l:parseFloat(c.paddingLeft)||0}}; // notch / home bar (Design mode simulates them)
+const freeEl=id=>id.startsWith('tab-')?document.querySelector(`[data-r=${id.slice(4)}]`):document.getElementById(id);
+function applyFree(){const box=document.getElementById('free'),F=FREE[camKey()]||{},cards=scr==='say'||scr==='book'||!deck.hidden,key=scr==='bed'&&!lightsOn?'night':scr,rails=(SCREENS[key]||[[],[]]).flat(),
+    on=id=>!cards&&F[id]&&(id.startsWith('tab-')||TOPORDER.includes(id)||id==='parentBtn'||rails.includes(id)),nav=document.getElementById('nav'),top=document.getElementById('top');let back=0;
+  for(const e of [...box.children])if(!on(e.dataset.fid)){const h=e.dataset.home;e.style.left=e.style.top='';delete e.dataset.home;delete e.dataset.fid;(h==='nav'?nav:h==='top'?top:h==='body'?document.body:document.getElementById('btns')).appendChild(e);back=1}
+  if(back){NAVORDER.forEach(r=>{const e=nav.querySelector(`[data-r=${r}]`);if(e)nav.appendChild(e)});TOPORDER.forEach(id=>{const e=top.querySelector('#'+id);if(e)top.appendChild(e)});
+    ['colL','colR'].forEach((c,i)=>{c=document.getElementById(c);(SCREENS[key]||[[],[]])[i].forEach(id=>{const e=document.getElementById(id);if(e&&e.parentNode!==box)c.appendChild(e)})})}
+  const sf=safeIns(),W=innerWidth-sf.l-sf.r,H=innerHeight-sf.t-sf.b; // positions are % of the safe area
+  for(const id in F){if(!on(id))continue;const e=freeEl(id);if(!e)continue;
+    if(e.parentNode!==box){e.dataset.fid=id;e.dataset.home=e.closest('#nav')?'nav':e.closest('#top')?'top':e.id==='parentBtn'?'body':'rail';box.appendChild(e)}
+    const p=F[id],z=parseFloat(getComputedStyle(e).zoom)||1,x=p.x/100*W,y=p.y/100*H;e.style.left=(sf.l+(p.ax==='r'?W-x-e.offsetWidth*z:x))/z+'px';e.style.top=(sf.t+(p.ay==='b'?H-y-e.offsetHeight*z:y))/z+'px'} // offset size: not the jelly wobble
+  box.querySelectorAll('[data-r]').forEach(b=>b.classList.toggle('cur',b.dataset.r===scr))}
 const LAYOUT=fetch('data/layout.json',{cache:'no-cache'}).then(r=>r.json()).then(applyLayout).catch(e=>console.warn('layout: built-in values',e));
 function applyLayout(L){for(const s in L.rooms){const R=L.rooms[s];WALLS[s]=R.walls||{};if(WALLS[s].color)WALL[s]=parseInt(WALLS[s].color.slice(1),16);
     for(const id in PROPS)if(PROPS[id].room===s)delete PROPS[id];
     GOO[s]=R.googoo||{};CAMS[s]=R.camera||{};
     for(const p of R.props||[])if(p.builtin)BUILT[p.id]=p;else PROPS[p.id]={f:p.file,k:p.k,x:p.x,y:p.y,z:p.z,ry:p.ry,room:s,on:p.on!==undefined?p.on:SITS[p.id],back:p.wall==='back',side:p.wall==='left',sy:p.flatten,nosq:p.noSqueeze,off:p.hidden,cast:p.castShadow,pt:p.portrait}}
-  const U=L.ui||{},S=U.size||1;for(const k in U.screens||{})SCREENS[k]=[U.screens[k].left,U.screens[k].right];
+  const U=L.ui||{},S=U.size||1;document.body.classList.toggle('jelly',(U.style||'jelly')==='jelly');FREE=U.free||{};NAVORDER=(U.nav||{}).order||NAVORDER;TOPORDER=(U.top||{}).order||TOPORDER;for(const k in U.screens||{})SCREENS[k]=[U.screens[k].left,U.screens[k].right];
   for(const id in U.buttons||{}){const b=document.getElementById(id);if(b&&U.buttons[id].color)b.style.background=U.buttons[id].color}
   for(const id in BUILT){const p=BUILT[id],g=furnById(id);if(!g)continue;g.userData.x0=p.x??g.userData.x0;if(p.z!=null)g.position.z=p.z;if(p.y!=null)g.position.y=p.y;if(p.ry!=null&&!g.userData.spin)g.rotation.y=p.ry;g.userData.off=p.hidden?1:0;g.userData.on=p.on!==undefined?p.on:SITS[id]} // book, star mobile
   const T=U.top||{},N=U.nav||{},NS=N.size??S,top=document.getElementById('top'),nav=document.getElementById('nav'),sz=(q,k)=>k!==1?`${q}{width:calc(var(--b)*${k});height:calc(var(--b)*${k});font-size:calc(var(--b)*${k/2})}`:'';
   (T.order||[]).forEach(id=>{const e=document.getElementById(id);if(e&&e.parentNode===top)top.appendChild(e)});['score','bTalk'].forEach(id=>document.getElementById(id).hidden=(T.hide||[]).includes(id)); // the gear always stays (parent corner)
   for(const id in T.colors||{})document.getElementById(id).style.background=T.colors[id];
   (N.order||[]).forEach(r=>{const e=nav.querySelector(`[data-r=${r}]`);if(e)nav.appendChild(e)});nav.querySelectorAll('.rb').forEach(e=>e.hidden=(N.hide||[]).includes(e.dataset.r)&&!ROOM_HI[e.dataset.r]); // room tabs can't be hidden
-  const css=sz('.col .rb',S)+sz('#nav .rb',NS)+(NS!==1?`@media (orientation:portrait){body.say .col,body:has(#deck:not([hidden])) .col{bottom:calc(env(safe-area-inset-bottom,0px) + var(--b)*${NS} + var(--g) + 10px)}}`:'')+(U.shape==='square'?'.col .rb{border-radius:24%}':'')+((N.shape||U.shape)==='square'?'#nav .rb{border-radius:24%}':'')+
-    Object.entries(N.colors||{}).map(([r,c])=>`#nav [data-r=${r}]:not(.cur){background:${c}}`).join('')+((T.size??1)!==1?`#top,#parentBtn{zoom:${T.size}}`:'')+(T.shape==='square'?'#bTalk,#parentBtn{border-radius:24%}':'');
+  const css=sz('.col .rb,#free .rb:not([data-r]):not(#bTalk)',S)+sz('#nav .rb,#free [data-r]',NS)+(NS!==1?`@media (orientation:portrait){body.say .col,body:has(#deck:not([hidden])) .col{bottom:calc(env(safe-area-inset-bottom,0px) + var(--b)*${NS} + var(--g) + 10px)}}`:'')+(U.style==='classic'&&U.shape==='square'?'.col .rb,#free .rb:not([data-r]){border-radius:24%}':'')+(U.style==='classic'&&(N.shape||U.shape)==='square'?':is(#nav,#free) [data-r]{border-radius:24%}':'')+
+    Object.entries(N.colors||{}).map(([r,c])=>`:is(#nav,#free) [data-r=${r}]:not(.cur){background:${c}}`).join('')+((T.size??1)!==1?`#top,#parentBtn{zoom:${T.size}}`:'')+(U.style==='classic'&&T.shape==='square'?'#bTalk,#parentBtn{border-radius:24%}':'');
   (document.getElementById('uiCss')||document.head.appendChild(Object.assign(document.createElement('style'),{id:'uiCss'}))).textContent=css;showScreen(scr)}
 // portrait overrides (pt: k size factor, x, z, y, ry) so the phone view isn't swamped by big pieces; landscape keeps the PROPS values
 function placeProps(sq){for(const g of furnGroup.children){const u=g.userData,pt=portrait&&u.pt||{};g.position.x=pt.x??u.x0*(u.nosq?1:sq);
@@ -1561,7 +1590,7 @@ document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false)
 
 // ---------- Bedtime invite (after 3 finished games or ~6 min away from the bedroom) + hidden surprises ----------
 let doneN=0,awayT=0,bedInvite=false,surp=null,surpAt=Infinity;
-const navB=r=>document.querySelector(`#nav [data-r=${r}]`),surpEl=document.getElementById('surp');
+const navB=r=>document.querySelector(`[data-r=${r}]`),surpEl=document.getElementById('surp');
 function doneAct(){if(curRoom!=='bed'&&++doneN>=3)inviteBed()}
 function inviteBed(){if(bedInvite||curRoom==='bed')return;bedInvite=true;navB('bed').classList.add('invite');
   const go=()=>{if(!bedInvite||curRoom==='bed')return;if(game.type||st.mode!=='idle')return setTimeout(go,3000);
@@ -1589,7 +1618,7 @@ function showScreen(s){const old=scr;scr=s;
   const night=s==='bed'&&!lightsOn;document.body.classList.toggle('night',night);surpEl.hidden=!(surp&&surp.room===s);
   document.querySelectorAll('.col .rb').forEach(b=>document.getElementById('btns').appendChild(b));
   ['colL','colR'].forEach((c,i)=>{c=document.getElementById(c);SCREENS[night?'night':s][i].forEach(id=>c.appendChild(document.getElementById(id)))});
-  document.querySelectorAll('#nav .rb').forEach(b=>b.classList.toggle('cur',b.dataset.r===s));document.getElementById('card').hidden=s!=='say';document.body.classList.toggle('say',s==='say');resize()}
+  document.querySelectorAll('[data-r]').forEach(b=>b.classList.toggle('cur',b.dataset.r===s));document.getElementById('card').hidden=s!=='say';document.body.classList.toggle('say',s==='say');resize()}
 async function setRoom(s){if(s===scr&&ROOM_HI[s])return;const f=document.getElementById('fade');
   endGame();try{voiceSrc&&voiceSrc.stop()}catch(e){}if(st.mode!=='idle')setMode('idle');setFace('happy',0);goHome();
   while(bubbleGroup.children.length)bubbleGroup.remove(bubbleGroup.children[0]);
@@ -1635,7 +1664,7 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
   // framed at his base size around the origin, then moved to his place: in the room his size multiplier really makes him bigger/smaller (a saved view stays as saved);
   // card screens, stories and toys frame his scaled size (camera scaled with him), so he stays fully visible under the card and above the tabs
   camera.position.multiplyScalar(cards||toys?HOME.s:1).add(new THREE.Vector3(HOME.x,0,HOME.z));camera.updateMatrixWorld();
-  camera.updateProjectionMatrix()}
+  camera.updateProjectionMatrix();applyFree()}
 const camKey=()=>portrait&&innerWidth<700?'phone':'wide'; // saved camera views: upright phones, everything else
 addEventListener('resize',resize);addEventListener('load',resize);showScreen('home');measureRobot();
 
@@ -1752,5 +1781,8 @@ function loop(){
 loop();
 // installable app: offline cache (sw.js); skipped where service workers aren't allowed (file://, artifact viewer)
 if('serviceWorker' in navigator&&/^http/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
+document.body.classList.add('jelly');
+document.addEventListener('pointerdown',e=>{const b=document.body.classList.contains('jelly')&&e.target.closest&&e.target.closest('.rb,.ec.nav');if(b){b.classList.remove('jtap');void b.offsetWidth;b.classList.add('jtap')}},true);
+document.addEventListener('animationend',e=>{if(e.animationName==='jtap')e.target.classList.remove('jtap')});
 if(/[?&]design=1(&|$)/.test(location.search))document.body.appendChild(Object.assign(document.createElement('script'),{src:'editor.js'})); // Design mode (room editor, tools/design_server.py)
 </script>

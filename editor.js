@@ -196,7 +196,7 @@ frame.addEventListener('load', async () => {
   // start the game without the start screen (no sound in Design mode); the room's props load
   W.eval("document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;propsOn=true;loadProps(curRoom)");
   for (const p of L.rooms[room()].props) inflight.add(p.id);
-  setupFrame(); apply('all'); setDevice(device); renderTop();
+  W.__safe = SAFE[device]; setupFrame(); apply('all'); setDevice(device); renderTop();
   status(serverOk ? 'Ready. Click a piece (or Googoo) in the room to move it.' : 'Design server is not running (start tools/design_mode.bat): you can try things but Save and Publish will not work.', serverOk ? '' : 'dirty');
   setInterval(tick, 250); setInterval(budget, 1500);
 });
@@ -208,7 +208,7 @@ function setupFrame() {
   const d = W.document, st = d.createElement('style');
   st.textContent = `#edOv{position:fixed;inset:0;z-index:50;cursor:default}#edOv.grab{cursor:grabbing}
     body.edBtns .col,body.edBtns #nav,body.edBtns #top,body.edBtns #parentBtn{z-index:60}body.edBtns :is(.col .rb,#nav .rb,#top>*,#parentBtn){cursor:grab}
-    .edSel{outline:3px dashed #2563eb!important;outline-offset:4px}body:not(.edBtns) :is(#parentBtn,#top,#surp){pointer-events:none}`;
+    .edSel{outline:3px dashed #2563eb!important;outline-offset:4px}.edWarn{outline:3px solid #e11d48!important;outline-offset:3px}.edG{position:fixed;background:#e11d48;z-index:80;pointer-events:none}body.edBtns #free{z-index:60}body.edBtns :is(.rb,.ec.nav,#free>*){animation:none!important;transform:none!important}body:not(.edBtns) .edG{display:none}body:not(.edBtns) .edWarn{outline:none!important}body:not(.edBtns) :is(#parentBtn,#top,#surp){pointer-events:none}`;
   d.head.appendChild(st);
   ov = d.createElement('div'); ov.id = 'edOv'; d.body.appendChild(ov);
   box = new X.THREE.BoxHelper(undefined, 0x2563eb); box.visible = false; box.material.depthTest = false; box.renderOrder = 999; X.scene.add(box);
@@ -218,7 +218,7 @@ function setupFrame() {
   W.addEventListener('keydown', onKey);
   // buttons mode: buttons drag; their game actions (and the gear's hold) are blocked
   d.addEventListener('pointerdown', onBtnDown, true);
-  d.addEventListener('click', e => { if (mode === 'buttons' && e.target.closest && e.target.closest('.col .rb,#nav .rb,#top>*,#parentBtn')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  d.addEventListener('click', e => { if (mode === 'buttons' && e.target.closest && e.target.closest(BTNQ)) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
   // the game's resize() re-aims the camera: in free camera mode keep ours
   const orig = W.resize;
   W.resize = function () { orig(); if (free) restoreFree(); };
@@ -383,18 +383,64 @@ function removeProp(id) {
 }
 function toggleHidden(id) { const p = propOf(id); change(() => { p.hidden = !p.hidden; }, '', 'all'); }
 
-// ---------- buttons mode: drag rail buttons, the top bar and the room tabs ----------
+// ---------- buttons mode: drag rail buttons, the top bar and the room tabs (in rows), or anywhere (free placement) ----------
 let bdrag = null;
+const SAFE = { up: { t: 47, b: 34, l: 0, r: 0 }, side: { t: 0, b: 21, l: 47, r: 47 }, small: { t: 20, b: 0, l: 0, r: 0 }, ipad: { t: 24, b: 20, l: 0, r: 0 } }; // the real devices' notch / home-bar insets
+const BTNQ = '.col .rb,#nav .rb,#top>*,#parentBtn,#free>*';
+const fidOf = b => b.dataset.r ? 'tab-' + b.dataset.r : b.id;
+const freeMap = () => (L.ui.free || {})[camKey()];
+const cardsUp = () => ['say', 'book'].includes(W.eval('scr')) || !W.document.getElementById('deck').hidden;
+const shownBtns = () => [...W.document.querySelectorAll(BTNQ)].filter(x => !x.hidden && !x.closest('#btns') && x.getBoundingClientRect().width > 0);
+// % of the safe area (inside the notch / home bar), anchored to the nearest edges
+function freePos(r) { const S = SAFE[device] || {}, Wd = W.innerWidth - S.l - S.r, H = W.innerHeight - S.t - S.b, L0 = r.left - S.l, T0 = r.top - S.t;
+  const ax = L0 + r.width / 2 < Wd / 2 ? 'l' : 'r', ay = T0 + r.height / 2 < H / 2 ? 't' : 'b';
+  return { ax, ay, x: r2((ax === 'l' ? L0 : Wd - L0 - r.width) / Wd * 100), y: r2((ay === 't' ? T0 : H - T0 - r.height) / H * 100) }; }
+function freeStart() { // every button where it is now becomes a free one, so nothing jumps
+  if (cardsUp()) return status('Card screens keep their buttons in rows. Pick a room first.', 'dirty');
+  // the preview has no notch: buttons that would sit under it (top bar, room tabs) start just inside the safe area, where the phone shows them today
+  const S = SAFE[device] || {}, Wd = W.innerWidth, H = W.innerHeight, F = {};
+  for (const b of shownBtns()) { const r = b.getBoundingClientRect(), left = Math.min(Math.max(r.left, S.l + 10), Wd - S.r - 10 - r.width), top = Math.min(Math.max(r.top, S.t + 10), H - S.b - 10 - r.height);
+    F[fidOf(b)] = freePos({ left, top, width: r.width, height: r.height, right: left + r.width, bottom: top + r.height }); }
+  change(() => { (L.ui.free = L.ui.free || {})[camKey()] = F; }, '', 'ui'); renderRight();
+}
+function freeBack() { change(() => { if (L.ui.free) { delete L.ui.free[camKey()]; if (!Object.keys(L.ui.free).length) delete L.ui.free; } }, '', 'ui'); renderRight(); }
 function onBtnDown(e) {
   if (mode !== 'buttons') return;
-  const b = e.target.closest && e.target.closest('.col .rb,#nav .rb,#top>*,#parentBtn'); if (!b) return;
+  const b = e.target.closest && e.target.closest(BTNQ); if (!b) return;
   e.stopImmediatePropagation(); e.preventDefault();
-  const g = b.closest('#nav') ? 'nav' : b.closest('#top') || b.id === 'parentBtn' ? 'top' : 'rails';
+  const g = b.closest('#nav') || b.dataset.r ? 'nav' : b.closest('#top') || ['score', 'bTalk', 'parentBtn'].includes(b.id) ? 'top' : 'rails';
   selBtn = b.id || b.dataset.r; bscr = g === 'rails' ? screenKey() : g; markBtn(); renderRight();
+  const F = freeMap();
+  if (F && !cardsUp()) { // free placement: drag anywhere
+    const id = fidOf(b), r = b.getBoundingClientRect();
+    if (!F[id]) change(() => { F[id] = freePos(r); }, '', 'ui');
+    bdrag = { b, free: true, id, ox: e.clientX - r.left, oy: e.clientY - r.top }; return;
+  }
   if (b.id !== 'parentBtn') bdrag = { b, g, moved: false };
+}
+// snap to an 8 px grid, the screen edges / safe area, and the other buttons' centres; returns [position, guide line or null]
+function snap(v, size, edges, centres) {
+  let out = Math.round(v / 8) * 8, guide = null, best = 7;
+  for (const t of edges) if (Math.abs(v - t) < best) { best = Math.abs(v - t); out = t; guide = null; }
+  for (const c of centres) if (Math.abs(v + size / 2 - c) < best) { best = Math.abs(v + size / 2 - c); out = c - size / 2; guide = c; }
+  return [out, guide];
+}
+function guides(gx, gy) {
+  const d = W.document;
+  for (const [k, v] of [['edGx', gx], ['edGy', gy]]) {
+    let g = d.getElementById(k); if (!g) { g = d.createElement('div'); g.id = k; g.className = 'edG'; d.body.appendChild(g); }
+    g.style.display = v == null ? 'none' : 'block';
+    Object.assign(g.style, k === 'edGx' ? { left: v + 'px', top: '0', width: '1px', height: '100%' } : { top: v + 'px', left: '0', height: '1px', width: '100%' });
+  }
 }
 function onBtnMove(e) {
   if (!bdrag) return; const d = W.document, b = bdrag.b;
+  if (bdrag.free) {
+    const r = b.getBoundingClientRect(), Wd = W.innerWidth, H = W.innerHeight, S = SAFE[device] || {}, others = shownBtns().filter(x => x !== b).map(x => x.getBoundingClientRect());
+    const [x, gx] = snap(e.clientX - bdrag.ox, r.width, [S.l + 12, Wd - S.r - 12 - r.width], others.map(o => o.left + o.width / 2));
+    const [y, gy] = snap(e.clientY - bdrag.oy, r.height, [S.t + 10, H - S.b - 10 - r.height], others.map(o => o.top + o.height / 2));
+    const z = parseFloat(W.getComputedStyle(b).zoom) || 1; b.style.left = x / z + 'px'; b.style.top = y / z + 'px'; guides(gx, gy); bdrag.moved = true; return;
+  }
   if (bdrag.g === 'rails') {
     const rail = d.getElementById(e.clientX < W.innerWidth / 2 ? 'colL' : 'colR'), others = [...rail.children].filter(x => x !== b && !x.hidden);
     const before = others.find(x => { const r = x.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
@@ -404,16 +450,30 @@ function onBtnMove(e) {
   const box = b.parentNode, before = [...box.children].filter(x => x !== b).find(x => { const r = x.getBoundingClientRect(); return e.clientX < r.left + r.width / 2; });
   if (b.nextElementSibling !== (before || null)) { box.insertBefore(b, before || null); bdrag.moved = true; }
 }
+const hit = (a, b, m = 1) => a.left < b.right - m && b.left < a.right - m && a.top < b.bottom - m && b.top < a.bottom - m;
 function onBtnUp() {
-  if (!bdrag) return; const { moved, g } = bdrag; bdrag = null; if (!moved) return;
+  if (!bdrag) return; const { moved, g, free, b, id } = bdrag; bdrag = null; if (!moved) return;
+  if (free) {
+    guides(null, null); const r = b.getBoundingClientRect();
+    if (shownBtns().some(x => x !== b && hit(r, x.getBoundingClientRect()))) { W.applyFree(); status("Buttons can't sit on top of each other: it went back to where it was.", 'dirty'); return; }
+    change(() => { freeMap()[id] = freePos(r); }, '', 'ui'); markBtn(); renderRight(); return;
+  }
   const d = W.document, k = screenKey(), ids = id => [...d.getElementById(id).children].map(x => x.id);
   if (g === 'rails') change(() => { L.ui.screens[k] = { left: ids('colL'), right: ids('colR') }; }, '', 'ui');
   else if (g === 'nav') change(() => { ui('nav').order = [...d.querySelectorAll('#nav .rb')].map(x => x.dataset.r); }, '', 'ui');
   else change(() => { ui('top').order = ids('top'); }, '', 'ui');
   markBtn(); renderRight();
 }
+// red outline: a free button over Googoo's face, or under a phone's notch / home bar
+function freeWarn() {
+  if (!W || !X || mode !== 'buttons') return; const d = W.document, S = SAFE[device] || {}, Wd = W.innerWidth, H = W.innerHeight;
+  const f = W.eval("(()=>{const v=new THREE.Vector3();headObj().getWorldPosition(v);const s=v.clone().project(camera),e=v.clone().add(new THREE.Vector3(RB.h*HOME.s*.17,0,0)).project(camera);return [(s.x+1)/2*innerWidth,(1-s.y)/2*innerHeight,Math.abs(e.x-s.x)/2*innerWidth]})()");
+  const face = { left: f[0] - f[2], right: f[0] + f[2], top: f[1] - f[2], bottom: f[1] + f[2] };
+  for (const b of d.querySelectorAll('#free>*')) { const r = b.getBoundingClientRect(); b.classList.toggle('edWarn', hit(r, face) || r.top < S.t || r.bottom > H - S.b || r.left < S.l || r.right > Wd - S.r); }
+}
+setInterval(freeWarn, 300);
 const ui = k => L.ui[k] = L.ui[k] || {};
-function markBtn() { if (!W) return; W.document.querySelectorAll('.edSel').forEach(x => x.classList.remove('edSel')); if (mode === 'buttons' && selBtn) (W.document.getElementById(selBtn) || W.document.querySelector(`#nav [data-r="${selBtn}"]`))?.classList.add('edSel'); }
+function markBtn() { if (!W) return; W.document.querySelectorAll('.edSel').forEach(x => x.classList.remove('edSel')); if (mode === 'buttons' && selBtn) (W.document.getElementById(selBtn) || W.document.querySelector(`[data-r="${selBtn}"]`))?.classList.add('edSel'); }
 const btnLabel = id => { const b = W && W.document.getElementById(id); return b ? [b.textContent.trim(), b.getAttribute('aria-label')] : ['', id]; };
 
 // ---------- camera ----------
@@ -443,7 +503,7 @@ function camFromFree() { // the free camera's angle, as a saved view around Goog
 
 // ---------- device size ----------
 function setDevice(k) {
-  device = k; const [, w, h] = DEVICES[k]; frame.style.width = w + 'px'; frame.style.height = h + 'px'; $('device').value = k; fit();
+  device = k; const [, w, h] = DEVICES[k]; if (W) { W.__safe = SAFE[k]; } frame.style.width = w + 'px'; frame.style.height = h + 'px'; $('device').value = k; fit();
   if (!isPortraitSize(k)) ptMode = false; setTimeout(() => { renderRight(); }, 300);
 }
 const isPortraitSize = k => DEVICES[k][1] < DEVICES[k][2];
@@ -655,7 +715,14 @@ function renderButtons(el) {
       <h2>Right side</h2><div class="blist">${S.right.map(row).join('') || '<p class="hint">none</p>'}</div>
       <div class="field"><label>Add a button</label><select class="eb" id="addb"><option value="">Choose…</option>${all.filter(id => !on.has(id)).map(id => `<option value="${id}">${btnLabel(id).join(' ')}</option>`).join('')}</select><span></span></div>`;
   }
-  el.innerHTML = `<h2>Buttons</h2>${opts}${body}<p class="hint">Changing a button size never changes the camera.</p>`;
+  const st = L.ui.style || 'jelly', F = freeMap(), grpName = camKey() === 'phone' ? 'upright phones' : 'sideways phones and iPads';
+  const head = `<div class="field"><label>Style (all)</label><div class="grp"><button class="eb${st === 'jelly' ? ' on' : ''}" data-style="jelly">🍬 Jelly</button><button class="eb${st === 'classic' ? ' on' : ''}" data-style="classic">● Classic</button></div><span></span></div>
+   <div class="field"><label>Placement</label><span class="hint" style="margin:0">${F ? '<b>free</b>' : 'in rows'} on ${grpName}</span><span></span></div>
+   <div class="row">${F ? '<button class="eb" id="freeBack">↩ Back to rows</button>' : '<button class="eb" id="freeOn">✋ Place buttons freely</button>'}</div>
+   <p class="hint">${F ? "Drag any button anywhere. It snaps to a grid, the edges and the other buttons (red lines). A red outline means it is over Googoo's face or under the phone's notch or home bar. Buttons can't overlap. Card games and stories keep their rows." : 'Free placement lets you drag every button anywhere (separately for upright phones and for the rest).'}</p>`;
+  el.innerHTML = `<h2>Buttons</h2>${head}${opts}${body}<p class="hint">Changing a button size never changes the camera.${st === 'jelly' ? ' Shapes only apply to the classic style.' : ''}</p>`;
+  if (el.querySelector('#freeOn')) el.querySelector('#freeOn').onclick = freeStart;
+  if (el.querySelector('#freeBack')) el.querySelector('#freeBack').onclick = freeBack;
   el.querySelector('#scr').value = k;
   el.querySelector('#scr').onchange = async e => { const s = e.target.value; selBtn = null; bscr = s; markBtn();
     if (s !== 'top' && s !== 'nav') { if (s === 'night') { await W.setRoom('bed'); W.setLights(false); } else { if (s === 'bed' && !W.eval('lightsOn')) W.setLights(true); await W.setRoom(s); } renderTop(); }
@@ -673,6 +740,7 @@ function renderButtons(el) {
     if (ds.thide) change(() => { const T = ui('top'); T.hide = toggle(T.hide || [], ds.thide, e.target.checked); }, '', 'ui');
     if (ds.nhide) change(() => { const N = ui('nav'); N.hide = toggle(N.hide || [], ds.nhide, e.target.checked); }, '', 'ui'); };
   el.onclick = e => { const t = e.target;
+    if (t.dataset.style) { change(() => { L.ui.style = t.dataset.style; }, '', 'ui'); renderButtons(el); }
     if (t.dataset.shape) { const sk = t.dataset.sk; change(() => { if (sk === 'rails') L.ui.shape = t.dataset.shape; else ui(sk).shape = t.dataset.shape; }, '', 'ui'); renderButtons(el); }
     if (t.dataset.rm) { change(() => { const s = L.ui.screens[k]; s.left = s.left.filter(x => x !== t.dataset.rm); s.right = s.right.filter(x => x !== t.dataset.rm); }, '', 'ui'); renderButtons(el); } };
   const ab = el.querySelector('#addb'); if (ab) ab.onchange = e => { const id = e.target.value; if (id) { change(() => { (L.ui.screens[k] = L.ui.screens[k] || { left: [], right: [] }).left.push(id); }, '', 'ui'); renderButtons(el); } };

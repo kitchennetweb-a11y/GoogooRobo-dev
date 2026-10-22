@@ -123,6 +123,15 @@ def validate(L):
     if U.get('shape') not in ('round', 'square'):
         raise ValueError('button shape')
     T, N = U.get('top') or {}, U.get('nav') or {}
+    if U.get('style', 'jelly') not in ('jelly', 'classic'):
+        raise ValueError('button style')
+    for grp, F in (U.get('free') or {}).items():  # free placement: % from the nearest screen edges
+        if grp not in ('phone', 'wide'):
+            raise ValueError(f'free placement group {grp}')
+        for b, v in F.items():
+            if not re.match(r'^(b[A-Za-z]+|score|parentBtn|tab-(home|play|bed|say|book))$', b) or v.get('ax') not in ('l', 'r') or v.get('ay') not in ('t', 'b'):
+                raise ValueError(f'free placement of {b}')
+            num(v.get('x'), -5, 100, f'{b} x'); num(v.get('y'), -5, 100, f'{b} y')
     for part, ids_ok in ((T, ('score', 'bTalk', 'parentBtn')), (N, ('home', 'play', 'bed', 'say', 'book'))):
         if 'size' in part:
             num(part['size'], 0.5, 2, 'top/tab size')
