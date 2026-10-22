@@ -580,7 +580,7 @@ function faceGG(t,dt,now,lvl){ // lvl: 0..1 mouth level from the voice, <0 = sil
 // ggClip(name, secs, {from (s), loop, ts (speed), lock (nothing else may interrupt), then (called when it ends)}): a short reaction, crossfaded (XF s) over the base clip
 // and back. Returns false when that clip isn't loaded (yet) or a locked one plays, so callers can keep their procedural fallback.
 const XF=.25,V_WALK=.72,V_RUN=2.02; // crossfade; treadmill speeds of the in-place walk / run in model units per second
-let react=null,reactLeft=0,reactThen=null,lockA=null,ggLoco=null,ggSpeed=0,idleB='idle_happy',idleSwap=0;const ROFF={};
+let ggSat=false,react=null,reactLeft=0,reactThen=null,lockA=null,ggLoco=null,ggSpeed=0,idleB='idle_happy',idleSwap=0;const ROFF={};
 const ggLocked=()=>!!react&&react===lockA; // reactLeft counts game time (like the mixer), so a slow phone still plays the whole clip
 function ggClip(n,secs=9,o={}){const a=ACT[n];if(!a||ggLocked())return false;
   if(a!==react||!(CW[n]>.01)){a.reset();a.time=o.from||0;a.timeScale=o.ts||1;a.setLoop(o.loop?THREE.LoopRepeat:THREE.LoopOnce,Infinity);a.clampWhenFinished=true;a.play()} // the same clip again while it plays: just longer
@@ -687,7 +687,7 @@ function ggUpdate(dt,t,now,o){toRest(); // rest pose first, so the mixer saves r
     if(n===base&&a!==react)a.timeScale=sleep&&!ggLoco?.4:1;
     const r=ROFF[n];if(r&&CW[n])rz+=CW[n]*(typeof r==='function'?r(a):r)}
   ggSpeed=((CW.walk_happy||0)*V_WALK+(CW.run||0)*V_RUN)*GG.scale.x*robotScale; // room units per second: matches the treadmill, so the feet don't slide
-  mixer.update(dt);gg.position.z=rz*GG.scale.x;
+  mixer.update(dt);gg.position.z=rz*GG.scale.x;if(CW.sit_floor_idle>.5!==ggSat){ggSat=!ggSat;resize()} // sitting (story): the camera re-frames
   // dance (💃, songs, disco, moves game): procedural, blended over the clip so it starts and stops smoothly
   const dz=st.mode==='dance'||pose.name==='dance'&&now<pose.until;
   if(dz&&!danceOn){SP={};danceT0=procT;dStyle=Math.max(0,danceStyle)%4}danceOn=dz;
@@ -1501,7 +1501,8 @@ document.querySelectorAll('#nav .rb').forEach(b=>b.onclick=()=>{st.lastPoke=perf
 const acts=document.getElementById('acts');
 // Rest-pose size of the robot, measured once (animations move parts); call measureRobot() again when the model is swapped (Tripo GLB)
 let RB={h:3.6,w:2.4,y0:0},RB0=null; // RB0 = the first (primitive) robot: props keep their size from it whatever model Googoo is
-const SIZE=.9; // Googoo's size knob: 1 = fills top..bot (or the rail gap), centred in that band
+const SIZE=.9,SITH=.72; // SITH: his height sitting on the floor (sit_floor_idle) / standing
+ // Googoo's size knob: 1 = fills top..bot (or the rail gap), centred in that band
 function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3();if(GG)GG.traverse(o=>{if(o.isSkinnedMesh)b.expandByObject(o)});else b.setFromObject(robot);RB={h:b.max.y-b.min.y,w:b.max.x-b.min.x,y0:b.min.y-robot.position.y};RB0=RB0||RB;resize()}
 function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;
   renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);camera.aspect=w/h;
@@ -1514,11 +1515,13 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
   aim(10);const hp=(P(0,RB.y0+RB.h).y-P(0,RB.y0).y)/2*h,wp=(P(RB.w/2,cy).x-P(-RB.w/2,cy).x)/2*w;
   aim(10*Math.max(hp/((bot-top)*h),wp/gap)*(portrait&&(cards||toys)?1.16:1)/SIZE);
   const hn=(P(0,RB.y0+RB.h).y-P(0,RB.y0).y)/2*h, y0=(1-P(0,RB.y0+RB.h).y)/2*h; // his current height and top edge in pixels
+  const sat=cards&&GG&&ggSat; // sitting on the floor for a story
   if(portrait){ // upright: Googoo stands between the two rails, drops below the cards, or steps back for the toys
-    const el=scr==='say'?document.getElementById('card'):deck,
-      [p,y]=cards?[new THREE.Vector3(0,GG?RB.y0+RB.h*.93:2.85,0),el.getBoundingClientRect().bottom+8]:toys?[new THREE.Vector3(0,0,1.9),h*.6-40]:[null,(top+bot)/2*h-hn/2+h*.03];
+    const el=scr==='say'?document.getElementById('card'):deck,sb=el.getBoundingClientRect().bottom+8;
+    if(sat){const room=document.getElementById('nav').getBoundingClientRect().top-8-sb,need=hn*SITH*1.2;if(need>room)aim(camera.position.z*need/room)} // sitting: all of him between the card and the tabs
+    const [p,y]=cards?[new THREE.Vector3(0,GG?RB.y0+RB.h*(sat?SITH:.93):2.85,0),sb]:toys?[new THREE.Vector3(0,0,1.9),h*.6-40]:[null,(top+bot)/2*h-hn/2+h*.03];
     if(p){p.project(camera);camera.setViewOffset(w,h,0,(1-p.y)/2*h-y,w,h)}else camera.setViewOffset(w,h,0,y0-y,w,h)}
-  else camera.setViewOffset(w,h,cards?-w*.2:0,y0-((top+bot)/2*h-hn/2),w,h); // landscape; Say it / cards: robot moves aside for the card
+  else camera.setViewOffset(w,h,cards?-w*.2:0,y0-((top+bot)/2*h-hn/2)+(sat?(1-SITH)*hn*.5:0),w,h); // landscape (sitting: lifted half his drop); Say it / cards: robot moves aside for the card
   camera.updateProjectionMatrix()}
 addEventListener('resize',resize);addEventListener('load',resize);showScreen('home');measureRobot();
 
