@@ -416,7 +416,7 @@ const windowGlow=new THREE.PointLight(0xcfe8ff,.45,9,2);windowGlow.position.set(
 const fill=new THREE.DirectionalLight(0xffe2c4,.18);fill.position.set(5,4,8);scene.add(fill);
 // walls per room from data/layout.json (WALLS[room]: left/right x, back z, floor tint); the shell is built at RW x RD and moved/stretched here
 const WALLS={},wallSides=room.children.filter(o=>o.material===wallMat&&o!==back),skirts=room.children.filter(o=>o.material===skirtMat);winParts.forEach(o=>o.userData.z0=o.position.z);
-WALLS.library={left:-7,right:7,back:-8,floorRect:{left:-7,right:7,back:-8,front:14},floor:'#f2c48f'}; // library defaults until the layout has a "library" room (warm floor)
+WALLS.library={left:-6,right:6,back:-6,floorRect:{left:-6,right:6,back:-6,front:14},floor:'#f2c48f'}; // library defaults until the layout has a "library" room (warm floor)
 // the floor has its own rectangle (W.floorRect: left/right/back/front; missing = under the walls, to the front edge), so a wall never moves or stretches it; wood tiling follows its size
 function applyWalls(s){const W=WALLS[s]||{},l=W.left??-RW/2,r=W.right??RW/2,b=W.back??BACK,F=BACK+RD,cx=(l+r)/2,fr=W.floorRect||{},fl=fr.left??l,fR=fr.right??r,fb=fr.back??b,ff=fr.front??F;
   back.scale.x=skirts[0].scale.x=(r-l)/RW;back.position.set(cx,RH/2,b);skirts[0].position.set(cx,.14,b+.03);
@@ -1302,9 +1302,10 @@ const PROPS={
   bed:{f:'bedroom_bed',k:.75,ry:-.15,x:-.7,z:-4.9,room:'bed',cast:1}, lamp:{f:'bedroom_lamp',k:.7,x:2.4,z:-4.6,on:'nightstand',room:'bed'},
   nightstand:{f:'bedroom_nightstand',k:.225,x:2.4,z:-4.6,room:'bed'}, wardrobe:{f:'bedroom_wardrobe',k:.447,x:6,back:1,room:'bed',cast:1,pt:{x:3}}, rug:{f:'bedroom_rug',k:1.2,x:0,z:.2,sy:.12,room:'bed'},
   // library (Tripo, 2026-10-22). lib_shelf = the big shelf (category books on its boards), lib_bin = the small one (story books stand in it); the file names come from the layout
-  lib_shelf:{f:'library_bookshelf',k:2,x:0,back:1,room:'library',cast:1,pt:{k:.62}}, lib_bin:{f:'library_book_bin',k:.9,x:-2.6,z:-2.2,ry:.35,room:'library'},
-  lib_rug:{f:'bedroom_rug',k:1.2,x:0,z:.4,sy:.12,room:'library'}, lib_lamp:{f:'library_reading_lamp',k:.6,x:4.6,z:-1.4,ry:-.6,room:'library',nosq:1},
-  lib_beanbag:{f:'library_beanbag',k:.55,x:4.2,z:-2.8,ry:-.5,room:'library',nosq:1}, lib_garland:{f:'library_letter_garland',k:1.1,x:0,y:7.4,back:1,room:'library'}};
+  // sizes as rendered % of Googoo's height (as Design mode shows them): shelf 120, bin 45, beanbag 55, lamp 70, garland 80 wide, rug 115 long
+  lib_shelf:{f:'library_bookshelf',k:1.085,x:0,back:1,room:'library',cast:1}, lib_bin:{f:'library_book_bin',k:1.093,x:2.7,z:-1.2,ry:-.35,room:'library'},
+  lib_rug:{f:'bedroom_rug',k:.70,x:0,z:.3,sy:.12,room:'library'}, lib_lamp:{f:'library_reading_lamp',k:1.139,x:-4.4,z:-.9,ry:.6,room:'library',nosq:1},
+  lib_beanbag:{f:'library_beanbag',k:.928,x:-3.6,z:-2.6,ry:.5,room:'library',nosq:1}, lib_garland:{f:'library_letter_garland',k:.651,x:0,y:4.75,back:1,room:'library'}};
 const TEXK=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'],FLAT=['carpet','rug','lib_rug']; // floor mats: no tap box, rays pass through (taps on the floor still go home)
 function roomProps(s){winParts.forEach(o=>o.visible=!(GOT.has('window')&&s==='home')&&s!=='library'); // the library has no window (shelf and garland on that wall)
   newRug.visible=!(GOT.has('carpet')&&s==='home'||GOT.has('rug')&&s==='bed'||GOT.has('lib_rug')&&s==='library')}
@@ -1320,7 +1321,7 @@ function loadProp(id,ld=new THREE.GLTFLoader()){const P=PROPS[id],room=P.room;ld
     if(P.back)z=(WALLS[room]?.back??BACK)-bb.min.z+.03;if(P.side)x=(WALLS[room]?.left??-RW/2)-bb.min.z+.03; // flush with the back / left wall
     if(old)furnGroup.remove(old);addF(id,g,x,z,P.ry||0,room);
     m.traverse(o=>{if(o.isMesh){o.castShadow=!!P.cast;o.receiveShadow=true;if(FLAT.includes(id))o.raycast=()=>{}}});
-    if(FLAT.includes(id)||id==='bed'||id==='lib_shelf'||id==='lib_bin')g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's would cover the lamp and nightstand, rugs would swallow floor taps, the library shelves would cover their books
+    if(FLAT.includes(id)||id==='bed'||id.startsWith('lib_'))g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's would cover the lamp and nightstand, rugs would swallow floor taps, library pieces would cover the books (their own meshes still take taps)
     if(P.y)g.position.y=P.y;Object.assign(g.userData,{m,base:m.scale.clone(),z0:z,y0:P.y||0,ry0:P.ry||0,top:bb.max.y,pt:P.pt,on:P.on});if(P.nosq)g.userData.nosq=1;if(P.off)g.userData.off=1;
     g.visible=g.userData.room===curRoom&&!g.userData.off;
     if(id==='lamp'){const mt=g.userData.shade=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0xffc94d);mt.emissiveMap=mt.map;mt.emissiveIntensity=lightsOn?.15:.6;if(lampLight.parent)g.add(lampLight)}
@@ -1372,8 +1373,8 @@ function furnById(id){return furnGroup.children.find(g=>g.userData.furn===id)}
 // (N levels, evenly spaced), so they follow a shelf that is moved or resized. Which shelf and the order: layout.json rooms.library.books {big:[...], small:[...]} of
 // 'cat:<category>' / 'story:<id>'; not listed: categories big, stories small (stories put on the big shelf stand in a row on its top). Tap a book: it flies out and opens (openBook), then the page runs as before.
 const LIBSH={big:'lib_shelf',small:'lib_bin'},LIBN=5,libGroup=new THREE.Group();scene.add(libGroup);libGroup.visible=false;
-GOO.library={x:0,z:0,s:.55,portrait:{s:.65}};CAMS.library={phone:{zoom:1.2,height:.55,yaw:0,pitch:6},wide:{zoom:2,height:.5,yaw:-10,pitch:6}}; // defaults until the layout has a library room: he stands lower, the shelf shows above him
-let LIBORDER=null,libItems=[],libMesh=null,libPose=[],libHide=-1,libStoryI=0;
+GOO.library={x:0,z:0};CAMS.library={phone:{zoom:1.3,height:.9,yaw:0,pitch:30},wide:{zoom:1.35,height:1.05,yaw:0,pitch:30}}; // defaults until the layout has a library room: he stands lower, the shelf shows above him
+let LIBORDER=null,libItems=[],libMesh=null,libHit=null,libPose=[],libHide=-1,libStoryI=0;
 const libCats=()=>CATS.filter(c=>V2.some(id=>SW[id].cat===c));
 function libAll(){return [...libCats().map(c=>({key:'cat:'+c,kind:'cat',id:c,pic:SW[V2.find(id=>SW[id].cat===c)].pic,name:c})),
   ...STORIES.map(s=>({key:'story:'+s.id,kind:'story',id:s.id,s,pic:s.cover,name:s.title_en||s.id}))].slice(0,LIBN*LIBN)}
@@ -1383,6 +1384,7 @@ function libAssign(){const all=libAll(),keys=new Set(all.map(i=>i.key)),O=LIBORD
 const libTex=new THREE.CanvasTexture(Object.assign(document.createElement('canvas'),{width:512,height:512})) // 512: covers are ~40 px on a phone; 1.3 MB on the GPU;libTex.encoding=THREE.sRGBEncoding;libTex.anisotropy=4;
 const libMat=new THREE.MeshStandardMaterial({map:libTex,roughness:.6});libMat.customProgramCacheKey=()=>'libBooks';
 libMat.onBeforeCompile=sh=>{sh.vertexShader='attribute vec2 aCell;\n'+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\n\tvUv=(aCell+.04+vUv*.92)/'+LIBN+'.;')}; // each book shows its own atlas cell
+const libHitGeo=new THREE.BoxGeometry(1,1,1),libHitMat=new THREE.MeshBasicMaterial({visible:false}); // tap boxes: never drawn, only raycast
 const libGeo=(()=>{const s=new THREE.Shape(),r=.14,x=-.5,y=-.5; // a 1x1x1 rounded book: front (+z) = the cover cell, every other face = the cell's border colour
   s.moveTo(x+r,y);s.lineTo(-x-r,y);s.quadraticCurveTo(-x,y,-x,y+r);s.lineTo(-x,-y-r);s.quadraticCurveTo(-x,-y,-x-r,-y);s.lineTo(x+r,-y);s.quadraticCurveTo(x,-y,x,-y-r);s.lineTo(x,y+r);s.quadraticCurveTo(x,y,x+r,y);
   const g=new THREE.ExtrudeGeometry(s,{depth:.8,bevelEnabled:true,bevelThickness:.1,bevelSize:.05,bevelSegments:2,curveSegments:3});g.computeBoundingBox();
@@ -1394,7 +1396,9 @@ function buildBooks(){libItems=libAll();const n=libItems.length,cv=libTex.image,
     cx.font=(C*.52|0)+'px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(it.pic,x+C/2,y+C*.54)});libTex.needsUpdate=true;
   const g=libGeo.clone(),cell=new Float32Array(n*2);libItems.forEach((it,i)=>{cell[2*i]=i%LIBN;cell[2*i+1]=LIBN-1-(i/LIBN|0)});g.setAttribute('aCell',new THREE.InstancedBufferAttribute(cell,2));
   if(libMesh){libGroup.remove(libMesh);libMesh.geometry.dispose()}
-  libMesh=new THREE.InstancedMesh(g,libMat,n);libMesh.userData.libBooks=1;libMesh.receiveShadow=true;libMesh.frustumCulled=false;libGroup.add(libMesh);layoutBooks()}
+  if(libHit){libGroup.remove(libHit)}
+  libMesh=new THREE.InstancedMesh(g,libMat,n);libMesh.receiveShadow=true;libMesh.frustumCulled=false;libMesh.raycast=()=>{};libGroup.add(libMesh);
+  libHit=new THREE.InstancedMesh(libHitGeo,libHitMat,n);libHit.userData.libBooks=1;libHit.frustumCulled=false;libGroup.add(libHit);layoutBooks()} // taps hit the invisible, bigger boxes (the full slot): at least ~44 px on a phone
 // a piece's box in its own group's space (so a turned shelf still lines up)
 function localBox(g,inv){const bb=new THREE.Box3(),mt=new THREE.Matrix4();g.userData.m.traverse(o=>{if(o.isMesh){if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();bb.union(o.geometry.boundingBox.clone().applyMatrix4(mt.multiplyMatrices(inv,o.matrixWorld)))}});return bb}
 // the shelf boards, measured once per model from its geometry: heights (0..1 of the box) of upward faces across the middle third. None found = evenly spaced levels
@@ -1406,22 +1410,22 @@ function shelfLevels(g,inv,bb){const m=g.userData.m;if(m.userData.lv)return m.us
   if(!lv.length){const N=Math.max(1,Math.min(5,Math.round(S.y/(S.x*.3))));lv=[...Array(N).keys()].map(i=>.07+i*.86/N)}
   return m.userData.lv=lv}
 function layoutBooks(){if(!libMesh||!RB0)return;const A=libAssign(),idx={},Z=new THREE.Matrix4().makeScale(0,0,0),mt=new THREE.Matrix4(),q=new THREE.Quaternion(),inv=new THREE.Matrix4();libPose=[];
-  libItems.forEach((it,i)=>{idx[it.key]=i;libMesh.setMatrixAt(i,Z)});
+  libItems.forEach((it,i)=>{idx[it.key]=i;libMesh.setMatrixAt(i,Z);libHit.setMatrixAt(i,Z)});
   const shelf=k=>{const g=furnById(LIBSH[k]);return g&&g.userData.m&&!g.userData.off?g:null};let big=A.big,small=A.small;
   if(!shelf('small')){big=[...big,...small];small=[]}else if(!shelf('big')){small=[...big,...small];big=[]} // one shelf missing or hidden: all books on the other
   for(const [k,keys0] of [['big',big],['small',small]]){const g=shelf(k);if(!g||!keys0.length)continue;g.updateMatrixWorld(true);inv.copy(g.matrixWorld).invert();
     const bb=localBox(g,inv),S=bb.getSize(V3()),isBig=k==='big',top=isBig?keys0.filter(x=>x[0]==='s'):[],keys=isBig?keys0.filter(x=>x[0]==='c'):keys0, // big shelf: categories on its boards, stories (if any) in a row on its top; small shelf (bin): standing in it
-      put=(key,x,y,z,bw,bh,bt)=>{const i=idx[key];if(i===undefined)return;const p=V3().set(x,y,z).applyMatrix4(g.matrixWorld);g.getWorldQuaternion(q);libPose[i]={p,q:q.clone(),bw,bh,bt};
-        if(i!==libHide)libMesh.setMatrixAt(i,mt.compose(p,q,V3().set(bw,bh,bt)))};
+      put=(key,x,y,z,bw,bh,bt,hw,hy=y,hh=bh*1.15)=>{const i=idx[key];if(i===undefined)return;const p=V3().set(x,y,z).applyMatrix4(g.matrixWorld);g.getWorldQuaternion(q);libPose[i]={p,q:q.clone(),bw,bh,bt};
+        libHit.setMatrixAt(i,mt.compose(V3().set(x,hy,z).applyMatrix4(g.matrixWorld),q,V3().set(Math.max(bw,hw),Math.max(bh,hh),bt*1.5)));if(i!==libHide)libMesh.setMatrixAt(i,mt.compose(p,q,V3().set(bw,bh,bt)))};
     if(!isBig){const n=keys.length,bw=Math.min(S.y*1.2*.9,S.x*.86/n*.92),bh=bw/.9,bt=bw*.24;
-      keys.forEach((key,j)=>put(key,(bb.min.x+bb.max.x)/2+(j-(n-1)/2)*S.x*.86/n,bb.min.y+S.y*.55+bh/2,(bb.min.z+bb.max.z)/2,bw,bh,bt));continue} // most of the cover above the rim
-    const lv=shelfLevels(g,inv,bb).slice().reverse(),L=lv.length,per=Math.max(1,Math.ceil(keys.length/L)),slot=S.x*.8/per, // levels from the top down
+      keys.forEach((key,j)=>put(key,(bb.min.x+bb.max.x)/2+(j-(n-1)/2)*S.x*.86/n,bb.min.y+S.y*.55+bh/2,(bb.min.z+bb.max.z)/2,bw,bh,bt,S.x*.86/n*.98));continue} // most of the cover above the rim
+    const lv=shelfLevels(g,inv,bb).slice().reverse(),L=lv.length,per=Math.max(1,Math.ceil(keys.length/L)),slot=S.x*.86/per, // levels from the top down
       gaps=lv.map((y,i)=>(i?lv[i-1]:.93)-y-.06),bw=Math.min(Math.min(...gaps)*S.y*.85*.9,slot*.84),bh=bw/.9,bt=bw*.24,
       out=[...Array(per).keys()].sort((a,b)=>Math.abs(b-(per-1)/2)-Math.abs(a-(per-1)/2)); // a short bottom row keeps to the ends: Googoo stands in front of the middle
     keys.forEach((key,j)=>{const r=j/per|0,cnt=Math.min(per,keys.length-r*per),last=r===L-1,c=last&&cnt<per?out.slice(0,cnt).sort((a,b)=>a-b)[j%per]:j%per;
-      put(key,bb.min.x+S.x*.1+slot*(c+.5+(last?0:(per-cnt)/2)),bb.min.y+(lv[Math.min(r,L-1)]+.06)*S.y+bh/2,bb.max.z-bt/2-S.z*.12,bw,bh,bt)});
-    top.forEach((key,j)=>put(key,(bb.min.x+bb.max.x)/2+(j-(top.length-1)/2)*Math.min(S.x*.84/top.length,bw*1.3),bb.max.y+bh*.46,(bb.min.z+bb.max.z)/2,bw,bh,bt))}
-  libMesh.instanceMatrix.needsUpdate=true;garlandLetters()}
+      put(key,bb.min.x+S.x*.07+slot*(c+.5+(last?0:(per-cnt)/2)),bb.min.y+(lv[Math.min(r,L-1)]+.06)*S.y+bh/2,bb.max.z-bt/2-S.z*.12,bw,bh,bt,slot*.98,bb.min.y+(lv[Math.min(r,L-1)]+(gaps[Math.min(r,L-1)]+.06)/2)*S.y,(gaps[Math.min(r,L-1)]+.06)*S.y*.96)}); // tap box = the whole slot between two boards
+    top.forEach((key,j)=>put(key,(bb.min.x+bb.max.x)/2+(j-(top.length-1)/2)*Math.min(S.x*.84/top.length,bw*1.3),bb.max.y+bh*.46,(bb.min.z+bb.max.z)/2,bw,bh,bt,Math.min(S.x*.84/top.length,bw*1.3)*.98))}
+  libMesh.instanceMatrix.needsUpdate=libHit.instanceMatrix.needsUpdate=true;garlandLetters()}
 // the letter garland's five blank flags get ا ب پ ت ث (right to left), drawn on one see-through plane in front of it (flag spots measured from the model's preview)
 const GARL=[[.88,.55,'ا'],[.69,.69,'ب'],[.48,.76,'پ'],[.28,.69,'ت'],[.09,.55,'ث']];let garTex=null;
 function garlandLetters(){const g=furnById('lib_garland');if(!g||!g.userData.m)return;let pl=g.userData.letters;
@@ -1662,7 +1666,7 @@ renderer.domElement.addEventListener('pointermove',e=>{if(!down)return;const dx=
 addEventListener('pointerup',e=>{if(!down)return;
   if(!down.moved){const h=down.h;
     if(h&&h.object.userData.item){answer('item',h.object.userData.item)}
-    else if(h&&h.object.userData.libBooks){if(h.instanceId!=null)openBook(h.instanceId)}
+    else if(h&&h.object.userData.libBooks){if(h.instanceId!=null)openBook(h.instanceId)} // libHit: the books' tap boxes
     else if(h&&h.object.userData.furn){tapFurniture(h.object.userData.furn)}
     else if(h&&h.object===ball){bv.set((Math.random()-.5)*3,5,(Math.random()-.5)*2);SFX.kick()}
     else if(h&&h.object.userData.bubble)popBubble(h.object);
