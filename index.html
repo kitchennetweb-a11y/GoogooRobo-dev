@@ -490,12 +490,18 @@ function drawFace(t){
 function setFace(f,ms=1500){face=f;faceUntil=performance.now()+ms}
 
 // ---------- Googoo: the Tripo-rigged model (Mixamo skeleton "mixamorig:*", from proto/tripo.html) ----------
-// assets/googoo/ is built by assets/googoo/build_web.py: googoo.glb (mesh, small texture, idle_happy + wave_hello), googoo_anims_web.glb
+// assets/googoo/ is built by assets/googoo/build_web.py: googoo.glb (mesh, small texture, wave_hello + idle_happy (unused)), googoo_anims_web.glb
 // (the other 17 cleaned Mixamo clips, no mesh; loaded after the start, bound to googoo.glb by bone name), face.webp + face.json (the face kit atlas).
 // The primitive robot above is the fallback: it stays until the GLB has loaded and keeps driving the springs (squash, lean, head, jump).
 // Once loaded, GG is set, the primitive parts are hidden and ggUpdate() poses the bones every frame:
-// Mixamo clip (a looping base: idle / walk / run / sit, plus one short reaction crossfaded over it) -> procedural dance blended on top -> squat, arm IK, head and spine offsets.
+// still STAND pose (= rest) or a looping base clip (walk / run / the still sit), plus one short reaction crossfaded over it -> procedural dance blended on top -> squat, arm IK, head and spine offsets.
 const GOO_V='2',GOO_H=3.7; // file version (bump when the files change: the service worker keeps .glb for good) and his height in the room
+// still poses as bone rotations on the bind pose (rad, rest-aligned model axes as rot(): +x = top of the bone forward), checked front + side:
+// STAND = idle: straight, head level, arms relaxed beside the thighs (elbows a little bent), feet at the bind stance, flat
+// SIT = stories: on the floor, legs forward and a little bent, hands on the knees, head level; SIT_HIP = hips drop (rig units, ~his height)
+const STAND_R={LeftArm:[-.05,0,-.22],RightArm:[-.05,0,.22],LeftForeArm:[-.3,0,0],RightForeArm:[-.3,0,0]};
+const SIT_R={LeftUpLeg:[-2,0,.12],RightUpLeg:[-2,0,-.12],LeftLeg:[.75,0,0],RightLeg:[.75,0,0],LeftFoot:[.65,0,0],RightFoot:[.65,0,0],Spine:[.25,0,0],Spine1:[.1,0,0],
+  Neck:[-.15,0,0],Head:[-.15,0,0],LeftArm:[-.75,0,-.2],RightArm:[-.75,0,.2],LeftForeArm:[-.45,0,0],RightForeArm:[-.45,0,0]},SIT_HIP=-.335;
 const gg=new THREE.Group();robot.add(gg);
 let GG=null,RIG=null,mixer=null,HT=1;
 const ACT={},CW={},B={},REST={},RESTP={},LEGP={},SH0={},FLX={},REACH={},FING={Left:[],Right:[]},SIDES=['Left','Right'],SG={Left:1,Right:-1},V3=()=>new THREE.Vector3();
@@ -515,6 +521,10 @@ function ggSetup(g){const model=g.scene;
     if(o.isBone){const n=o.name.replace(/^mixamorig:?/,'');B[n]=o;REST[n]=o.quaternion.clone();RESTP[n]=o.position.clone()}});
   RIG=B.Hips.parent;RIG.userData.w0=new THREE.Quaternion();
   for(const n in B)B[n].userData.w0=mQ(B[n],new THREE.Quaternion()); // rest rotation in model space: offsets are applied in rest-aligned axes
+  // the two still poses, built from the bind pose; STAND becomes the rest pose (what idle shows and what every clip fades back to)
+  const pose=(R,hip=0)=>{toRest();for(const n in R)rot(n,...R[n]);B.Hips.position.y+=hip;const q={};for(const n in B)q[n]=B[n].quaternion.clone();return{q,p:B.Hips.position.clone()}};
+  const SIT=pose(SIT_R,SIT_HIP),STAND=pose(STAND_R);for(const n in B)REST[n].copy(STAND.q[n]);
+  toRest();for(const n in B)B[n].userData.w0=mQ(B[n],new THREE.Quaternion());
   model.getObjectByName('Googoo_face_screen').traverse(o=>{if(o.isMesh){o.material=new THREE.MeshBasicMaterial({map:kitTex,toneMapped:false,skinning:!!o.isSkinnedMesh});o.castShadow=o.receiveShadow=false}});
   const bb=new THREE.Box3().setFromObject(model);HT=bb.max.y-bb.min.y;const k=GOO_H/HT;model.scale.setScalar(k);model.position.y=-bb.min.y*k;
   gg.position.set(0,0,0);gg.rotation.set(0,0,0);gg.scale.set(1,1,1);gg.add(model);
@@ -524,8 +534,10 @@ function ggSetup(g){const model=g.scene;
     REACH[s]=mP(B[s+'ForeArm'],c).distanceTo(mP(B[s+'Arm'],a))+mP(B[s+'Hand'],c).distanceTo(mP(B[s+'ForeArm'],a));
     FLX[s]=new THREE.Vector3(0,0,1).cross(mP(B[s+'HandMiddle1'],c).sub(mP(B[s+'Hand'],a)).normalize()).normalize();
     for(const n in B)if(n.startsWith(s+'Hand')&&/(Index|Middle|Ring|Pinky)[123]$/.test(n))FING[s].push(B[n])}
-  mixer=new THREE.AnimationMixer(model);addClips(g.animations);
-  ACT.idle_happy.play();CW.idle_happy=1;
+  mixer=new THREE.AnimationMixer(model);
+  const two=a=>[...a,...a],T=Object.keys(B).map(n=>new THREE.QuaternionKeyframeTrack(B[n].name+'.quaternion',[0,1],two(SIT.q[n].toArray())));
+  T.push(new THREE.VectorKeyframeTrack(B.Hips.name+'.position',[0,1],two(SIT.p.toArray())));
+  addClips([...g.animations,new THREE.AnimationClip('sit',1,T)]); // 'sit' = the still sitting pose as a constant clip, so it crossfades like the others
   // invisible tap boxes on the bones (they follow every pose), sizes in units of his height; poke() reads userData.part
   robot.updateMatrixWorld(true);const pm=new THREE.MeshBasicMaterial({visible:false}),U=GOO_H,wp=b=>B[b].getWorldPosition(V3());
   const prox=(bone,part,geo,p)=>{const m=new THREE.Mesh(geo,pm);m.userData.part=part;m.position.copy(p);scene.add(m);B[bone].attach(m);return m},
@@ -582,20 +594,20 @@ function faceGG(t,dt,now,lvl){ // lvl: 0..1 mouth level from the voice, <0 = sil
 // ggClip(name, secs, {from (s), loop, ts (speed), lock (nothing else may interrupt), then (called when it ends)}): a short reaction, crossfaded (XF s) over the base clip
 // and back. Returns false when that clip isn't loaded (yet) or a locked one plays, so callers can keep their procedural fallback.
 const XF=.25,V_WALK=.72,V_RUN=2.02; // crossfade; treadmill speeds of the in-place walk / run in model units per second
-let ggSat=false,react=null,reactLeft=0,reactThen=null,lockA=null,ggLoco=null,ggSpeed=0,idleB='idle_happy',idleSwap=0;const ROFF={};
+let ggSat=false,react=null,reactLeft=0,reactThen=null,lockA=null,ggLoco=null,ggSpeed=0;const ROFF={};
 const ggLocked=()=>!!react&&react===lockA; // reactLeft counts game time (like the mixer), so a slow phone still plays the whole clip
-function ggClip(n,secs=9,o={}){const a=ACT[n];if(!a||ggLocked())return false;
+function ggClip(n,secs=9,o={}){const a=ACT[n];if(!a||ggLocked()||game.type==='story')return false; // sitting for a story: no clips (they are all standing)
   if(a!==react||!(CW[n]>.01)){a.reset();a.time=o.from||0;a.timeScale=o.ts||1;a.setLoop(o.loop?THREE.LoopRepeat:THREE.LoopOnce,Infinity);a.clampWhenFinished=true;a.play()} // the same clip again while it plays: just longer
   react=a;reactThen=o.then||null;reactLeft=o.loop?secs:Math.min(secs,(a.getClip().duration-a.time)/a.timeScale-.05);lockA=o.lock?a:null;return true}
 // the good part of the long clips
 const CLAP=['clap',2.3,{loop:1}],YAWN=['yawn',4.4,{from:3.2}],LAUGH=['laugh',3.2,{from:1.8}],SURPRISE=['surprised',2.6,{from:.4}];
-const ggSitting=()=>CW.sit_floor_idle>.05||ggLocked(); // on the floor (story, fallen): no leg IK (squat, tickle, steps)
+const ggSitting=()=>CW.sit>.05||ggLocked(); // on the floor (story, fallen): no leg IK (squat, tickle, steps)
 // rocket landing: falls on his back and sits up, then gets up from a crouch (get_up from 3 s; its lying-down start doesn't match the fall's end).
 // ROFF[clip] = a hips z offset (model units) blended by the clip weights: the fall's backward slide is halved (his feet slip forward a little)
 // so he stays in the room, get_up starts where the fall ended, and once he is up that offset moves into robot.position (he then walks home)
 function ggFall(){const f=HZ.fall_backwards,g=HZ.get_up,G0=3;if(!f||!g)return false;ROFF.fall_backwards=a=>-(f(a.time)-f.a)/2;
   return ggClip('fall_backwards',9,{lock:1,then:()=>{ROFF.get_up=(f.a+f.b)/2-g(G0);
-    ggClip('get_up',2.6,{from:G0,lock:1,then:()=>{const d=ROFF.get_up+g(ACT.get_up.time)-HZ.idle_happy.a,k=d*GG.scale.x*robotScale;ROFF.get_up-=d;
+    ggClip('get_up',2.6,{from:G0,lock:1,then:()=>{const d=ROFF.get_up+g(ACT.get_up.time)-RESTP.Hips.z,k=d*GG.scale.x*robotScale;ROFF.get_up-=d;
       robot.position.x+=Math.sin(robot.rotation.y)*k;robot.position.z+=Math.cos(robot.rotation.y)*k}})}})}
 const _q=new THREE.Quaternion(),_q2=new THREE.Quaternion(),_p=new THREE.Quaternion(),_t=new THREE.Quaternion(),_e=new THREE.Euler(),_a=V3(),_b=V3(),_X=new THREE.Vector3(1,0,0);
 function rotQ(b,q){const P0=b.parent.userData.w0;_t.copy(P0).invert().multiply(q).multiply(P0);b.quaternion.premultiply(_t)} // q in rest-aligned model axes
@@ -673,23 +685,21 @@ function animate(t,dt){toRest();
     for(const f of FING[s])f.quaternion.multiply(_q.setFromAxisAngle(_X,-sg*cu*(/1$/.test(f.name)?1.3:1.05)))}} // Mixamo fingers curl about local x (mirrored)
 let lastArm=null,wDance=0,wArm=0,wWalk=0,walkPh=0,danceOn=false,tickleUntil=0;const QS={},PS=V3(),AQ={},_hc=V3(),_ho=V3(),_hd=new THREE.Quaternion();
 // o: what the game loop wants this frame (bob, armWave/armFwd as for the old arms, headYaw, walk speed, peekDip)
-// the looping base clip: walk / run (ggLoco), sitting on the floor for a story, else idle_happy and idle_breathing taking turns (a look_around now and then)
-function ggBase(now){if(ggLoco&&ACT[ggLoco])return ggLoco;if(game.type==='story'&&ACT.sit_floor_idle)return 'sit_floor_idle';
-  if(st.mode==='sleep'||st.mode==='listen')return ACT.idle_breathing?'idle_breathing':'idle_happy';
-  if(now>idleSwap){idleB=idleB==='idle_happy'&&ACT.idle_breathing?'idle_breathing':'idle_happy';idleSwap=now+(idleB==='idle_happy'?4000:9900);
-    if(st.mode==='idle'&&!react&&now-st.lastPoke>8000&&Math.random()<.25)ggClip('look_around')} // sparingly (legs pass close)
-  return idleB}
+// the looping base clip: walk / run (ggLoco), the still sitting pose for a story; else none = the still standing pose (REST): only the face moves
+const ggBase=()=>ggLoco&&ACT[ggLoco]?ggLoco:game.type==='story'?'sit':null;
 function ggUpdate(dt,t,now,o){toRest(); // rest pose first, so the mixer saves rest as the "original" of every new binding
   if(react&&(reactLeft-=dt)<=0){const f=reactThen;react=reactThen=null;if(f)f()}
-  const base=ggBase(now),sleep=st.mode==='sleep';let rz=0;
-  for(const n in ACT){const a=ACT[n],tg=react?(a===react?1:0):(n===base?1:0);CW[n]=cl((CW[n]||0)+cl(tg-(CW[n]||0),-dt/XF,dt/XF)); // linear crossfade
+  const base=ggBase(),sleep=st.mode==='sleep';let rz=0;
+  for(const n in ACT){const a=ACT[n],tg=react?(a===react?1:0):(n===base?1:0);CW[n]=cl((CW[n]||0)+cl(tg-(CW[n]||0),-dt/XF,dt/XF)); // crossfade (weights eased below)
     if(tg&&a!==react&&(!a.isScheduled()||a.paused)){const l=n==='run'?ACT.walk_happy:n==='walk_happy'?ACT.run:null; // walk <-> run: same step phase
       a.reset().setLoop(THREE.LoopRepeat,Infinity).play();a.timeScale=1;if(l&&l.isScheduled())a.time=l.time/l.getClip().duration*a.getClip().duration}
-    if(!tg&&CW[n]<.01&&a.isScheduled())a.stop();a.setEffectiveWeight(CW[n]);
+    if(!tg&&CW[n]<.01&&a.isScheduled())a.stop();a.setEffectiveWeight(ss(CW[n])); // eased: no kink when a fade starts or ends
     if(n===base&&a!==react)a.timeScale=sleep&&!ggLoco?.4:1;
     const r=ROFF[n];if(r&&CW[n])rz+=CW[n]*(typeof r==='function'?r(a):r)}
   ggSpeed=((CW.walk_happy||0)*V_WALK+(CW.run||0)*V_RUN)*GG.scale.x*robotScale; // room units per second: matches the treadmill, so the feet don't slide
-  mixer.update(dt);gg.position.z=rz*GG.scale.x;if(CW.sit_floor_idle>.5!==ggSat){ggSat=!ggSat;resize()} // sitting (story): the camera re-frames
+  // three r128 skips writing a bone whose mixed value equals last frame's; after toRest() that left it in the rest pose for a frame (legs and feet flicking): always write
+  for(const b of mixer._bindings)b.buffer[(mixer._accuIndex+1)*b.valueSize]=NaN;
+  mixer.update(dt);gg.position.z=rz*GG.scale.x;if(CW.sit>.5!==ggSat){ggSat=!ggSat;resize()} // sitting (story): the camera re-frames
   // dance (💃, songs, disco, moves game): procedural, blended over the clip so it starts and stops smoothly
   const dz=st.mode==='dance'||pose.name==='dance'&&now<pose.until;
   if(dz&&!danceOn){SP={};danceT0=procT;dStyle=Math.max(0,danceStyle)%4}danceOn=dz;
@@ -699,14 +709,14 @@ function ggUpdate(dt,t,now,o){toRest(); // rest pose first, so the mixer saves r
   const pk=o.peekDip,sq=Math.max(o.sit,sleep?.45:0)*(1-wDance)*(1-(CW.walk_happy||0)-(CW.run||0));
   // squat (sit / down / asleep), foot tickle, and steps while he slides about if the walk clip isn't loaded: legs by IK with the feet on the floor
   wWalk+=((o.walk>.4&&!dz&&!ACT.walk_happy?1:0)-wWalk)*Math.min(1,dt*6);if(wWalk>.01)walkPh+=dt*(4+o.walk*2.5);
-  const tk=now<tickleUntil?Math.sin(now/45):0,lift=s=>Math.max(0,(s?1:-1)*Math.sin(walkPh))*.035*wWalk+Math.max(0,(s?1:-1)*tk)*.04;
+  const tk=now<tickleUntil&&!react?Math.sin(now/45):0,lift=s=>Math.max(0,(s?1:-1)*Math.sin(walkPh))*.035*wWalk+Math.max(0,(s?1:-1)*tk)*.04;
   if((sq>.01||wWalk>.01||tk)&&!ggSitting()){B.Hips.position.y-=sq*.12;legs({Left:[0,lift(1),0,0],Right:[0,lift(0),0,0]});rot('Spine',sq*.35,0,0)}
-  // head and chest: breathing, look-around, dizzy wobble, peekaboo bow, sleepy nod, zap shake
+  // head and chest: dizzy wobble, peekaboo bow, sleepy nod, zap shake
   const dzz=face==='dizzy'?Math.min(1,(faceUntil-now)/700):0;
-  rot('Spine2',(Math.sin(t*2.2)*.015+pk*.18+(sleep?.12:0))*(1-wDance),0,.05*Math.cos(t*9)*dzz);
+  rot('Spine2',(pk*.18+(sleep?.12:0))*(1-wDance),0,.05*Math.cos(t*9)*dzz);
   rot('Head',pk*.32+(sleep?.35+Math.sin(t*1.2)*.04:0)+.08*Math.sin(t*9)*dzz,o.headYaw*.8,st.head*.12+.12*Math.cos(t*9)*dzz+antAng*.025);
   // arms: the old arm angles become hand targets for IK (wave / up / out; peekaboo = hands to the face screen), kept out of the head
-  const armOn=(o.armWave||o.armFwd)&&!dz;if(armOn)lastArm={w:o.armWave,f:o.armFwd};wArm+=((armOn?1:0)-wArm)*Math.min(1,dt*8);
+  const seated=CW.sit>.05,armOn=(o.armWave||o.armFwd)&&!dz&&!seated;if(armOn)lastArm={w:o.armWave,f:o.armFwd};wArm+=((armOn?1:0)-wArm)*Math.min(1,dt*8);
   if(wArm>.01){chestD();mP(B.Spine2,_cp);mQ(B.Head,_hd).multiply(_t.copy(B.Head.userData.w0).invert());_hc.set(0,.15,0).applyQuaternion(_hd).add(mP(B.Head,_ho));
     for(const s of SIDES){const sg=SG[s],i=s==='Left'?1:0,T=_HT;let pole;
       if(lastArm.f){T.set(sg*.06,.13,.23).applyQuaternion(_hd).add(mP(B.Head,_ho));pole=_PL.set(sg,-1,0)}
@@ -721,7 +731,7 @@ function ggUpdate(dt,t,now,o){toRest(); // rest pose first, so the mixer saves r
   for(const s of SIDES){mP(B[s+'Hand'],_HT);_b.subVectors(_HT,_hc);const d=_b.length();
     if(d<.24&&d>1e-4){_HT.copy(_hc).addScaledVector(_b,.24/d);ik(B[s+'Arm'],B[s+'ForeArm'],B[s+'Hand'],_HT,_PL.subVectors(mP(B[s+'ForeArm'],_lv),mP(B[s+'Arm'],_lp)).normalize().add(_KP.set(SG[s]*.15,-.15,-.15)))}} // (small bias: a straight arm still has a bend plane)
   // whole body: squash and stretch, lean, little hops when talking back, twirl
-  const sqz=st.squash*.04;gg.scale.set(1+sqz,1-sqz,1+sqz);gg.position.y=Math.max(0,o.bob)*.6;gg.rotation.set(0,spinY*wDance,st.lean*.05);
+  const sqz=st.squash*.04;gg.scale.set(1+sqz,1-sqz,1+sqz);gg.position.y=seated?0:Math.max(0,o.bob)*.6;gg.rotation.set(0,spinY*wDance,st.lean*.05);
   // ear propellers + glow
   const fly=st.mode==='fly',glow=fly||talk.rec||dz;
   for(const e of EARS){const fx=e.userData.fx;fx.bl.visible=fly;if(fly)fx.bl.rotation.x+=dt*35;fx.gl.visible=glow;
@@ -751,7 +761,7 @@ const st={spin:0,spinVel:0,head:0,headVel:0,squash:0,squashVel:0,lean:0,leanVel:
   mode:'idle',modeT:0,lastPoke:0,sleepT:0,homeFast:false,nextIdle:6,idleAct:null,idleT:0};
 let rocketFall=false,flipZ=0,pose={name:null,until:0},sitDip=0,sitNow=0,robotScale=1,peekDip=0,jumpY=0,jumpV=0,flip=0,flipping=false,danceStyle=-1,lastBeat=-1,tummyHits=[];
 function kick(k,amt){st[k+'Vel']+=amt}
-function jump(v,doFlip){if(jumpY<.05){jumpV=v;if(doFlip){flipping=true;flip=0}SFX.boing()}}
+function jump(v,doFlip){if(GG&&game.type==='story')return;if(jumpY<.05){jumpV=v;if(doFlip){flipping=true;flip=0}SFX.boing()}} // sitting for a story: no hops
 // Send Pash home: ends ball play, drives back to the middle, faces front.
 function goHome(){
   if(st.mode==='chase')setMode('idle');
@@ -766,6 +776,7 @@ function poke(part,point){
   const nowP=performance.now();pokeTimes=pokeTimes.filter(t=>nowP-t<2500);pokeTimes.push(nowP);
   if(pokeTimes.length>=6&&!game.type&&st.mode!=='sleep'){pokeTimes=[];say(Math.random()<.5?'x_yavash':'x_yavash_tar');setFace('shock',1200);kick('lean',4);ggClip('shake_no');speak();return} // "gently!": the only "no" he ever shakes
   if(st.mode==='sleep'){wake();return}
+  if(GG&&game.type==='story'){SFX.giggle();setFace('laugh',1200);const pw=PART_WORD[part];if(pw&&HAS.has(pw))say(pw);speak();return} // sitting for a story: he stays put, smiles and names the part
   goHome();st.lastPoke=performance.now();st.idleAct=null;
   const maybe=(p,...a)=>Math.random()<p&&ggClip(...a); // clips now and then, not on every tap
   if(part==='head'){SFX.dizzy();say('head');setFace('dizzy',2200);kick('head',9);kick('squash',-4);
@@ -1532,7 +1543,7 @@ document.querySelectorAll('#nav .rb').forEach(b=>b.onclick=()=>{st.lastPoke=perf
 const acts=document.getElementById('acts');
 // Rest-pose size of the robot, measured once (animations move parts); call measureRobot() again when the model is swapped (Tripo GLB)
 let RB={h:3.6,w:2.4,y0:0},RB0=null; // RB0 = the first (primitive) robot: props keep their size from it whatever model Googoo is
-const SIZE=.9,SITH=.72; // SITH: his height sitting on the floor (sit_floor_idle) / standing
+const SIZE=.9,SITH=.66; // SITH: his height sitting on the floor (SIT_R) / standing
  // Googoo's size knob: 1 = fills top..bot (or the rail gap), centred in that band
 function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3();if(GG)GG.traverse(o=>{if(o.isSkinnedMesh)b.expandByObject(o)});else b.setFromObject(robot);RB={h:b.max.y-b.min.y,w:b.max.x-b.min.x,y0:b.min.y-robot.position.y};RB0=RB0||RB;resize()}
 function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;
@@ -1570,7 +1581,7 @@ function loop(){
   spr('squash',140,9,dt);spr('lean',60,6,dt);spr('head',50,4,dt);
   st.spin+=st.spinVel*dt;st.spinVel*=Math.pow(.25,dt);
   antVel+=(-antAng*120-antVel*5)*dt;antAng+=antVel*dt;
-  let bob=Math.sin(t*2.2)*.03,yaw=0,armWave=null,armFwd=null,headYaw=Math.sin(t*.7)*.15,x=robot.position.x,z=robot.position.z+flipZ,ox=x,oz=z;
+  let bob=GG?0:Math.sin(t*2.2)*.03,yaw=0,armWave=null,armFwd=null,headYaw=GG?0:Math.sin(t*.7)*.15,x=robot.position.x,z=robot.position.z+flipZ,ox=x,oz=z;
   const walkClip=GG&&ACT.walk_happy&&jumpY<.05,locked=ggLocked();ggLoco=null; // Googoo walks (or runs) with the clip and moves at its treadmill speed
   const face2=a=>robot.rotation.y+Math.atan2(Math.sin(a-robot.rotation.y),Math.cos(a-robot.rotation.y)); // the same heading, the short way round (no flip-flop at +-180 degrees)
   if(st.mode==='dance'){const b=t*4.5,beat=Math.floor(b/Math.PI);
@@ -1601,7 +1612,7 @@ function loop(){
     else if(pose.name==='clap'&&!GG){armWave=[.2+Math.abs(Math.sin(k))*1.4,.2+Math.abs(Math.sin(k))*1.4];armFwd=[-1.4,-1.4]}
     else if(pose.name==='sit'||pose.name==='down'){sitDip=1;armWave=pose.name==='down'?[.1,.1]:null}
     else if(pose.name==='dance'&&!GG){bob=Math.abs(Math.sin(t*9))*.22;yaw=Math.sin(t*4.5)*.6;armWave=[Math.sin(t*9)*1.3+1.5,-Math.sin(t*9+1)*1.3+1.5]}}
-  else if(st.mode==='game'){headYaw=Math.sin(t*.8)*.12;if(talk.playing){bob=Math.abs(Math.sin(t*12))*.05+talk.level*.4;armWave=[1+talk.level*8,1+talk.level*8]}}
+  else if(st.mode==='game'){headYaw=GG?0:Math.sin(t*.8)*.12;if(talk.playing){bob=Math.abs(Math.sin(t*12))*.05+talk.level*.4;armWave=[1+talk.level*8,1+talk.level*8]}}
   else if(st.mode==='listen'){
     if(talk.playing){const lv=talk.level;bob=Math.abs(Math.sin(t*12))*.05+lv*.4;headYaw=Math.sin(t*9)*.25;armWave=[1+lv*8,1+lv*8]}
     else{headYaw=-.25;st.head=-.6;armWave=GG?null:[.25,2.35];if(now>faceUntil)face='listen';
@@ -1612,13 +1623,13 @@ function loop(){
   else{ // idle: bored little routines when nobody plays
     if(now-st.lastPoke>7000){st.nextIdle-=dt;
       if(st.nextIdle<0&&!st.idleAct){st.idleAct=['wave','look','yawn','hum'][Math.floor(Math.random()*4)];st.idleT=0;st.nextIdle=5+Math.random()*4;
-        if(st.idleAct==='yawn'){setFace('sleep',1300);tone(300,150,1,'sine',.08);say('bored');ggClip(...YAWN)}
+        if(st.idleAct==='yawn'){setFace('sleep',1300);tone(300,150,1,'sine',.08);say('bored')}
         if(st.idleAct==='hum')[523,587,659,523].forEach((f,i)=>tone(f,f,.25,'triangle',.06,i*.3));
-        if(st.idleAct==='wave')ggClip('wave_hello',2.2,{loop:1})}
+      }
       if(st.idleAct){st.idleT+=dt;const k=st.idleT;
         if(st.idleAct==='wave'&&!GG){armWave=[.25,2+Math.sin(k*10)*.4]}
-        if(st.idleAct==='look'){headYaw=Math.sin(k*2)*.9}
-        if(st.idleAct==='hum'){bob=Math.abs(Math.sin(k*5))*.08;headYaw=Math.sin(k*5)*.2}
+        if(st.idleAct==='look'&&!GG){headYaw=Math.sin(k*2)*.9}
+        if(st.idleAct==='hum'&&!GG){bob=Math.abs(Math.sin(k*5))*.08;headYaw=Math.sin(k*5)*.2}
         if(k>2.2)st.idleAct=null}}}
   // drive back home unless chasing the ball
   if(st.mode!=='chase'&&!locked){const r=st.homeFast?5:1.5;
