@@ -1174,12 +1174,13 @@ function makeFurniture(){
 makeFurniture();
 // Tripo GLB props (models/, real size: Googoo = 1) loaded lazily after start; each replaces its primitive group only once it has loaded, so a failed load keeps the old piece
 // id: [file, k, ry, x, z, lamp y]; scale = RB0.h (the primitive robot's height) * tweak (cow: new big toy, play room)
-const PROPS={bed:['bedroom_bed',.3,-.2,-.2,2.6],lamp:['bedroom_lamp',.7,0,2.4,-4.6,.62],teddy:['toy_teddy_bear',.7,.3],cow:['farm_cow',.38,-.5,2.0,-1.3]};
+const PROPS={bed:['bedroom_bed',.75,-.15,-.7,-4.9],lamp:['bedroom_lamp',.7,0,2.4,-4.6,.62],teddy:['toy_teddy_bear',.49,.3,-2.1,1.6],cow:['farm_cow',.27,-.4,2.1,1.6]};
 function loadProps(){if(!THREE.GLTFLoader)return;const ld=new THREE.GLTFLoader();
   for(const id in PROPS){const[f,k,ry,cx,cz,y]=PROPS[id];ld.load('models/'+f+'.glb',gl=>{try{
     const m=gl.scene,old=furnById(id);m.scale.setScalar(RB0.h*k);m.updateMatrixWorld(true);
     const g=new THREE.Group();g.add(m);
-    if(old)furnGroup.remove(old);addF(id,g,cx??old.userData.x0,cz??old.position.z,ry,old?old.userData.room:'play');if(y)g.position.y=y;
+    if(old)furnGroup.remove(old);addF(id,g,cx??old.userData.x0,cz??old.position.z,ry,old?old.userData.room:'play');if(y)g.position.y=y;if(id==='bed')g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's box would cover the lamp and nightstand in front of it
+    
     g.visible=g.userData.room===curRoom;
     if(id==='lamp'){const mt=g.userData.shade=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0xffc94d);mt.emissiveMap=mt.map;mt.emissiveIntensity=lightsOn?.15:.6;if(lampLight.parent)g.add(lampLight)}
     resize()}catch(e){console.warn('prop',id,e)}},0,e=>console.warn('prop',id,e))}}
@@ -1205,7 +1206,7 @@ async function tapFurniture(id){
   if(id==='chair'){await sayAsync('w_chair');pose={name:'sit',until:performance.now()+1500};setMode('game');say('x_beshin');await wait(1600);if(st.mode==='game'&&!game.type)setMode('idle');return}
   // new pieces: a little reaction, and Pash names it when there's a clip
   ({tv:()=>{tvMat.emissive.setHex(tvMat.emissive.getHex()?0:0x3a86ff);SFX.beep()},drum:()=>{tone(140,55,.3,'sine',.6);noise(.1,.3,900);jump(5)},
-    teddy:()=>{SFX.giggle();emit('heart',new THREE.Vector3(-1.9,1.8,-3.4),5,{size:.3,life:1.2,g:.5})},cow:()=>{SFX.giggle();emit('heart',furnById('cow').position.clone().setY(2.5),5,{size:.3,life:1.2,g:.5})},star:()=>{[1047,1319,1568].forEach((f,i)=>tone(f,f,.2,'triangle',.08,i*.15))}}[id]||SFX.boing)();
+    teddy:()=>{SFX.giggle();emit('heart',furnById('teddy').position.clone().setY(1.8),5,{size:.3,life:1.2,g:.5})},cow:()=>{SFX.giggle();emit('heart',furnById('cow').position.clone().setY(2.5),5,{size:.3,life:1.2,g:.5})},star:()=>{[1047,1319,1568].forEach((f,i)=>tone(f,f,.2,'triangle',.08,i*.15))}}[id]||SFX.boing)();
   setFace('shock',500);kick('squash',4);if(HAS.has('w_'+id)||FURN[id])await sayAsync('w_'+id);setFace('laugh',800);
 }
 function animateFurniture(t,dt){for(const g of furnGroup.children){const u=g.userData;
@@ -1470,7 +1471,6 @@ function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3();i
 function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;
   renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);camera.aspect=w/h;
   camera.fov=portrait?50:40;
-  const bd=furnById('bed');if(bd){bd.userData.x0=portrait?-.2:-3;bd.position.z=portrait?2.6:-2.6} // bed: on the floor in front of Googoo in portrait, beside him in landscape (he hides the middle)
   const sq=Math.min(1,(portrait?.3:.35)+w/h*.75);furnGroup.children.forEach(g=>g.position.x=g.userData.x0*sq); // portrait: pull furniture toward the middle so it stays on screen
   camera.clearViewOffset();
   // auto-fit: distance from his measured size so he spans top..bot of the screen, or fits the gap between the rails if that is narrower
@@ -1481,7 +1481,7 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
   const hn=(P(0,RB.y0+RB.h).y-P(0,RB.y0).y)/2*h, y0=(1-P(0,RB.y0+RB.h).y)/2*h; // his current height and top edge in pixels
   if(portrait){ // upright: Googoo stands between the two rails, drops below the cards, or steps back for the toys
     const el=scr==='say'?document.getElementById('card'):deck,
-      [p,y]=cards?[new THREE.Vector3(0,GG?RB.y0+RB.h*.93:2.85,0),el.getBoundingClientRect().bottom+8]:toys?[new THREE.Vector3(0,0,1.9),h*.6-40]:[null,(top+bot)/2*h-hn/2];
+      [p,y]=cards?[new THREE.Vector3(0,GG?RB.y0+RB.h*.93:2.85,0),el.getBoundingClientRect().bottom+8]:toys?[new THREE.Vector3(0,0,1.9),h*.6-40]:[null,(top+bot)/2*h-hn/2+h*.03];
     if(p){p.project(camera);camera.setViewOffset(w,h,0,(1-p.y)/2*h-y,w,h)}else camera.setViewOffset(w,h,0,y0-y,w,h)}
   else camera.setViewOffset(w,h,cards?-w*.2:0,y0-((top+bot)/2*h-hn/2),w,h); // landscape; Say it / cards: robot moves aside for the card
   camera.updateProjectionMatrix()}
