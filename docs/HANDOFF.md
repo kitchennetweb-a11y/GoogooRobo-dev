@@ -85,6 +85,8 @@ Done and live: everything listed in decisions.md under Product, apart from the i
 
 - **Idle and sitting are still poses built in code (2026-10-22, 37d65dd):** the user wants Googoo fully still when idle (straight, head level, arms relaxed) and when sitting (hands on knees); only the face kit animates. idle_happy/idle_breathing/look_around/sit_floor_idle are no longer used (can be dropped in build_web.py). Twitch root cause: three r128's mixer skips unchanged bones while our code resets bones to rest each frame; fixed by forcing every binding to write (uses mixer._bindings/_accuIndex — recheck at the three.js upgrade). Strict no-twitch test: idle/sit must move < 1 mm over 10 s.
 
+- **Waves and head (2026-10-22, b0cfef0):** wave_hello / wave_bye_both are built in code (upper arm out level ~25° forward, elbow 90° forearm up, fingers spread, forearm swings ±18°; head tilts ~6° away from the waving hand, level for both hands), per the user's reference. For all clips the head is clamped near level (pitch −1..+7°, roll ±7°, yaw ±9°; off while on the floor) and hands are pushed out of the face-screen area. nod_yes barely nods now (procedural nod could follow).
+
 ### Known gotchas
 - Mic and volume on iOS: echo cancellation and AGC are ON (turning them off made the mic too quiet on the iPad). `audioSession('auto')` while the mic is on, `'playback'` when it's off or denied (this fixed the whole app going quiet). The mic is ignored while Pash's voice or the song bed plays (`voiceEnd`, `bedSrc`). Sensitivity knob: `MIC_FLOOR`.
 - iPad and Safari need one tap before audio or the mic will start (the "Wake up" button does both).
