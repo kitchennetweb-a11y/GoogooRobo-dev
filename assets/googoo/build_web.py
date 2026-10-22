@@ -1,24 +1,26 @@
-# Builds the phone-friendly Googoo for the game (assets/googoo/):
-#   googoo.glb   = proto/googoo_tripo_face.glb with only the clips the game uses, constant (= rest pose) tracks dropped,
-#                  rotation keys and skin weights as normalized 16-bit ints, shared key-time arrays, base-colour texture 1024 px
+# Builds the phone-friendly Googoo for the game (assets/googoo/) from googoo_anims.glb (Googoo + 19 cleaned Mixamo clips, 30 fps):
+#   googoo.glb            = mesh, skin, base-colour texture 1024 px and the idle clip (loads before the start button)
+#   googoo_anims_web.glb  = the other clips on a bare skeleton (no mesh), loaded after the start; the game binds them to googoo.glb by bone name
+#   both: constant (= rest pose) tracks dropped, rotation keys and skin weights as normalized 16-bit ints, shared key-time arrays
 #   face.webp + face.json + face_bg.jpg = the face kit (the layers its expressions use, pre-warped for the screen) at half size
 #                  (1024 x 688 canvas), each layer cut into its pixel islands (left/right eye) and packed into one atlas
-# Run: python assets/googoo/build_web.py [face_kit_dir]   (default: %USERPROFILE%/Downloads/Pash 3D/face_kit)
+# Run: python assets/googoo/build_web.py [face_kit_dir] [googoo_anims.glb]   (defaults: %USERPROFILE%/Downloads/Pash 3D/face_kit, .../googoo_anims.glb)
 import io, json, os, struct, sys
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, '..', '..')
-SRC = os.path.join(ROOT, 'proto', 'googoo_tripo_face.glb')
-KIT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.expanduser('~'), 'Downloads', 'Pash 3D', 'face_kit')
-KEEP = {'wait', 'cheer', 'clap', 'greet_04', 'wave_goodbye_02', 'listen', 'sing_01'}  # not dance_0x, jump, wave_goodbye_01, fall (bad legs)
+DL = os.path.join(os.path.expanduser('~'), 'Downloads', 'Pash 3D')
+KIT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(DL, 'face_kit')
+SRC = sys.argv[2] if len(sys.argv) > 2 else os.path.join(DL, 'googoo_anims.glb')
+FIRST = {'idle_happy', 'wave_hello'}  # in googoo.glb (idle + the hello wave on start); every other clip goes to googoo_anims_web.glb
 TEX = 1024
 COMP = {5120: 'b', 5121: 'B', 5122: 'h', 5123: 'H', 5125: 'I', 5126: 'f'}
 NUM = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}
 
 
 def glb():
-    d = open(SRC, 'rb').read()
+    d = open(SRC, 'rb').read()  # fresh copy per output (build_glb edits the json)
     jl = struct.unpack('<I', d[12:16])[0]
     j = json.loads(d[20:20 + jl])
     bl = struct.unpack('<I', d[20 + jl:24 + jl])[0]
@@ -40,11 +42,11 @@ def is_rest(node, path, keys, eps=1e-4):
     return True
 
 
-def build_glb():
+def build_glb(keep, name, mesh=True):
     j, b = glb()
     anims, dropped = [], 0
     for an in j['animations']:
-        if an['name'] not in KEEP: continue
+        if not keep(an['name']): continue
         ch = []
         for c in an['channels']:
             s = an['samplers'][c['sampler']]
@@ -55,11 +57,15 @@ def build_glb():
         for c in ch: c['sampler'] = samp.index(c['sampler'])
         an['channels'] = ch; anims.append(an)
     j['animations'] = anims
-    # texture -> 1024 jpeg
-    img = j['images'][0]; v = j['bufferViews'][img['bufferView']]
-    im = Image.open(io.BytesIO(b[v.get('byteOffset', 0):v.get('byteOffset', 0) + v['byteLength']])).convert('RGB')
-    print('texture', im.size, '->', TEX)
-    out = io.BytesIO(); im.resize((TEX, TEX), Image.LANCZOS).save(out, 'JPEG', quality=86, optimize=True); jpg = out.getvalue()
+    if not mesh:  # clips only: the bare skeleton (node names + hierarchy) is all the loader needs to build the tracks
+        for k in ('meshes', 'skins', 'materials', 'textures', 'images', 'samplers'): j.pop(k, None)
+        for nd in j['nodes']: nd.pop('mesh', None); nd.pop('skin', None)
+        j['meshes'] = []
+    else:  # texture -> 1024 jpeg
+        img = j['images'][0]; v = j['bufferViews'][img['bufferView']]
+        im = Image.open(io.BytesIO(b[v.get('byteOffset', 0):v.get('byteOffset', 0) + v['byteLength']])).convert('RGB')
+        print('texture', im.size, '->', TEX)
+        out = io.BytesIO(); im.resize((TEX, TEX), Image.LANCZOS).save(out, 'JPEG', quality=86, optimize=True); jpg = out.getvalue()
     # repack only what is still used
     used = set()
     for m in j['meshes']:
@@ -92,9 +98,10 @@ def build_glb():
             data = struct.pack('<%d%s' % (len(q), 'h' if o in rot else 'H'), *q)
             a.update(componentType=5122 if o in rot else 5123, normalized=True); a.pop('min', None); a.pop('max', None)
         a['bufferView'] = put(data, v.get('target')); accs.append(a)
-    img['bufferView'] = put(jpg); img['mimeType'] = 'image/jpeg'
+    if mesh: img['bufferView'] = put(jpg); img['mimeType'] = 'image/jpeg'
     j['accessors'], j['bufferViews'] = accs, views
-    for m in j['meshes']:
+    if not mesh: j.pop('meshes')
+    for m in j.get('meshes', []):
         for p in m['primitives']:
             p['attributes'] = {k: amap[x] for k, x in p['attributes'].items()}
             if 'indices' in p: p['indices'] = amap[p['indices']]
@@ -107,8 +114,8 @@ def build_glb():
     js = json.dumps(j, separators=(',', ':')).encode()
     js += b' ' * (-len(js) % 4)
     data = struct.pack('<III', 0x46546C67, 2, 28 + len(js) + len(bin_)) + struct.pack('<II', len(js), 0x4E4F534A) + js + struct.pack('<II', len(bin_), 0x004E4942) + bin_
-    open(os.path.join(HERE, 'googoo.glb'), 'wb').write(data)
-    print('googoo.glb', len(data) // 1024, 'KB; clips', [a['name'] for a in anims], '; dropped', dropped, 'rest-pose tracks')
+    open(os.path.join(HERE, name), 'wb').write(data)
+    print(name, len(data) // 1024, 'KB; clips', [a['name'] for a in anims], '; dropped', dropped, 'rest-pose tracks')
 
 
 def build_face():
@@ -143,5 +150,6 @@ def build_face():
     print('face.webp', atlas.size, os.path.getsize(os.path.join(HERE, 'face.webp')) // 1024, 'KB;', len(pieces), 'pieces of', len(rects), 'layers')
 
 
-build_glb()
+build_glb(lambda n: n in FIRST, 'googoo.glb')
+build_glb(lambda n: n not in FIRST, 'googoo_anims_web.glb', mesh=False)
 build_face()

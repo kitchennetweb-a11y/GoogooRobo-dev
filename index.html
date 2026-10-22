@@ -489,11 +489,12 @@ function drawFace(t){
 function setFace(f,ms=1500){face=f;faceUntil=performance.now()+ms}
 
 // ---------- Googoo: the Tripo-rigged model (Mixamo skeleton "mixamorig:*", from proto/tripo.html) ----------
-// assets/googoo/ is built by assets/googoo/build_web.py: googoo.glb (7 clean clips, small texture), face.webp + face.json (the face kit atlas).
+// assets/googoo/ is built by assets/googoo/build_web.py: googoo.glb (mesh, small texture, idle_happy + wave_hello), googoo_anims_web.glb
+// (the other 17 cleaned Mixamo clips, no mesh; loaded after the start, bound to googoo.glb by bone name), face.webp + face.json (the face kit atlas).
 // The primitive robot above is the fallback: it stays until the GLB has loaded and keeps driving the springs (squash, lean, head, jump).
 // Once loaded, GG is set, the primitive parts are hidden and ggUpdate() poses the bones every frame:
-// Tripo clip (wait / listen / a short reaction) -> procedural dance blended on top -> squat, steps, arm IK, head and spine offsets.
-const GOO_V='1',GOO_H=3.7; // file version (bump when the files change: the service worker keeps .glb for good) and his height in the room
+// Mixamo clip (a looping base: idle / walk / run / sit, plus one short reaction crossfaded over it) -> procedural dance blended on top -> squat, arm IK, head and spine offsets.
+const GOO_V='2',GOO_H=3.7; // file version (bump when the files change: the service worker keeps .glb for good) and his height in the room
 const gg=new THREE.Group();robot.add(gg);
 let GG=null,RIG=null,mixer=null,HT=1;
 const ACT={},CW={},B={},REST={},RESTP={},LEGP={},SH0={},FLX={},REACH={},FING={Left:[],Right:[]},SIDES=['Left','Right'],SG={Left:1,Right:-1},V3=()=>new THREE.Vector3();
@@ -505,6 +506,9 @@ const headObj=()=>GG?B.Head:head; // the head pivot (neck top) for picture bubbl
 const ggLoad=new Promise(res=>{if(!THREE.GLTFLoader)return res(false);const goB=document.getElementById('go');
   new THREE.GLTFLoader().load('assets/googoo/googoo.glb?v='+GOO_V,g=>{try{ggSetup(g);res(true)}catch(e){console.warn('googoo',e);res(false)}},
     p=>{if(p.total&&goB.disabled)goB.textContent=Math.round(p.loaded/p.total*100)+'%'},e=>{console.warn('googoo',e);res(false)})});
+function addClips(cs){for(const cl of cs){ACT[cl.name]=mixer.clipAction(cl);const tr=cl.tracks.find(t=>/Hips\.position$/.test(t.name));
+  if(tr){const ip=tr.createInterpolant(),v=tr.values,f=x=>ip.evaluate(x)[2];f.a=v[2];f.b=v[v.length-1];HZ[cl.name]=f}}} // HZ[clip](time) = his hips z (model units), .a / .b = first / last
+const HZ={},ggAnims=()=>ggLoad.then(ok=>ok&&new THREE.GLTFLoader().load('assets/googoo/googoo_anims_web.glb?v='+GOO_V,g=>addClips(g.animations),0,e=>console.warn('googoo anims',e)));
 function ggSetup(g){const model=g.scene;
   model.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;o.raycast=()=>{}} // taps hit the invisible part boxes below
     if(o.isBone){const n=o.name.replace(/^mixamorig:?/,'');B[n]=o;REST[n]=o.quaternion.clone();RESTP[n]=o.position.clone()}});
@@ -519,8 +523,8 @@ function ggSetup(g){const model=g.scene;
     REACH[s]=mP(B[s+'ForeArm'],c).distanceTo(mP(B[s+'Arm'],a))+mP(B[s+'Hand'],c).distanceTo(mP(B[s+'ForeArm'],a));
     FLX[s]=new THREE.Vector3(0,0,1).cross(mP(B[s+'HandMiddle1'],c).sub(mP(B[s+'Hand'],a)).normalize()).normalize();
     for(const n in B)if(n.startsWith(s+'Hand')&&/(Index|Middle|Ring|Pinky)[123]$/.test(n))FING[s].push(B[n])}
-  mixer=new THREE.AnimationMixer(model);for(const cl of g.animations)ACT[cl.name]=mixer.clipAction(cl);
-  ACT.wait.play();CW.wait=1;
+  mixer=new THREE.AnimationMixer(model);addClips(g.animations);
+  ACT.idle_happy.play();CW.idle_happy=1;
   // invisible tap boxes on the bones (they follow every pose), sizes in units of his height; poke() reads userData.part
   robot.updateMatrixWorld(true);const pm=new THREE.MeshBasicMaterial({visible:false}),U=GOO_H,wp=b=>B[b].getWorldPosition(V3());
   const prox=(bone,part,geo,p)=>{const m=new THREE.Mesh(geo,pm);m.userData.part=part;m.position.copy(p);scene.add(m);B[bone].attach(m);return m},
@@ -574,9 +578,24 @@ function faceGG(t,dt,now,lvl){ // lvl: 0..1 mouth level from the voice, <0 = sil
   compose(f,Math.round(gaze.x/3)*3,Math.round(gaze.y/3)*3)}
 
 // ----- motion: clips, the procedural dance (4 styles, feet planted, knees forward) and pose offsets on the Mixamo bones -----
-let react=null,reactEnd=0;
-function ggClip(n,secs=9){const a=ACT[n];if(!a)return;react=a;a.reset().setLoop(THREE.LoopOnce,1).play();a.clampWhenFinished=true; // a short reaction, faded in and out over the idle clip
-  reactEnd=performance.now()+Math.min(secs,a.getClip().duration)*1000}
+// ggClip(name, secs, {from (s), loop, ts (speed), lock (nothing else may interrupt), then (called when it ends)}): a short reaction, crossfaded (XF s) over the base clip
+// and back. Returns false when that clip isn't loaded (yet) or a locked one plays, so callers can keep their procedural fallback.
+const XF=.25,V_WALK=.72,V_RUN=2.02; // crossfade; treadmill speeds of the in-place walk / run in model units per second
+let react=null,reactLeft=0,reactThen=null,lockA=null,ggLoco=null,ggSpeed=0,idleB='idle_happy',idleSwap=0;const ROFF={};
+const ggLocked=()=>!!react&&react===lockA; // reactLeft counts game time (like the mixer), so a slow phone still plays the whole clip
+function ggClip(n,secs=9,o={}){const a=ACT[n];if(!a||ggLocked())return false;
+  if(a!==react||!(CW[n]>.01)){a.reset();a.time=o.from||0;a.timeScale=o.ts||1;a.setLoop(o.loop?THREE.LoopRepeat:THREE.LoopOnce,Infinity);a.clampWhenFinished=true;a.play()} // the same clip again while it plays: just longer
+  react=a;reactThen=o.then||null;reactLeft=o.loop?secs:Math.min(secs,(a.getClip().duration-a.time)/a.timeScale-.05);lockA=o.lock?a:null;return true}
+// the good part of the long clips
+const CLAP=['clap',2.3,{loop:1}],YAWN=['yawn',4.4,{from:3.2}],LAUGH=['laugh',3.2,{from:1.8}],SURPRISE=['surprised',2.6,{from:.4}];
+const ggSitting=()=>CW.sit_floor_idle>.05||ggLocked(); // on the floor (story, fallen): no leg IK (squat, tickle, steps)
+// rocket landing: falls on his back and sits up, then gets up from a crouch (get_up from 3 s; its lying-down start doesn't match the fall's end).
+// ROFF[clip] = a hips z offset (model units) blended by the clip weights: the fall's backward slide is halved (his feet slip forward a little)
+// so he stays in the room, get_up starts where the fall ended, and once he is up that offset moves into robot.position (he then walks home)
+function ggFall(){const f=HZ.fall_backwards,g=HZ.get_up,G0=3;if(!f||!g)return false;ROFF.fall_backwards=a=>-(f(a.time)-f.a)/2;
+  return ggClip('fall_backwards',9,{lock:1,then:()=>{ROFF.get_up=(f.a+f.b)/2-g(G0);
+    ggClip('get_up',2.6,{from:G0,lock:1,then:()=>{const d=ROFF.get_up+g(ACT.get_up.time)-HZ.idle_happy.a,k=d*GG.scale.x*robotScale;ROFF.get_up-=d;
+      robot.position.x+=Math.sin(robot.rotation.y)*k;robot.position.z+=Math.cos(robot.rotation.y)*k}})}})}
 const _q=new THREE.Quaternion(),_q2=new THREE.Quaternion(),_p=new THREE.Quaternion(),_t=new THREE.Quaternion(),_e=new THREE.Euler(),_a=V3(),_b=V3(),_X=new THREE.Vector3(1,0,0);
 function rotQ(b,q){const P0=b.parent.userData.w0;_t.copy(P0).invert().multiply(q).multiply(P0);b.quaternion.premultiply(_t)} // q in rest-aligned model axes
 function rot(n,x,y,z){const b=B[n];if(b)rotQ(b,_q.setFromEuler(_e.set(x,y,z)))}
@@ -653,23 +672,34 @@ function animate(t,dt){toRest();
     for(const f of FING[s])f.quaternion.multiply(_q.setFromAxisAngle(_X,-sg*cu*(/1$/.test(f.name)?1.3:1.05)))}} // Mixamo fingers curl about local x (mirrored)
 let lastArm=null,wDance=0,wArm=0,wWalk=0,walkPh=0,danceOn=false,tickleUntil=0;const QS={},PS=V3(),AQ={},_hc=V3(),_ho=V3(),_hd=new THREE.Quaternion();
 // o: what the game loop wants this frame (bob, armWave/armFwd as for the old arms, headYaw, walk speed, peekDip)
-function ggUpdate(dt,t,now,o){
-  const busy=react&&now<reactEnd,base=st.mode==='listen'&&!talk.playing?'listen':'wait';
-  for(const n in ACT){const a=ACT[n],tg=busy?(a===react?1:0):(n===base?1:0);CW[n]=(CW[n]||0)+(tg-(CW[n]||0))*Math.min(1,dt*6);
-    if(tg&&a!==react&&!a.isRunning())a.reset().setLoop(THREE.LoopRepeat).play();
-    if(!tg&&CW[n]<.01&&a.isRunning())a.stop();a.setEffectiveWeight(CW[n])}
-  toRest();mixer.timeScale=st.mode==='sleep'?.35:1;mixer.update(dt);
+// the looping base clip: walk / run (ggLoco), sitting on the floor for a story, else idle_happy and idle_breathing taking turns (a look_around now and then)
+function ggBase(now){if(ggLoco&&ACT[ggLoco])return ggLoco;if(game.type==='story'&&ACT.sit_floor_idle)return 'sit_floor_idle';
+  if(st.mode==='sleep'||st.mode==='listen')return ACT.idle_breathing?'idle_breathing':'idle_happy';
+  if(now>idleSwap){idleB=idleB==='idle_happy'&&ACT.idle_breathing?'idle_breathing':'idle_happy';idleSwap=now+(idleB==='idle_happy'?4000:9900);
+    if(st.mode==='idle'&&!react&&now-st.lastPoke>8000&&Math.random()<.25)ggClip('look_around')} // sparingly (legs pass close)
+  return idleB}
+function ggUpdate(dt,t,now,o){toRest(); // rest pose first, so the mixer saves rest as the "original" of every new binding
+  if(react&&(reactLeft-=dt)<=0){const f=reactThen;react=reactThen=null;if(f)f()}
+  const base=ggBase(now),sleep=st.mode==='sleep';let rz=0;
+  for(const n in ACT){const a=ACT[n],tg=react?(a===react?1:0):(n===base?1:0);CW[n]=cl((CW[n]||0)+cl(tg-(CW[n]||0),-dt/XF,dt/XF)); // linear crossfade
+    if(tg&&a!==react&&(!a.isScheduled()||a.paused)){const l=n==='run'?ACT.walk_happy:n==='walk_happy'?ACT.run:null; // walk <-> run: same step phase
+      a.reset().setLoop(THREE.LoopRepeat,Infinity).play();a.timeScale=1;if(l&&l.isScheduled())a.time=l.time/l.getClip().duration*a.getClip().duration}
+    if(!tg&&CW[n]<.01&&a.isScheduled())a.stop();a.setEffectiveWeight(CW[n]);
+    if(n===base&&a!==react)a.timeScale=sleep&&!ggLoco?.4:1;
+    const r=ROFF[n];if(r&&CW[n])rz+=CW[n]*(typeof r==='function'?r(a):r)}
+  ggSpeed=((CW.walk_happy||0)*V_WALK+(CW.run||0)*V_RUN)*GG.scale.x*robotScale; // room units per second: matches the treadmill, so the feet don't slide
+  mixer.update(dt);gg.position.z=rz*GG.scale.x;
   // dance (💃, songs, disco, moves game): procedural, blended over the clip so it starts and stops smoothly
   const dz=st.mode==='dance'||pose.name==='dance'&&now<pose.until;
   if(dz&&!danceOn){SP={};danceT0=procT;dStyle=Math.max(0,danceStyle)%4}danceOn=dz;
   wDance+=((dz?1:0)-wDance)*Math.min(1,dt*5);
   if(wDance>.005){procT+=dt;for(const n in B)(QS[n]||(QS[n]=new THREE.Quaternion())).copy(B[n].quaternion);PS.copy(B.Hips.position);
     animate(procT,dt);if(wDance<.995){for(const n in B)B[n].quaternion.copy(QS[n].slerp(B[n].quaternion,wDance));B.Hips.position.lerpVectors(PS,B.Hips.position,wDance)}}
-  const sleep=st.mode==='sleep',pk=o.peekDip,sq=Math.max(o.sit,sleep?.45:0)*(1-wDance);
-  // squat (sit / down / asleep), steps while he drives about, foot tickle: legs by IK with the feet on the floor
-  wWalk+=((o.walk>.4&&!dz?1:0)-wWalk)*Math.min(1,dt*6);if(wWalk>.01)walkPh+=dt*(4+o.walk*2.5);
+  const pk=o.peekDip,sq=Math.max(o.sit,sleep?.45:0)*(1-wDance)*(1-(CW.walk_happy||0)-(CW.run||0));
+  // squat (sit / down / asleep), foot tickle, and steps while he slides about if the walk clip isn't loaded: legs by IK with the feet on the floor
+  wWalk+=((o.walk>.4&&!dz&&!ACT.walk_happy?1:0)-wWalk)*Math.min(1,dt*6);if(wWalk>.01)walkPh+=dt*(4+o.walk*2.5);
   const tk=now<tickleUntil?Math.sin(now/45):0,lift=s=>Math.max(0,(s?1:-1)*Math.sin(walkPh))*.035*wWalk+Math.max(0,(s?1:-1)*tk)*.04;
-  if(sq>.01||wWalk>.01||tk){B.Hips.position.y-=sq*.12;legs({Left:[0,lift(1),0,0],Right:[0,lift(0),0,0]});rot('Spine',sq*.35,0,0)}
+  if((sq>.01||wWalk>.01||tk)&&!ggSitting()){B.Hips.position.y-=sq*.12;legs({Left:[0,lift(1),0,0],Right:[0,lift(0),0,0]});rot('Spine',sq*.35,0,0)}
   // head and chest: breathing, look-around, dizzy wobble, peekaboo bow, sleepy nod, zap shake
   const dzz=face==='dizzy'?Math.min(1,(faceUntil-now)/700):0;
   rot('Spine2',(Math.sin(t*2.2)*.015+pk*.18+(sleep?.12:0))*(1-wDance),0,.05*Math.cos(t*9)*dzz);
@@ -718,7 +748,7 @@ function emit(type,pos,n,opts={}){
 // ---------- Behaviour state ----------
 const st={spin:0,spinVel:0,head:0,headVel:0,squash:0,squashVel:0,lean:0,leanVel:0,
   mode:'idle',modeT:0,lastPoke:0,sleepT:0,homeFast:false,nextIdle:6,idleAct:null,idleT:0};
-let pose={name:null,until:0},sitDip=0,sitNow=0,robotScale=1,peekDip=0,jumpY=0,jumpV=0,flip=0,flipping=false,danceStyle=-1,lastBeat=-1,tummyHits=[];
+let rocketFall=false,flipZ=0,pose={name:null,until:0},sitDip=0,sitNow=0,robotScale=1,peekDip=0,jumpY=0,jumpV=0,flip=0,flipping=false,danceStyle=-1,lastBeat=-1,tummyHits=[];
 function kick(k,amt){st[k+'Vel']+=amt}
 function jump(v,doFlip){if(jumpY<.05){jumpV=v;if(doFlip){flipping=true;flip=0}SFX.boing()}}
 // Send Pash home: ends ball play, drives back to the middle, faces front.
@@ -733,27 +763,28 @@ function poke(part,point){
     if(b==='face')b=(point&&(GG?FACEP:screen).worldToLocal(point.clone()).y>(GG?0:-.05))?'eye':'mouth';
     if(b==='face')b='mouth';answer('body',b);return}
   const nowP=performance.now();pokeTimes=pokeTimes.filter(t=>nowP-t<2500);pokeTimes.push(nowP);
-  if(pokeTimes.length>=6&&!game.type&&st.mode!=='sleep'){pokeTimes=[];say(Math.random()<.5?'x_yavash':'x_yavash_tar');setFace('shock',1200);kick('lean',4);speak();return}
+  if(pokeTimes.length>=6&&!game.type&&st.mode!=='sleep'){pokeTimes=[];say(Math.random()<.5?'x_yavash':'x_yavash_tar');setFace('shock',1200);kick('lean',4);ggClip('shake_no');speak();return} // "gently!": the only "no" he ever shakes
   if(st.mode==='sleep'){wake();return}
   goHome();st.lastPoke=performance.now();st.idleAct=null;
+  const maybe=(p,...a)=>Math.random()<p&&ggClip(...a); // clips now and then, not on every tap
   if(part==='head'){SFX.dizzy();say('head');setFace('dizzy',2200);kick('head',9);kick('squash',-4);
     emit('star',new THREE.Vector3(0,3.6,0),5,{size:.32,life:2.2,orbit:true,g:0})}
   else if(part==='belly'){
     const now=performance.now();tummyHits=tummyHits.filter(t=>now-t<2500);tummyHits.push(now);
     const p=new THREE.Vector3();if(GG)B.Hips.getWorldPosition(p).add(new THREE.Vector3(0,0,-.45).applyQuaternion(robot.quaternion));else pipe.getWorldPosition(p);
-    if(tummyHits.length>=3){tummyHits=[];fart(1.1);setTimeout(()=>say('rocket'),900);setFace('shock',2000);jump(12,true);setTimeout(()=>{if(HAS.has('x_oftadam')&&st.mode!=='sleep')say('x_oftadam')},3000);
+    if(tummyHits.length>=3){tummyHits=[];fart(1.1);setTimeout(()=>say('rocket'),900);setFace('shock',2000);jump(12,true);rocketFall=!!GG;setTimeout(()=>{if(HAS.has('x_oftadam')&&st.mode!=='sleep')say('x_oftadam')},3000);
       emit('puff',p,22,{size:.8,life:1.6,grow:1.5,g:.2,vel:()=>new THREE.Vector3((Math.random()-.5)*2,-1-Math.random(),(Math.random()-.5)*2)});
       setTimeout(()=>setFace('laugh',1400),1500)}
-    else{SFX.toot();setTimeout(()=>say('belly'),850);setFace('shock',1200);kick('squash',7);kick('lean',3);if(GG)setTimeout(()=>jump(5),120);
+    else{SFX.toot();setTimeout(()=>say('belly'),850);setFace('shock',1200);kick('squash',7);kick('lean',3);if(GG&&!maybe(.5,...SURPRISE))setTimeout(()=>jump(5),120);
       emit('puff',p,10,{size:.6,life:1.4,grow:1.5,g:.4,vel:()=>new THREE.Vector3((Math.random()-.5)*.8,.4+Math.random()*.4,-1-Math.random())});
       setTimeout(()=>setFace(GG?'cheeky':'laugh',1200),900)}}
-  else if(part==='face'){SFX.giggle();say('face');setFace(GG&&Math.random()<.5?'wink':'laugh',1600);ggClip('clap',2.2);kick('lean',-4);kick('squash',3);
+  else if(part==='face'){SFX.giggle();say('face');setFace(GG&&Math.random()<.5?'wink':'laugh',1600);maybe(.7,...(Math.random()<.5?CLAP:LAUGH));kick('lean',-4);kick('squash',3);
     emit('heart',point,4,{size:.25,life:1.2,g:.5})}
-  else if(part==='antenna'){SFX.zap();say('antenna');setFace('shock',900);kick('squash',-6);antVel+=14;
+  else if(part==='antenna'){SFX.zap();say('antenna');setFace('shock',900);maybe(.5,...SURPRISE);kick('squash',-6);antVel+=14;
     const p=new THREE.Vector3();if(GG)ANT[Math.random()*2|0].getWorldPosition(p).y+=.2;else bulb.getWorldPosition(p);emit('spark',p,14,{size:.35,life:.6,g:-1,vel:()=>new THREE.Vector3((Math.random()-.5)*5,Math.random()*4,(Math.random()-.5)*5)})}
-  else if(part==='arm'){SFX.boing();say('arm');setFace('happy',800);ggClip('greet_04');arms.forEach(a=>a.vel+=a.s*12);kick('squash',3)}
+  else if(part==='arm'){SFX.boing();say('arm');setFace('happy',800);maybe(.8,'wave_hello',2,{loop:1});arms.forEach(a=>a.vel+=a.s*12);kick('squash',3)}
   else if(part==='ear'){setMode('fly');say('fly');setFace('laugh',2600);for(let i=0;i<14;i++)tone(220+i*12,240+i*12,.09,'sawtooth',.05,i*.12)}
-  else if(part==='feet'){SFX.giggle();say('feet');setFace('laugh',1200);tickleUntil=performance.now()+1400;jump(6);setTimeout(()=>jump(5),450)}
+  else if(part==='feet'){SFX.giggle();say('feet');setFace('laugh',1200);tickleUntil=performance.now()+1400;if(!maybe(.4,'jump_joyful')){jump(6);setTimeout(()=>jump(5),450);maybe(.5,...LAUGH)}}
   const pw=PART_WORD[part];if(pw&&HAS.has(pw)&&!(part==='belly'&&!tummyHits.length))setTimeout(()=>{if(st.mode!=='sleep'&&!game.type)say(pw)},2800); // then the Farsi word
   speak();
 }
@@ -936,18 +967,23 @@ async function cardAsk(tok,items,ok,key,statId,cls){let res;const done=new Promi
   showDeck(items,async(it,b)=>{if(game.busy||!alive(tok))return;game.busy=true;
     if(ok(it)){b.classList.add('win');res(it);return}
     statAdd(statId,'miss');wig(b);setFace('shock',600);kick('lean',3);await sayAsync('w_'+it.id);if(alive(tok))await sayAsync(key);game.busy=false},cls);
-  game.busy=true;await sayAsync(key);if(alive(tok))game.busy=false;
+  game.busy=true;await sayAsync(key);if(alive(tok))game.busy=false;think(tok);
   const nud=setInterval(()=>{if(!alive(tok))clearInterval(nud);else if(!game.busy){game.busy=true;sayAsync(key).then(()=>{if(alive(tok))game.busy=false})}},12000);
   const it=await done;clearInterval(nud);return it}
 async function finale(tok){cheer(true);await sayAsync('yay');if(alive(tok)&&HAS.has('x_dobare'))await sayAsync('x_dobare');if(alive(tok)){endGame();doneAct()}}
 function startGame(type){endGame();game.type=type;game.score=0;setMode('game');return game.token}
 const alive=tok=>tok===game.token;
-function cheer(big){SFX.giggle();setFace('laugh',1400);kick('squash',7);ggClip('cheer',2.4);arms.forEach(a=>a.vel+=a.s*10);jump(big?9:6,big);
+// big = end of a game; praise = he heard the child say it (Say it, animals); else a right answer. Sitting for a story: no clip
+function cheer(big,praise){SFX.giggle();setFace('laugh',1400);kick('squash',7);arms.forEach(a=>a.vel+=a.s*10);
+  const L=big?['jump_joyful','cheer']:praise?['cheer','clap','jump_joyful']:['nod_yes','clap','nod_yes','cheer'],c=game.type==='story'?null:L[Math.random()*L.length|0];
+  if(!(c==='jump_joyful'&&ggClip(c)))jump(big?9:6,big);if(c&&c!=='jump_joyful')ggClip(...(c==='clap'?CLAP:[c,2.6])); // jump_joyful jumps by itself
   emit('star',new THREE.Vector3(0,3,.6),10,{size:.28,life:1.2,g:-4,vel:()=>new THREE.Vector3((Math.random()-.5)*5,3+Math.random()*3,(Math.random()-.5)*2)})}
 // Wait for the right answer; re-ask with a hint if nothing happens for a while
+// now and then he thinks (hand to chin) while the child looks for the answer
+const think=tok=>Math.random()<.6&&setTimeout(()=>{if(alive(tok)&&!game.busy&&game.type)ggClip('thinking',4)},1800);
 function ask(tok,kind,target,whereKey){
   return new Promise(res=>{
-    game.awaiting={kind,target,res};
+    game.awaiting={kind,target,res};think(tok);
     let tries=0;const nudge=async()=>{await wait(9000);if(!alive(tok)||!game.awaiting||game.awaiting.target!==target)return;
       if(kind==='item'){const it=itemById(target);if(it)it.userData.glow=true}
       if(!game.busy){game.busy=true;await sayAsync(whereKey);game.busy=false}if(++tries<3)nudge()};
@@ -1026,7 +1062,7 @@ async function playCount(){const tok=startGame('count');
     const spans=[...deck.querySelectorAll('span')];
     game.busy=true;await sayIf('count_start');
     for(let i=0;i<n&&alive(tok);i++){spans[i].classList.add('on');kick('squash',3);await sayAsync('w_'+NUM[i])}
-    if(!alive(tok))return;await sayIf('count_ask');game.busy=false;await wait(2200);if(!alive(tok))return;
+    if(!alive(tok))return;await sayIf('count_ask');game.busy=false;think(tok);await wait(2200);if(!alive(tok))return;
     game.busy=true;const num=document.createElement('span');num.textContent=SW[NUM[n-1]].pic;num.className='on';deck.firstChild.appendChild(num);
     cheer(n>3);await sayAsync('w_'+NUM[n-1]);if(alive(tok))await sayIf('count_done');game.busy=false;await wait(800);countMax=Math.min(10,countMax+1)}
   if(alive(tok))finale(tok);
@@ -1059,7 +1095,7 @@ async function sayRound(id){
   game.busy=true;await sayAsync('say_'+id);game.busy=false;if(!alive(tok))return;
   const heard=await hear(8000,3500);
   if(!alive(tok))return;
-  if(heard){statAdd(id,'said');cheer(false);await sayAsync('p_vay_goftish');if(!alive(tok))return}
+  if(heard){statAdd(id,'said');cheer(false,1);await sayAsync('p_vay_goftish');if(!alive(tok))return}
   await sayAsync('w_'+id);await wait(1800);if(alive(tok))sayRound(sayNext); // model the word, then gently move on
 }
 // Listen for a try (mic: up to ms, squeaky playback; no mic: just give him quiet ms to say it out loud). true = heard something
@@ -1073,7 +1109,7 @@ async function playAnimal(){const tok=startGame('animal'),a=V2.filter(id=>SW[id]
   const pool=(snd.length?snd:all).filter(x=>x!==animalCur),id=animalCur=pool[Math.floor(Math.random()*pool.length)];loadVoices(['ask_snd_'+id,'snd_'+id,'w_'+id]);
   showDeck([{id,pic:SW[id].pic,fa:SW[id].fa},{pic:'➡️',cls:'nav'}],(it,b)=>{if(!it.id)playAnimal();else if(!game.busy){wig(b);say('w_'+id)}});
   game.busy=true;await sayAsync(HAS.has('ask_snd_'+id)?'ask_snd_'+id:'w_'+id);game.busy=false;if(!alive(tok))return;
-  if(await hear(6000,3000)&&alive(tok)){statAdd(id,'said');cheer(false);await sayAsync('p_vay_goftish')}
+  if(await hear(6000,3000)&&alive(tok)){statAdd(id,'said');cheer(false,1);await sayAsync('p_vay_goftish')}
   if(!alive(tok))return;game.busy=true;
   if(HAS.has('snd_'+id)){wig(deck.firstChild);pose={name:'dance',until:performance.now()+1800};setFace('laugh',1800);await sayAsync('snd_'+id);if(!alive(tok))return}
   await sayAsync('w_'+id);game.busy=false;await wait(1800);if(alive(tok))playAnimal()}
@@ -1202,7 +1238,7 @@ async function tapFurniture(id){
   if(game.type||st.mode==='sleep'&&id!=='lamp')return;
   const g=furnById(id);if(g)g.userData.wig=.7;st.lastPoke=performance.now();
   if(id==='lamp'){setLights(!lightsOn);SFX.beep();await sayAsync('w_lamp');say(lightsOn?'x_cheragh_roshan':'x_cheragh_khamoosh');return}
-  if(id==='bed'){goHome();await sayAsync('w_bed');await sayAsync('x_in_takhte_mane');if(st.mode!=='game'&&curRoom==='bed'){setMode('sleep');setFace('sleep',1e9);music(false)}return}
+  if(id==='bed'){goHome();await sayAsync('w_bed');await sayAsync('x_in_takhte_mane');if(st.mode!=='game'&&curRoom==='bed'){setMode('sleep');setFace('sleep',1e9);music(false);ggClip(...YAWN)}return}
   if(id==='chair'){await sayAsync('w_chair');pose={name:'sit',until:performance.now()+1500};setMode('game');say('x_beshin');await wait(1600);if(st.mode==='game'&&!game.type)setMode('idle');return}
   // new pieces: a little reaction, and Pash names it when there's a clip
   ({tv:()=>{tvMat.emissive.setHex(tvMat.emissive.getHex()?0:0x3a86ff);SFX.beep()},drum:()=>{tone(140,55,.3,'sine',.6);noise(.1,.3,900);jump(5)},
@@ -1232,7 +1268,7 @@ async function playMoves(){
   for(const m of list){
     if(!alive(tok))break;
     await sayAsync(m.k);if(!alive(tok))break;
-    if(m.pose)pose={name:m.pose,until:performance.now()+1800};if(m.pose==='clap')ggClip('clap',2);
+    if(m.pose)pose={name:m.pose,until:performance.now()+1800};if(m.pose==='clap')ggClip(...CLAP);
     if(m.do)m.do();setFace('laugh',1800);
     if(m.after&&HAS.has(m.after)){await wait(500);if(alive(tok))await sayAsync(m.after)}
     await wait(m.pose?1500:1300);if(m.end)m.end();
@@ -1414,8 +1450,8 @@ onBtn('bMoves',playMoves);
 onBtn('bLamp',()=>{if(curRoom==='bed')return tapFurniture('lamp');setLights(!lightsOn);SFX.beep();sayIf(lightsOn?'lamp_home_on':'lamp_home_off')});
 onBtn('bDisco',()=>disco(!discoOn));onBtn('bDark',()=>playFindCards(true));onBtn('bStars',playStars);
 onBtn('bNStory',async()=>{const s=STORIES.find(s=>s.id==='bedtime')||STORIES[0];if(!s)return;await sayIf('night_story');if(scr==='bed'&&!game.type)storyPage(s,0)});
-onBtn('bSleep',()=>{setMode('sleep');say(HAS.has('x_khabam_miad')&&Math.random()<.5?'x_khabam_miad':'sleep');setFace('sleep',1e9);music(false)});
-document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false);await Promise.race([MANIFEST.then(()=>loadVoices(['name','hi'])),wait(2500)]);loadCore();loadProps();document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;say(HAS.has('name')?'name':'hi');SFX.beep();kick('squash',8);speak()};
+onBtn('bSleep',()=>{setMode('sleep');say(HAS.has('x_khabam_miad')&&Math.random()<.5?'x_khabam_miad':'sleep');setFace('sleep',1e9);music(false);ggClip(...YAWN)});
+document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false);await Promise.race([MANIFEST.then(()=>loadVoices(['name','hi'])),wait(2500)]);loadCore();loadProps();document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;say(HAS.has('name')?'name':'hi');SFX.beep();kick('squash',8);speak();ggClip('wave_hello',2.2,{loop:1});ggAnims()};
 // the start button waits until Googoo (model + face kit) has loaded, at most 25 s; without them the old robot plays (and Googoo swaps in if he arrives later)
 {const b=document.getElementById('go'),txt=b.textContent;b.disabled=true;b.textContent='…';
   Promise.race([Promise.all([ggLoad,ggFace]),wait(25000)]).then(()=>{b.disabled=false;b.textContent=txt;window.__ggReady=1})}
@@ -1426,7 +1462,7 @@ const navB=r=>document.querySelector(`#nav [data-r=${r}]`),surpEl=document.getEl
 function doneAct(){if(curRoom!=='bed'&&++doneN>=3)inviteBed()}
 function inviteBed(){if(bedInvite||curRoom==='bed')return;bedInvite=true;navB('bed').classList.add('invite');
   const go=()=>{if(!bedInvite||curRoom==='bed')return;if(game.type||st.mode!=='idle')return setTimeout(go,3000);
-    setFace('sleep',1500);tone(300,150,1,'sine',.08);sayAny('invite_bed','invite_bed2')};go()}
+    setFace('sleep',1500);tone(300,150,1,'sine',.08);ggClip(...YAWN);sayAny('invite_bed','invite_bed2')};go()}
 const SURP=['balloon','gift','dog','cat','cake','butterfly','rabbit','chick'];
 function hideSurprise(){const room=['home','play','bed'].filter(r=>r!==curRoom)[Math.random()*2|0];
   surp={room,id:SURP[Math.random()*SURP.length|0]};surpEl.textContent=SW[surp.id].pic;navB(room).classList.add('surp');setFace('listen',2500);sayAny('surprise_hint','surprise_hint2')}
@@ -1456,9 +1492,9 @@ async function setRoom(s){if(s===scr&&ROOM_HI[s])return;const f=document.getElem
   f.classList.add('on');await wait(320);showScreen(s);robot.position.x=robot.position.z=0;f.classList.remove('on');
   if(s==='bed')awayT=0;
   if(s==='say')sayRound(pickSay(sayCur));else if(s==='book')bookHome(true);
-  else if(s==='bed'&&bedInvite){bedInvite=false;doneN=0;navB('bed').classList.remove('invite');say(HAS.has('bed_night_start')?'bed_night_start':ROOM_HI[s]); // cosy ending: the lamp goes off by itself
+  else if(s==='bed'&&bedInvite){bedInvite=false;doneN=0;navB('bed').classList.remove('invite');say(HAS.has('bed_night_start')?'bed_night_start':ROOM_HI[s]);ggClip('wave_bye_both'); // cosy ending: good-night wave, the lamp goes off by itself
     setTimeout(()=>{if(scr==='bed'&&lightsOn&&!game.type){setLights(false);SFX.beep()}},4000)}
-  else say(ROOM_HI[s]);
+  else{say(ROOM_HI[s]);if(Math.random()<.6)ggClip('wave_hello',2,{loop:1})}
 }
 document.querySelectorAll('#nav .rb').forEach(b=>b.onclick=()=>{st.lastPoke=performance.now();setRoom(b.dataset.r)});
 
@@ -1501,7 +1537,9 @@ function loop(){
   spr('squash',140,9,dt);spr('lean',60,6,dt);spr('head',50,4,dt);
   st.spin+=st.spinVel*dt;st.spinVel*=Math.pow(.25,dt);
   antVel+=(-antAng*120-antVel*5)*dt;antAng+=antVel*dt;
-  let bob=Math.sin(t*2.2)*.03,yaw=0,armWave=null,armFwd=null,headYaw=Math.sin(t*.7)*.15,x=robot.position.x,z=robot.position.z,ox=x,oz=z;
+  let bob=Math.sin(t*2.2)*.03,yaw=0,armWave=null,armFwd=null,headYaw=Math.sin(t*.7)*.15,x=robot.position.x,z=robot.position.z+flipZ,ox=x,oz=z;
+  const walkClip=GG&&ACT.walk_happy&&jumpY<.05,locked=ggLocked();ggLoco=null; // Googoo walks (or runs) with the clip and moves at its treadmill speed
+  const face2=a=>robot.rotation.y+Math.atan2(Math.sin(a-robot.rotation.y),Math.cos(a-robot.rotation.y)); // the same heading, the short way round (no flip-flop at +-180 degrees)
   if(st.mode==='dance'){const b=t*4.5,beat=Math.floor(b/Math.PI);
     if(danceStyle===0){bob=Math.abs(Math.sin(b))*.25;yaw=Math.sin(b/2)*.5;headYaw=Math.sin(b)*.4;armWave=[Math.sin(b)*1.4+1.6,-Math.sin(b+1)*1.4-1.6]}
     else if(danceStyle===1){yaw=b*.7;armWave=[2.4,2.4];bob=Math.sin(b*2)*.08+.05;headYaw=0}
@@ -1514,7 +1552,7 @@ function loop(){
   else if(st.mode==='sleep'){bob=Math.sin(t*1.2)*.04-.05;headYaw=0;st.head=.25+Math.sin(t*1.2)*.03;st.sleepT+=dt;
     if(st.sleepT>1.6){st.sleepT=0;emit('z',new THREE.Vector3(.6,3.5,0),1,{size:.35,life:2,g:.3,grow:.5,vel:()=>new THREE.Vector3(.3,.5,0)});SFX.snore()}}
   else if(st.mode==='chase'&&ball.visible){const dx=ball.position.x-x,dz=ball.position.z-z,d=Math.hypot(dx,dz);
-    yaw=Math.atan2(dx,dz);headYaw=0;if(d>.9){x+=dx/d*dt*2.2;z+=dz/d*dt*2.2;wheelL.rotation.x+=dt*8;wheelR.rotation.x+=dt*8}
+    yaw=face2(Math.atan2(dx,dz));headYaw=0;if(d>.9){if(walkClip)ggLoco=d>3.2&&ACT.run?'run':'walk_happy';else{x+=dx/d*dt*2.2;z+=dz/d*dt*2.2}wheelL.rotation.x+=dt*8;wheelR.rotation.x+=dt*8}
     else if(ball.position.y<.5){bv.set(dx/d*3+(Math.random()-.5)*2,4,dz/d*3);SFX.kick();setFace('laugh',700);kick('squash',5);arms.forEach(a=>a.vel+=a.s*8)}
     if(st.modeT>14)goHome()}
   else if(st.mode==='eat'&&food){food.position.y-=dt*1.6;food.rotation.y+=dt*3;
@@ -1541,23 +1579,26 @@ function loop(){
   else{ // idle: bored little routines when nobody plays
     if(now-st.lastPoke>7000){st.nextIdle-=dt;
       if(st.nextIdle<0&&!st.idleAct){st.idleAct=['wave','look','yawn','hum'][Math.floor(Math.random()*4)];st.idleT=0;st.nextIdle=5+Math.random()*4;
-        if(st.idleAct==='yawn'){setFace('sleep',1300);tone(300,150,1,'sine',.08);say('bored')}
-        if(st.idleAct==='hum'){[523,587,659,523].forEach((f,i)=>tone(f,f,.25,'triangle',.06,i*.3));ggClip('sing_01',3)}
-        if(st.idleAct==='wave')ggClip('wave_goodbye_02',2.6)}
+        if(st.idleAct==='yawn'){setFace('sleep',1300);tone(300,150,1,'sine',.08);say('bored');ggClip(...YAWN)}
+        if(st.idleAct==='hum')[523,587,659,523].forEach((f,i)=>tone(f,f,.25,'triangle',.06,i*.3));
+        if(st.idleAct==='wave')ggClip('wave_hello',2.2,{loop:1})}
       if(st.idleAct){st.idleT+=dt;const k=st.idleT;
         if(st.idleAct==='wave'&&!GG){armWave=[.25,2+Math.sin(k*10)*.4]}
         if(st.idleAct==='look'){headYaw=Math.sin(k*2)*.9}
         if(st.idleAct==='hum'){bob=Math.abs(Math.sin(k*5))*.08;headYaw=Math.sin(k*5)*.2}
         if(k>2.2)st.idleAct=null}}}
   // drive back home unless chasing the ball
-  if(st.mode!=='chase'){const r=st.homeFast?5:1.5;x+=(0-x)*dt*r;z+=(0-z)*dt*r;if(Math.hypot(x,z)<.05)st.homeFast=false;
+  if(st.mode!=='chase'&&!locked){const r=st.homeFast?5:1.5;
+    if(walkClip&&Math.hypot(x,z)>.45&&st.mode!=='dance'){ggLoco='walk_happy';yaw=face2(Math.atan2(-x,-z))}else{x+=(0-x)*dt*r;z+=(0-z)*dt*r}if(Math.hypot(x,z)<.05)st.homeFast=false;
     if(Math.hypot(x,z)>.1){wheelL.rotation.x+=dt*8;wheelR.rotation.x+=dt*8}}
+  if(GG&&ggSpeed&&!locked){x+=Math.sin(robot.rotation.y)*ggSpeed*dt;z+=Math.cos(robot.rotation.y)*ggSpeed*dt} // along where he faces
   // jumping / flips
-  if(st.mode!=='fly'){jumpV-=20*dt;jumpY+=jumpV*dt;if(jumpY<0){if(jumpV<-4){kick('squash',-jumpV*.9);tone(90,50,.12,'sine',.3)}jumpY=0;jumpV=0}}
+  if(st.mode!=='fly'){jumpV-=20*dt;jumpY+=jumpV*dt;if(jumpY<0){if(jumpV<-4){kick('squash',-jumpV*.9);tone(90,50,.12,'sine',.3)}jumpY=0;jumpV=0;
+    if(rocketFall&&!flipping){rocketFall=false;if(st.mode==='idle'&&!game.type)ggFall()}}} // rocket landing: falls on his back and gets up
   if(flipping){flip+=dt*6.5;if(flip>=Math.PI*2){flip=0;flipping=false}}
   sitNow+=((sitDip||0)-sitNow)*Math.min(1,dt*8);sitDip=0;
   const sc=pose.name==='big'&&now<pose.until?1.45:pose.name==='small'&&now<pose.until?.6:1;robotScale+=(sc-robotScale)*Math.min(1,dt*6);robot.scale.setScalar(robotScale);
-  const fp=GG?1.8:1.2;robot.position.set(x,jumpY+fp-fp*Math.cos(flip)-(GG?0:sitNow*.35),z-fp*Math.sin(flip));robot.rotation.x=flip;
+  const fp=GG?1.8:1.2;flipZ=fp*Math.sin(flip);robot.position.set(x,jumpY+fp-fp*Math.cos(flip)-(GG?0:sitNow*.35),z-flipZ);robot.rotation.x=flip; // flipZ: the flip's arc, not part of where he stands
   robot.rotation.y+=((yaw+st.spin)-robot.rotation.y)*Math.min(1,dt*8);
   const sq=st.squash*.04;hips.scale.set(1+sq,1-sq,1+sq);hips.position.y=bob;hips.rotation.z=st.lean*.05;
   head.rotation.z=st.head*.08;head.rotation.y=headYaw;neck.position.y=1.85+st.squash*.02;
