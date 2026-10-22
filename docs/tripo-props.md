@@ -319,3 +319,13 @@ Voice lines: 50 distinct Farsi words in this list are not in words_v2 or the sta
 - Bedroom: bed BIG (bigger than Googoo; he sleeps in it) in the back corner.
 - Toys (teddy, cow, later ones): 30% smaller than now (teddy k 0.7 -> 0.49, cow k 0.38 -> 0.27, or the same on-screen size if RB.h changes) and placed IN FRONT of Googoo, not behind.
 - Portrait: put Googoo slightly lower on screen (shift the framing band down a little in resize()), so there's room behind him for the bed and in front for toys.
+
+## Library props (2026-10-22, owner's picks: all left except the lamp)
+| File | Place | Word | Size (m) | Class | Parts | Rig | M/N | Batch | Pick | Prompt |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `library_bookshelf.glb` | library | قفسه | 1.4x0.4x1.1 | L large, 10k, 1024 px | N | N | M | L | left | front-facing kids' library bookshelf, empty display shelves, lavender, cyan strip |
+| `library_beanbag.glb` | library | — | 0.8x0.8x0.6 | M medium, 5k, 1024 px | N | N | M | L | left | squishy orange beanbag |
+| `library_book_bin.glb` | library | — | 0.6x0.4x0.35 | S small, 3k, 512 px | N | N | M | L | left | mint wooden book bin, empty |
+| `library_floor_cushion.glb` | library | بالش | 0.6x0.6x0.18 | S small, 2.5k, 512 px | N | N | M | L | left | round pink floor cushion with button |
+| `library_reading_lamp.glb` | library | چراغ | 0.35x0.3x0.6 | M medium, 4k, 1024 px | N | N | M | L | right | bent cream reading lamp, cyan glow |
+| `library_letter_garland.glb` | library | — | 1.2x0.05x0.35 | S small, 2k, 512 px | N | N | M | L | left | blank pastel bunting, letters added in code |
