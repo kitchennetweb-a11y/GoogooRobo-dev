@@ -131,8 +131,31 @@
      "ry": -2.461,
      "castShadow": false,
      "hidden": false
+    },
+    {
+     "id": "book",
+     "builtin": true,
+     "x": -2.8,
+     "z": -3.4,
+     "y": 0,
+     "ry": 0.6,
+     "hidden": false
     }
-   ]
+   ],
+   "camera": {
+    "phone": {
+     "zoom": 1.35,
+     "height": 0.26,
+     "yaw": 0,
+     "pitch": 11
+    }
+   },
+   "googoo": {
+    "x": 0.742,
+    "z": 1.25,
+    "s": 1.13,
+    "ry": 0
+   }
   },
   "play": {
    "walls": {
@@ -286,13 +309,21 @@
      "flatten": 0.12,
      "castShadow": false,
      "hidden": false
+    },
+    {
+     "id": "star",
+     "builtin": true,
+     "x": -1.7,
+     "z": -2.4,
+     "y": 4.3,
+     "hidden": false
     }
    ]
   }
  },
  "ui": {
-  "size": 1.35,
-  "shape": "round",
+  "size": 0.9,
+  "shape": "square",
   "buttons": {
    "bFeed": {
     "color": "#4fd1b0"
@@ -434,6 +465,14 @@
      "bStories"
     ]
    }
+  },
+  "nav": {
+   "colors": {
+    "bed": "#ffffff"
+   }
+  },
+  "top": {
+   "shape": "round"
   }
  }
 }
