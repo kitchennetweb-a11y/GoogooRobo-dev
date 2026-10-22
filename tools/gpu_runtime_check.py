@@ -7,6 +7,9 @@ GOOGOO_SWIFTSHADER=1 = software) as an iPhone 11-size phone and an iPad 9, taps 
 screen and reads renderer.info after a rendered frame. --props DIR serves DIR/<name>.glb in place of
 models/<name>.glb (e.g. the optimized props) without touching the repo. Calls/tris are one full frame incl. the shadow pass.
 FPS is desktop best case (RTX 3060 Ti), not a phone number. Exits 1 if any screen is over budget.
+Texture MB = what is really on the GPU: the WebGL texture calls are wrapped (HOOK) and every live GL texture's bytes are added up
+(RGB counted as 4 bytes/px, + 1/3 for mipmaps, shadow maps and PMREM included). Until 2026-10-22 this column was an estimate of every
+three.js texture reachable from the scene, which also counted the props of rooms already left (their GPU copies are disposed): ~2x too high.
 """
 import argparse, functools, http.server, pathlib, sys, threading
 from playwright.sync_api import sync_playwright
@@ -20,16 +23,30 @@ DEVICES = {"phone 414x896@2 (iPhone 11)": dict(viewport={"width": 414, "height":
                                                 device_scale_factor=2, is_mobile=True, has_touch=True),
            "tablet 810x1080@2 (iPad 9)": dict(viewport={"width": 810, "height": 1080}, screen={"width": 810, "height": 1080},
                                                device_scale_factor=2, has_touch=True)}
+# live GL textures: bytes per texture object, from the upload calls; deleteTexture drops it
+HOOK = r"""(() => {
+  const live = new Map(); window.__gpuTex = live; let n = 0;
+  const BPP = f => ({6406:1,6409:1,6410:2,6407:4,6408:4,32856:4,35907:4,32849:4,33321:1,33323:2,34842:8,34836:16,6402:4,33189:4,33190:4,36012:4,35056:4}[f] || 4); // RGB is padded to 4 on GPUs
+  for (const P of [WebGLRenderingContext.prototype, window.WebGL2RenderingContext && WebGL2RenderingContext.prototype].filter(Boolean)) {
+    const bound = new WeakMap(), cur = gl => { const m = bound.get(gl) || {}; bound.set(gl, m); return m; };
+    const o = {}; for (const k of ['createTexture','deleteTexture','bindTexture','activeTexture','texImage2D','texStorage2D','compressedTexImage2D','generateMipmap','texImage3D','texStorage3D']) o[k] = P[k];
+    P.createTexture = function () { const t = o.createTexture.call(this); t.__id = ++n; live.set(t, {id: t.__id, lv: {}, mip: false, w: 0, h: 0}); return t; };
+    P.deleteTexture = function (t) { live.delete(t); return o.deleteTexture.call(this, t); };
+    P.activeTexture = function (u) { cur(this).unit = u; return o.activeTexture.call(this, u); };
+    P.bindTexture = function (tg, t) { const m = cur(this); (m.b = m.b || {})[(m.unit || 0) + ':' + tg] = t; return o.bindTexture.call(this, tg, t); };
+    const tex = (gl, tg) => { const m = cur(gl), t = (m.b || {})[(m.unit || 0) + ':' + (tg >= 34069 && tg <= 34074 ? 34067 : tg)]; return t && live.get(t); };
+    const dims = a => { if (a.length >= 8 || (a.length === 9)) return [a[3], a[4], a[2], a[7]]; const s = a[5]; return [s.width || s.videoWidth || 0, s.height || s.videoHeight || 0, a[2], a[4]]; };
+    P.texImage2D = function (...a) { const r = tex(this, a[0]); if (r) { let w, h, ifmt, fmt; if (a.length >= 8) { w = a[3]; h = a[4]; ifmt = a[2]; } else { const s = a[5]; w = s.width || s.videoWidth || 0; h = s.height || s.videoHeight || 0; ifmt = a[2]; }
+        r.lv[a[0] + ':' + a[1]] = w * h * BPP(ifmt); if (a[1] === 0) { r.w = w; r.h = h; } } return o.texImage2D.apply(this, a); };
+    P.compressedTexImage2D = function (...a) { const r = tex(this, a[0]); if (r) { r.lv[a[0] + ':' + a[1]] = a[6].byteLength; if (a[1] === 0) { r.w = a[3]; r.h = a[4]; } } return o.compressedTexImage2D.apply(this, a); };
+    P.texStorage2D = function (tg, levels, ifmt, w, h) { const r = tex(this, tg); if (r) { let b = 0, x = w, y = h; for (let i = 0; i < levels; i++) { b += x * y * BPP(ifmt); x = Math.max(1, x >> 1); y = Math.max(1, y >> 1); } r.lv.storage = b * (tg === 34067 ? 6 : 1); r.w = w; r.h = h; } return o.texStorage2D.apply(this, arguments); };
+    P.generateMipmap = function (tg) { const r = tex(this, tg); if (r) r.mip = true; return o.generateMipmap.call(this, tg); };
+  }
+})()"""
 # one whole game frame: r128 resets renderer.info AFTER the shadow pass, so autoReset is switched off for one frame to count it;
 # plus a texture-memory estimate of everything in the scene (RGBA8 + mips unless compressed, + shadow maps)
 INFO = """() => new Promise(res => requestAnimationFrame(() => { renderer.info.autoReset = false; renderer.info.reset(); requestAnimationFrame(() => {
-  const seen = new Set(); let bytes = 0;
-  const add = t => { if (!t || !t.isTexture || seen.has(t.uuid)) return; seen.add(t.uuid);
-    const i = t.image || {}, w = i.width || 0, h = i.height || 0;
-    bytes += w * h * (t.isCompressedTexture ? 1 : 4) * (t.generateMipmaps !== false ? 4 / 3 : 1); };
-  scene.traverse(o => { if (o.material) [].concat(o.material).forEach(m => { for (const k in m) add(m[k]); }); });
-  add(scene.environment && scene.environment.isTexture ? scene.environment : null);
-  scene.traverse(o => { if (o.isLight && o.castShadow && o.shadow.map) bytes += o.shadow.map.width * o.shadow.map.height * 4; });
+  let bytes = 0; for (const r of window.__gpuTex.values()) { let b = 0; for (const k in r.lv) b += r.lv[k]; bytes += r.mip ? b * 4 / 3 : b; }
   const r = renderer.info; renderer.info.autoReset = true;
   res({ calls: r.render.calls, tris: r.render.triangles, geos: r.memory.geometries, texs: r.memory.textures,
         programs: (r.programs || []).length, texMB: bytes / 2 ** 20, dpr: renderer.getPixelRatio(),
@@ -48,7 +65,7 @@ def main():
     with sync_playwright() as p:
         br = launch(p)
         for dev, opts in DEVICES.items():
-            ctx = br.new_context(service_workers="block", **opts); pg = ctx.new_page(); errs = []
+            ctx = br.new_context(service_workers="block", **opts); ctx.add_init_script(HOOK); pg = ctx.new_page(); errs = []
             pg.on("pageerror", lambda e: errs.append(str(e)))
             if a.props:
                 alt = lambda r: (pathlib.Path(a.props) / r.request.url.split("?")[0].rsplit("/", 1)[1])
@@ -56,7 +73,7 @@ def main():
             pg.goto(f"http://127.0.0.1:{a.port}/{a.page}"); pg.wait_for_timeout(1500)
             print(f"\n### {dev}  GPU: {gpu_info(pg)}")
             pg.click("#go"); pg.wait_for_load_state("networkidle"); pg.wait_for_timeout(3000)
-            print(f"| screen | draw calls (<= {CALLS}) | triangles (<= {TRIS // 1000}k) | textures / geometries / programs | tex MB est (<= {TEX_MB}) | canvas px (DPR) | fps (desktop) | result |")
+            print(f"| screen | draw calls (<= {CALLS}) | triangles (<= {TRIS // 1000}k) | textures / geometries / programs | tex MB live on GPU (<= {TEX_MB}) | canvas px (DPR) | fps (desktop) | result |")
             print("|---|---|---|---|---|---|---|---|")
             for s in SCREENS:
                 room = s.split("-")[0]
