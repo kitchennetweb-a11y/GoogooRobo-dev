@@ -89,3 +89,32 @@ Done and live: everything listed in decisions.md under Product, apart from the i
 Installed on the PC: uv (winget), Unity Hub (winget), ffmpeg (winget), Playwright and Chromium (pip), Blender 5.2.
 Voice generation: `python tools/gen_voices.py 8Ebkg5uUcbSbeqGucAoR eleven_v4 [files]` -> `Downloads\Virtual Pet Sounds\v2\`, then `python tools/process_robo_clips.py ...` -> `audio/`, then `python tools/build.py`.
 Tests: the Playwright scripts were in the session scratchpad (temporary); re-create them if needed (serve `Pash-dev` on port 8766 with `python -m http.server`, and `Pash` on 8765).
+
+## GPU by default (RTX 3060 Ti)
+This PC has one GPU (RTX 3060 Ti, 8 GB, driver 610.88). Use it for every render and test; software rendering is the fallback only. Desktop RTX frame rates are best case: the phone budgets in `docs/gpu-budget.md` (draw calls, tris, memory) are the real guide, so a fast run here does not mean it is fast on a phone.
+
+**Browser tests (Playwright, python)**: `tools/browser.py`. Headless Chromium gets the real GPU with ANGLE/D3D11 flags; no headed mode needed.
+```python
+import sys; sys.path.insert(0, "tools")
+from browser import launch, gpu_info, fps
+with sync_playwright() as p:
+    b = launch(p); page = b.new_page(); page.goto(url)
+    print(gpu_info(page), fps(page, 5))   # gpu_info asserts the renderer says NVIDIA
+```
+Fallback: `GOOGOO_SWIFTSHADER=1` (software GL; `gpu_info` then skips the NVIDIA assert). Demo: `python -m http.server 8771` in Pash-dev, then `python tools/browser_bench.py`.
+Measured (index.html, 1280x720, after #go): GPU 60.3 fps (vsync cap; ANGLE D3D11 NVIDIA RTX 3060 Ti), SwiftShader 4.9 fps. Load until #go enabled 1.8 s vs 3.9 s; screenshot 0.10 s vs 2.12 s (about 12x fps, 20x screenshot).
+
+**Blender (background renders)**: `tools/blender_gpu.py`; add at the top of the `--python` script, no preferences are saved:
+```python
+import sys; sys.path.insert(0, "C:/Users/ahmma/Documents/Virtual Pet/Pash-dev/tools")
+import blender_gpu; print(blender_gpu.setup())   # Cycles -> OptiX on the 3060 Ti (CUDA if OptiX is missing)
+```
+Run: `"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b file.blend --python script.py`. `GOOGOO_CPU=1` forces CPU Cycles.
+EEVEE in background mode needs no setup: it renders on the GPU (only GPU in the PC) and is the fastest option for check pictures. Cycles needs `setup()`; default is the CPU otherwise. Note `googoo_anims.blend` has no camera, so scripts must add one.
+Measured (googoo_anims.blend frame 10, 1920x1080): EEVEE 1.8 s; Cycles 256 samples, no denoise: CPU 25.9 s, OptiX GPU 2.7 s (about 9.6x). At 960x540 / 64 samples: CPU 4.1 s vs GPU 1.3 s (start-up dominates small jobs).
+
+**Unity (batchmode)**: the Editor scripts (`GoogooRobo-Unity/Assets/Editor/Setup.cs`, `RigTest.cs`) render with `Camera.Render()` into a RenderTexture, so they need a graphics device. Nothing in the repo passes `-nographics`; do not add it (it disables the GPU, and renders come out empty or fail). Project is on Unity 6000.6.7f1:
+```
+"C:\Program Files\Unity\Hub\Editor\6000.6.7f1\Editor\Unity.exe" -batchmode -force-d3d11 -projectPath "C:\Users\ahmma\Documents\Virtual Pet\GoogooRobo-Unity" -executeMethod RigTest.Sheets -logFile -
+```
+Use `-batchmode` WITHOUT `-nographics` and without `-quit` when the method calls `EditorApplication.Exit` itself. Not run here (launch not tested); the Unity path stays a prototype.
