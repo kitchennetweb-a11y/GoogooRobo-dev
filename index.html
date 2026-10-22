@@ -950,7 +950,7 @@ function makeFurniture(){
   add('kite',kite,3.3,BACK+.06,0,'play').position.y=4.4;
   // bedroom: night stand and a slowly turning star mobile (bed + lamp above)
   const ns=new THREE.Group();ns.add(part(new THREE.BoxGeometry(.7,.62,.55),M(0xf4f7fb,.6),0,.31,0));ns.add(part(new THREE.SphereGeometry(.04,8,6),YEL,0,.4,.29));
-  add('nightstand',ns,1.6,-4.4,-.2,'bed');
+  add('nightstand',ns,2.4,-4.6,-.2,'bed');
   const ss=new THREE.Shape();for(let i=0;i<10;i++){const r=i%2?.09:.22,a=i*Math.PI/5+Math.PI/2;ss[i?'lineTo':'moveTo'](Math.cos(a)*r,Math.sin(a)*r)}
   const sg=new THREE.ExtrudeGeometry(ss,{depth:.05,bevelEnabled:false}),mob=new THREE.Group(),hang=M(0xdddddd,.6);
   mob.add(part(new THREE.CylinderGeometry(.012,.012,2.5,4),hang,0,1.25,0));
@@ -960,13 +960,13 @@ function makeFurniture(){
 }
 makeFurniture();
 // Tripo GLB props (models/, real size: Googoo = 1) loaded lazily after start; each replaces its primitive group only once it has loaded, so a failed load keeps the old piece
-// id: [file, x tweak factor, ry]; scale = RB.h * tweak (cow: new big toy, play room)
-const PROPS={bed:['bedroom_bed',.4,-.35],lamp:['bedroom_lamp',1.2,0],teddy:['toy_teddy_bear',.7,.3],cow:['farm_cow',.65,-.7,2.6,-4.6,'play']};
+// id: [file, k, ry, x, z, lamp y]; scale = RB.h * tweak (cow: new big toy, play room)
+const PROPS={bed:['bedroom_bed',.3,-.2,-.2,2.6],lamp:['bedroom_lamp',.7,0,2.4,-4.6,.62],teddy:['toy_teddy_bear',.7,.3],cow:['farm_cow',.38,-.5,2.0,-1.3]};
 function loadProps(){if(!THREE.GLTFLoader)return;const ld=new THREE.GLTFLoader();
-  for(const id in PROPS){const[f,k,ry,cx,cz,rm]=PROPS[id];ld.load('models/'+f+'.glb',gl=>{try{
+  for(const id in PROPS){const[f,k,ry,cx,cz,y]=PROPS[id];ld.load('models/'+f+'.glb',gl=>{try{
     const m=gl.scene,old=furnById(id);m.scale.setScalar(RB.h*k);m.updateMatrixWorld(true);
     const g=new THREE.Group();g.add(m);
-    if(old){furnGroup.remove(old);addF(id,g,old.userData.x0,old.position.z,ry,old.userData.room)}else addF(id,g,cx,cz,ry,rm);
+    if(old)furnGroup.remove(old);addF(id,g,cx??old.userData.x0,cz??old.position.z,ry,old?old.userData.room:'play');if(y)g.position.y=y;
     g.visible=g.userData.room===curRoom;
     if(id==='lamp'){const mt=g.userData.shade=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0xffc94d);mt.emissiveMap=mt.map;mt.emissiveIntensity=lightsOn?.15:.6;if(lampLight.parent)g.add(lampLight)}
     resize()}catch(e){console.warn('prop',id,e)}},0,e=>console.warn('prop',id,e))}}
@@ -1254,6 +1254,7 @@ function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3().s
 function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;
   renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);camera.aspect=w/h;
   camera.fov=portrait?50:40;
+  const bd=furnById('bed');if(bd){bd.userData.x0=portrait?-.2:-3;bd.position.z=portrait?2.6:-2.6} // bed: on the floor in front of Googoo in portrait, beside him in landscape (he hides the middle)
   const sq=Math.min(1,(portrait?.3:.35)+w/h*.75);furnGroup.children.forEach(g=>g.position.x=g.userData.x0*sq); // portrait: pull furniture toward the middle so it stays on screen
   camera.clearViewOffset();
   // auto-fit: distance from his measured size so he spans top..bot of the screen, or fits the gap between the rails if that is narrower
