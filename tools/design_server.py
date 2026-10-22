@@ -15,7 +15,9 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 OPT = os.path.join(os.path.expanduser('~'), 'Downloads', 'Pash 3D', 'props', 'optimized')
 LAYOUT = os.path.join(ROOT, 'data', 'layout.json')
 SKIP = {'room_living_shell'}
-ROOMS = ('home', 'play', 'bed')
+ROOMS = ('home', 'play', 'bed', 'library')
+OPTIONAL = {'library'}  # a layout saved before the library existed has none: the game then uses its built-in library
+BOOK = re.compile(r'^(cat|story):[a-z0-9_]{1,40}$')
 MSG = 'Layout: published from Design mode\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
 NAME = re.compile(r'^[a-z0-9_]{1,60}$')
 COLOR = re.compile(r'^#[0-9a-f]{6}$')
@@ -65,8 +67,20 @@ def validate(L):
     ids = set()
     for r in ROOMS:
         R = L['rooms'].get(r)
+        if R is None and r in OPTIONAL:
+            continue
         if not isinstance(R, dict):
             raise ValueError(f'room {r} is missing')
+        if 'books' in R:  # library: which books stand on the big shelf / the small shelf (bin), in order
+            B, seen = R['books'], set()
+            if not isinstance(B, dict) or set(B) - {'big', 'small'}:
+                raise ValueError(f'{r} books: only "big" and "small" lists')
+            for k, v in B.items():
+                if not isinstance(v, list) or not all(isinstance(x, str) and BOOK.match(x) for x in v):
+                    raise ValueError(f'{r} books on the {k} shelf')
+                if seen & set(v) or len(set(v)) != len(v):
+                    raise ValueError(f'{r}: a book is on a shelf twice')
+                seen |= set(v)
         W = R.get('walls', {})
         for k in ('left', 'right', 'back'):
             num(W.get(k), -30, 30, f'{r} wall {k}')
@@ -129,10 +143,10 @@ def validate(L):
         if grp not in ('phone', 'wide'):
             raise ValueError(f'free placement group {grp}')
         for b, v in F.items():
-            if not re.match(r'^(b[A-Za-z]+|score|parentBtn|tab-(home|play|bed|say|book))$', b) or v.get('ax') not in ('l', 'r') or v.get('ay') not in ('t', 'b'):
+            if not re.match(r'^(b[A-Za-z]+|score|parentBtn|tab-(home|play|bed|library|say|book))$', b) or v.get('ax') not in ('l', 'r') or v.get('ay') not in ('t', 'b'):
                 raise ValueError(f'free placement of {b}')
             num(v.get('x'), -5, 100, f'{b} x'); num(v.get('y'), -5, 100, f'{b} y')
-    for part, ids_ok in ((T, ('score', 'bTalk', 'parentBtn')), (N, ('home', 'play', 'bed', 'say', 'book'))):
+    for part, ids_ok in ((T, ('score', 'bTalk', 'parentBtn')), (N, ('home', 'play', 'bed', 'library', 'say', 'book'))):
         if 'size' in part:
             num(part['size'], 0.5, 2, 'top/tab size')
         if part.get('shape', 'round') not in ('round', 'square'):
@@ -268,6 +282,13 @@ def selftest():
         y = copy.deepcopy(L); bad(y)
         try:
             validate(y); raise AssertionError('bad layout passed')
+        except ValueError:
+            pass
+    y = copy.deepcopy(L); y['rooms'].pop('library', None); validate(y)  # no library room: still valid
+    for bad in ({'big': ['cat:animals'], 'small': ['cat:animals']}, {'big': ['x']}, {'top': []}):
+        y = copy.deepcopy(L); y['rooms'].setdefault('library', copy.deepcopy(L['rooms']['home']))['books'] = bad
+        try:
+            validate(y); raise AssertionError('bad books passed')
         except ValueError:
             pass
     assert any(p['name'] == 'living_sofa' and p['tris'] > 8000 for p in props_list())

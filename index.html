@@ -47,6 +47,11 @@ body:not(.words) #bubble{display:none}
   text-align:center;box-shadow:0 8px 0 #22314a22;pointer-events:none}
 #card .em{font-size:min(24vh,22vw);line-height:1.15}#card .fa{font:800 min(9vh,9vw)/1.4 var(--fa);direction:rtl}
 @media (orientation:portrait){#card{left:50%;top:calc(env(safe-area-inset-top,0px) + 18vh);transform:translateX(-50%)}#card .em{font-size:min(14vh,30vw)}}
+/* face screen pages (picture book, Say it): big arrows beside his ears, rails (Back) at the bottom, the Farsi word under his face (Show words only) */
+#earL,#earR{position:fixed;z-index:4;width:calc(var(--b)*1.4);height:calc(var(--b)*1.4);font-size:calc(var(--b)*.7);background:#ffd34d}
+body.face .col{top:auto;transform:none;bottom:calc(env(safe-area-inset-bottom,0px) + var(--b) + var(--g) + 10px)}
+#faceWord{position:fixed;z-index:3;transform:translateX(-50%);display:none;background:#fffffff0;border-radius:16px;padding:2px 16px 4px;font:800 min(6vh,7vw)/1.4 var(--fa);direction:rtl;pointer-events:none;box-shadow:0 4px 0 #22314a22}
+body.words.face #faceWord.on{display:block}body.face #bubble{display:none} /* the page word replaces the caption */
 #bTalk.on{animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{0%,100%{box-shadow:0 6px 0 #0003,0 0 0 0 #ff4f6d88}50%{box-shadow:0 6px 0 #0003,0 0 0 12px #ff4f6d00}}
 @media (prefers-reduced-motion:reduce){#bTalk.on{animation:none;outline:4px solid #fff}}
@@ -141,7 +146,9 @@ body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:jtap .35s cubic-bezier(.3,
 <div id="acts"><div id="colL" class="col"></div><div id="colR" class="col"></div></div><div id="free"></div><div id="safeProbe" style="position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)"></div>
 <div id="nav"><button class="rb" data-r="home" aria-label="Home">🏠</button><button class="rb" data-r="play" aria-label="Play room">🧸</button>
   <button class="rb" data-r="bed" aria-label="Bedroom">🛏️</button><button class="rb" data-r="say" aria-label="Say it">🗣️</button>
-  <button class="rb" data-r="book" aria-label="Picture book">📖</button></div>
+  <button class="rb" data-r="library" aria-label="Library">📖</button></div>
+<!-- picture-book pages on his face screen: arrows beside his ears (placed every frame by placeEars), the Farsi word under his face only with "Show words" -->
+<button id="earL" class="rb ear" hidden aria-label="Previous page">⬅️</button><button id="earR" class="rb ear" hidden aria-label="Next page">➡️</button><div id="faceWord"></div>
 <div id="deck" hidden></div>
 <div id="card" hidden><div class="em" id="cardEm"></div><div class="fa" id="cardFa"></div></div>
 <div id="fade"></div>
@@ -168,6 +175,7 @@ body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:jtap .35s cubic-bezier(.3,
   <button id="bDark" class="rb" style="background:#3d4a7a" aria-label="Find in the dark">🔦</button>
   <button id="bStars" class="rb" style="background:#2b3a78" aria-label="Count stars">⭐</button>
   <button id="bNStory" class="rb" style="background:#6a4fb3" aria-label="Bedtime story">📖</button>
+  <button id="bRead" class="rb" style="background:#ff8fab" aria-label="Read to me">📕</button>
 </div>
 <button id="surp" hidden aria-label="Surprise"></button>
 <button id="parentBtn" aria-label="Parent corner: press and hold">⚙︎</button>
@@ -279,7 +287,7 @@ const VARIANTS={head:['x_akh_saram','x_sar_gij','x_akh'],belly:['x_in_chi_bood',
   yay:['x_afarin_kheili_khoob','x_bache_khoob'],bored:['x_gorosnam'],feed:['x_mamnoon','p_aaa_dahanam_baze'],sleep:['x_shab_bekheir'],ball:['x_begir'],
   dance:['x_biya_beraghsim','x_beraghs'],x_dobare:['x_dobare_dobare']};
 // v2 phrases (vocab/lines_existing_v2.csv, group "phrases") as extra variants
-const ROOM_HI={home:'p_inja_khoone_mane',play:'p_inja_otagh_bazie',bed:'p_vaghte_khabe'};
+const ROOM_HI={home:'p_inja_khoone_mane',play:'p_inja_otagh_bazie',bed:'p_vaghte_khabe',library:'book_open'}; // library greeting: the old book-home line (no own clip yet)
 VARIANTS.p_inja_khoone_mane=['p_bia_bargardim_khoone'];VARIANTS.p_inja_otagh_bazie=['p_bia_ghayem_bashak','p_mano_begir'];VARIANTS.p_vaghte_khabe=['p_lala_gole_lale'];
 VARIANTS.p_vay_goftish=['p_che_ghashang_gofti','p_shenidam_shenidam','yay'];
 for(const[k,v]of Object.entries({hi:['p_salam_chetori','p_akh_joon_oomadi'],yay:['p_che_zerangi','p_to_ghahremani','p_hoora'],
@@ -409,6 +417,7 @@ const windowGlow=new THREE.PointLight(0xcfe8ff,.45,9,2);windowGlow.position.set(
 const fill=new THREE.DirectionalLight(0xffe2c4,.18);fill.position.set(5,4,8);scene.add(fill);
 // walls per room from data/layout.json (WALLS[room]: left/right x, back z, floor tint); the shell is built at RW x RD and moved/stretched here
 const WALLS={},wallSides=room.children.filter(o=>o.material===wallMat&&o!==back),skirts=room.children.filter(o=>o.material===skirtMat);winParts.forEach(o=>o.userData.z0=o.position.z);
+WALLS.library={left:-7,right:7,back:-8,floorRect:{left:-7,right:7,back:-8,front:14},floor:'#f2c48f'}; // library defaults until the layout has a "library" room (warm floor)
 // the floor has its own rectangle (W.floorRect: left/right/back/front; missing = under the walls, to the front edge), so a wall never moves or stretches it; wood tiling follows its size
 function applyWalls(s){const W=WALLS[s]||{},l=W.left??-RW/2,r=W.right??RW/2,b=W.back??BACK,F=BACK+RD,cx=(l+r)/2,fr=W.floorRect||{},fl=fr.left??l,fR=fr.right??r,fb=fr.back??b,ff=fr.front??F;
   back.scale.x=skirts[0].scale.x=(r-l)/RW;back.position.set(cx,RH/2,b);skirts[0].position.set(cx,.14,b+.03);
@@ -608,11 +617,12 @@ const gaze={x:0,y:0,tx:0,ty:0,next:0};let kBlinkT=-1,kNextBlink=2;
 function faceGG(t,dt,now,lvl){ // lvl: 0..1 mouth level from the voice, <0 = silent
   if(t>gaze.next){const m=FK.pupil_max;gaze.tx=rnd(-.85,.85)*m[0];gaze.ty=rnd(-.7,.7)*m[1];gaze.next=t+rnd(1.2,3.2)}
   const k=Math.min(1,dt*9);gaze.x+=(gaze.tx-gaze.x)*k;gaze.y+=(gaze.ty-gaze.y)*k;
-  let f=face==='pic'?'pic':face==='sleep'?(st.mode==='sleep'?'asleep':'sleepy'):face==='happy'?(now<faceUntil?'happy':'neutral'):FMAP[face]||'neutral';
+  if(pagePic)facePic=pagePic; // a picture-book / Say it page on his face: no blinks or expressions until it closes
+  let f=pagePic||face==='pic'?'pic':face==='sleep'?(st.mode==='sleep'?'asleep':'sleepy'):face==='happy'?(now<faceUntil?'happy':'neutral'):FMAP[face]||'neutral';
   if((f==='neutral'||f==='happy')&&lvl>=0)f=lvl<.12?f:lvl>.6?'talk_1':lvl>.33?'talk_3':'talk_2';
   if(t>kNextBlink){kBlinkT=t;kNextBlink=t+rnd(2.2,5)}
   const bi=Math.floor((t-kBlinkT)/.045);if(bi<4&&(f==='neutral'||f==='happy'||f[0]==='t'))f=['blink_half','blink','blink','blink_half'][bi];
-  compose(f,Math.round(gaze.x/3)*3,Math.round(gaze.y/3)*3)}
+  compose(f,f==='pic'?0:Math.round(gaze.x/3)*3,f==='pic'?0:Math.round(gaze.y/3)*3)} // pictures ignore the gaze: redrawn only when the picture changes
 
 // ----- motion: clips, the procedural dance (4 styles, feet planted, knees forward) and pose offsets on the Mixamo bones -----
 // ggClip(name, secs, {from (s), loop, ts (speed), lock (nothing else may interrupt), then (called when it ends)}): a short reaction, crossfaded (XF s) over the base clip
@@ -939,7 +949,7 @@ const SAY_WORDS=[["ball","توپ","toop","ball","⚽"],["apple","سیب","sib","
 const SW={};for(const [id,fa,tr,en,pic] of SAY_WORDS){SW[id]={fa,tr,en,pic};LINES['w_'+id]||=[fa+'!',tr+'! ('+en+'!)'];LINES['say_'+id]||=['بگو '+fa+'!','begu '+tr+'! (say '+en+'!)']}
 const V2=SAY_WORDS.slice(20).map(w=>w[0]); // the 200 new words
 // category + optional colour per word, from the deployed vocab file (games fall back gracefully without it)
-fetch('vocab/words_v2.json').then(r=>r.json()).then(a=>{for(const w of a)if(SW[w.id])Object.assign(SW[w.id],{cat:w.cat,col:w.col})}).catch(()=>{});
+fetch('vocab/words_v2.json').then(r=>r.json()).then(a=>{for(const w of a)if(SW[w.id])Object.assign(SW[w.id],{cat:w.cat,col:w.col});buildBooks()}).catch(()=>{}); // categories known: the library books
 const BODY_OF_PART={head:'head',face:'face',antenna:'head',ear:'ear',arm:'hand',belly:'belly',feet:'feet'};
 
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
@@ -1013,7 +1023,7 @@ function animateItems(t,dt){
 // ----- game state -----
 const game={type:null,token:0,awaiting:null,busy:false,listening:false,onHeard:null,score:0};
 const deck=document.getElementById('deck');
-function endGame(){if(game.type==='dark')setLights(true);game.token++;game.type=null;game.awaiting=null;game.busy=false;game.listening=false;game.onHeard=null;clearItems();
+function endGame(){if(game.type==='dark')setLights(true);faceOff();game.token++;game.type=null;game.awaiting=null;game.busy=false;game.listening=false;game.onHeard=null;clearItems();
   if(!deck.hidden){deck.hidden=true;resize()}
   if(st.mode==='game')setMode('idle')}
 // Cards: items [{pic (string, or array -> separate tappable spans), fa?, cls?, ...}]; onTap(item, button, spanIndex)
@@ -1154,12 +1164,13 @@ async function playFeed(){
   await wait(300);if(alive(tok)){endGame();doneAct()}
 }
 // 3) Say it screen: one big picture card; Pash says "say X!", listens up to 8 s, praises any try, then models the word
-let sayCur=null,sayNext=null;
+let sayCur=null,sayNext=null;const sayHist=[];
 function pickSay(not){const ids=Object.keys(SW),has=ids.filter(id=>HAS.has('w_'+id)),pool=(has.length?has:ids).filter(id=>id!==not);
   return pool[Math.floor(Math.random()*pool.length)]}
-async function sayRound(id){
+async function sayRound(id,back){
+  if(!back&&sayCur&&sayCur!==id){sayHist.push(sayCur);if(sayHist.length>20)sayHist.shift()}
   const tok=startGame('say');sayCur=id;sayNext=pickSay(id);loadVoices(['say_'+sayNext,'w_'+sayNext]);
-  document.getElementById('cardEm').textContent=SW[id].pic;document.getElementById('cardFa').textContent=SW[id].fa;resize();
+  faceShow(SW[id].pic,SW[id].fa,d=>d>0?sayRound(sayNext||pickSay()):sayRound(sayHist.pop()||sayCur,1)); // the word's picture on his face; ear arrows: previous / next
   game.busy=true;await sayAsync('say_'+id);game.busy=false;if(!alive(tok))return;
   const heard=await hear(8000,3500);
   if(!alive(tok))return;
@@ -1184,20 +1195,16 @@ async function playAnimal(){const tok=startGame('animal'),a=V2.filter(id=>SW[id]
 // Picture book (📖 screen): category grid -> swipeable flashcards; 📚 stories
 const CATS=['animals','food','body','clothes','home','vehicles','nature','colours','numbers','shapes','people','feelings','actions'];
 let bookList=[],bookI=0,STORIES=[];
-fetch('vocab/stories.json').then(r=>r.json()).then(a=>{STORIES=a;document.getElementById('bStories').hidden=!a.length}).catch(()=>{});
-function bookHome(hi){const cats=CATS.filter(c=>V2.some(id=>SW[id].cat===c));
-  showDeck(cats.map(c=>({c,pic:SW[V2.find(id=>SW[id].cat===c)].pic})),it=>bookCat(it.c),'grid');if(hi)sayIf('book_open')}
-async function bookCat(c){bookList=V2.filter(id=>SW[id].cat===c);bookI=0;bookCard(0,true);await sayIf('book_'+c);if(deck.className==='book')say('w_'+bookList[bookI])}
-function bookCard(d,quiet){bookI=(bookI+d+bookList.length)%bookList.length;const id=bookList[bookI];
-  showDeck([{pic:'⬅️',cls:'nav',d:-1},{id,pic:SW[id].pic,fa:SW[id].fa},{pic:'➡️',cls:'nav',d:1}],(it,b)=>{if(it.id){wig(b);say('w_'+id)}else bookCard(it.d)},'book');if(!quiet)say('w_'+id)}
+fetch('vocab/stories.json').then(r=>r.json()).then(a=>{STORIES=a;document.getElementById('bStories').hidden=!a.length;buildBooks()}).catch(()=>{}); // stories get their books on the library shelf
+// pages on his face screen (faceShow); the category books are on the library shelf (openBook)
+async function bookCat(c){const tok=startGame('book');bookList=V2.filter(id=>SW[id].cat===c);bookI=0;bookCard(0,true);await sayIf('book_'+c);if(alive(tok))say('w_'+bookList[bookI])}
+function bookCard(d,quiet){bookI=(bookI+d+bookList.length)%bookList.length;const id=bookList[bookI];faceShow(SW[id].pic,SW[id].fa,bookCard);if(!quiet)say('w_'+id)}
 deck.addEventListener('pointerdown',e=>deck.x0=e.clientX);
-deck.addEventListener('pointerup',e=>{const dx=e.clientX-deck.x0;if(deck.className==='book'&&Math.abs(dx)>50){deck.swiped=performance.now();bookCard(dx<0?1:-1)}});
 // Stories: pages of scene emojis (each tappable) + narration; an "ask" page waits for a tap on that picture
 const np=s=>s.replace(/️/g,''),PIC={};for(const id of [...V2,...Object.keys(SW)])PIC[np(SW[id].pic)]||=id;
 const graphemes=s=>(window.Intl&&Intl.Segmenter?[...new Intl.Segmenter().segment(s)].map(x=>x.segment):Array.from(s)).filter(x=>x.trim());
-function bookStories(){showDeck(STORIES.map(s=>({s,pic:s.cover})),it=>storyPage(it.s,0),'grid')}
 async function storyPage(s,i){const tok=startGame('story'),p=s.pages[i];try{voiceSrc&&voiceSrc.stop()}catch(e){}
-  if(!p){cheer(true);await sayAsync('yay');if(alive(tok)){endGame();scr==='book'?bookStories():doneAct()}return}
+  if(!p){cheer(true);await sayAsync('yay');if(alive(tok)){endGame();scr==='book'&&curRoom==='library'?showScreen('library'):doneAct()}return} // library story: back to the shelf
   const segs=graphemes(p.scene||''),goal=p.ask&&SW[p.ask]?np(SW[p.ask].pic):null;let want=null;
   showDeck([{pic:'🔁',cls:'nav',go:i},{pic:segs,cls:'scene'},{pic:'➡️',cls:'nav',go:i+1}],(it,b,j)=>{if(it.go!==undefined)return storyPage(s,it.go);if(j<0)return;
     if(want&&np(segs[j])===goal)return want();wig(b.children[j]);const id=PIC[np(segs[j])];if(id&&!game.busy)say('w_'+id)},'story');
@@ -1294,9 +1301,14 @@ const PROPS={
   teddy:{f:'toy_teddy_bear',k:.49,ry:.3,x:-2.1,z:1.6,room:'play'}, cow:{f:'farm_cow',k:.27,ry:-.4,x:2.1,z:1.6,room:'play'},
   // bedroom
   bed:{f:'bedroom_bed',k:.75,ry:-.15,x:-.7,z:-4.9,room:'bed',cast:1}, lamp:{f:'bedroom_lamp',k:.7,x:2.4,z:-4.6,on:'nightstand',room:'bed'},
-  nightstand:{f:'bedroom_nightstand',k:.225,x:2.4,z:-4.6,room:'bed'}, wardrobe:{f:'bedroom_wardrobe',k:.447,x:6,back:1,room:'bed',cast:1,pt:{x:3}}, rug:{f:'bedroom_rug',k:1.2,x:0,z:.2,sy:.12,room:'bed'}};
-const TEXK=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'],FLAT=['carpet','rug']; // floor mats: no tap box, rays pass through (taps on the floor still go home)
-function roomProps(s){winParts.forEach(o=>o.visible=!(GOT.has('window')&&s==='home'));newRug.visible=!(GOT.has('carpet')&&s==='home'||GOT.has('rug')&&s==='bed')}
+  nightstand:{f:'bedroom_nightstand',k:.225,x:2.4,z:-4.6,room:'bed'}, wardrobe:{f:'bedroom_wardrobe',k:.447,x:6,back:1,room:'bed',cast:1,pt:{x:3}}, rug:{f:'bedroom_rug',k:1.2,x:0,z:.2,sy:.12,room:'bed'},
+  // library (Tripo, 2026-10-22). lib_shelf = the big shelf (category books on its boards), lib_bin = the small one (story books stand in it); the file names come from the layout
+  lib_shelf:{f:'library_bookshelf',k:2,x:0,back:1,room:'library',cast:1,pt:{k:.62}}, lib_bin:{f:'library_book_bin',k:.9,x:-2.6,z:-2.2,ry:.35,room:'library'},
+  lib_rug:{f:'bedroom_rug',k:1.2,x:0,z:.4,sy:.12,room:'library'}, lib_lamp:{f:'library_reading_lamp',k:.6,x:4.6,z:-1.4,ry:-.6,room:'library',nosq:1},
+  lib_beanbag:{f:'library_beanbag',k:.55,x:4.2,z:-2.8,ry:-.5,room:'library',nosq:1}, lib_garland:{f:'library_letter_garland',k:1.1,x:0,y:7.4,back:1,room:'library'}};
+const TEXK=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'],FLAT=['carpet','rug','lib_rug']; // floor mats: no tap box, rays pass through (taps on the floor still go home)
+function roomProps(s){winParts.forEach(o=>o.visible=!(GOT.has('window')&&s==='home')&&s!=='library'); // the library has no window (shelf and garland on that wall)
+  newRug.visible=!(GOT.has('carpet')&&s==='home'||GOT.has('rug')&&s==='bed'||GOT.has('lib_rug')&&s==='library')}
 function loadProps(room){if(!THREE.GLTFLoader||ASKED.has(room))return;ASKED.add(room);const ld=new THREE.GLTFLoader();
   for(const id in PROPS)if(PROPS[id].room===room)loadProp(id,ld);
   if(room==='play')ld.load(MODELS+'toy_ball.glb',gl=>{try{ // the ball keeps its sphere for physics and taps; its look is the GLB (a child, so it rolls with it)
@@ -1309,7 +1321,7 @@ function loadProp(id,ld=new THREE.GLTFLoader()){const P=PROPS[id],room=P.room;ld
     if(P.back)z=(WALLS[room]?.back??BACK)-bb.min.z+.03;if(P.side)x=(WALLS[room]?.left??-RW/2)-bb.min.z+.03; // flush with the back / left wall
     if(old)furnGroup.remove(old);addF(id,g,x,z,P.ry||0,room);
     m.traverse(o=>{if(o.isMesh){o.castShadow=!!P.cast;o.receiveShadow=true;if(FLAT.includes(id))o.raycast=()=>{}}});
-    if(FLAT.includes(id)||id==='bed')g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's would cover the lamp and nightstand, rugs would swallow floor taps
+    if(FLAT.includes(id)||id==='bed'||id==='lib_shelf'||id==='lib_bin')g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's would cover the lamp and nightstand, rugs would swallow floor taps, the library shelves would cover their books
     if(P.y)g.position.y=P.y;Object.assign(g.userData,{m,base:m.scale.clone(),z0:z,y0:P.y||0,ry0:P.ry||0,top:bb.max.y,pt:P.pt,on:P.on});if(P.nosq)g.userData.nosq=1;if(P.off)g.userData.off=1;
     g.visible=g.userData.room===curRoom&&!g.userData.off;
     if(id==='lamp'){const mt=g.userData.shade=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0xffc94d);mt.emissiveMap=mt.map;mt.emissiveIntensity=lightsOn?.15:.6;if(lampLight.parent)g.add(lampLight)}
@@ -1321,7 +1333,7 @@ const SITS={lamp:'nightstand'}; // "sits on" links when the layout says nothing 
 let HOME={x:0,z:0,ry:0,s:1},CAMAUTO=null;const GOO={},CAMS={},BUILT={}; // Googoo's place/size and the saved camera per room (layout.json), set by setHome() in resize()
 function setHome(){const g=GOO[curRoom]||{},p=portrait&&g.portrait||{};HOME={x:p.x??g.x??0,z:p.z??g.z??0,ry:p.ry??g.ry??0,s:p.s??g.s??1}}
 // free placement: FREE[phone|wide][id] = {ax:'l'|'r', ay:'t'|'b', x, y} (% of the screen from the nearest edges); ids: rail buttons, score, bTalk, parentBtn, tab-<room>
-let FREE={},NAVORDER=['home','play','bed','say','book'],TOPORDER=['score','bTalk'];
+let FREE={},NAVORDER=['home','play','bed','say','library'],TOPORDER=['score','bTalk'];
 const safeIns=()=>{if(window.__safe)return window.__safe;const c=getComputedStyle(document.getElementById('safeProbe'));return {t:parseFloat(c.paddingTop)||0,r:parseFloat(c.paddingRight)||0,b:parseFloat(c.paddingBottom)||0,l:parseFloat(c.paddingLeft)||0}}; // notch / home bar (Design mode simulates them)
 const freeEl=id=>id.startsWith('tab-')?document.querySelector(`[data-r=${id.slice(4)}]`):document.getElementById(id);
 function applyFree(){const box=document.getElementById('free'),F=FREE[camKey()]||{},cards=scr==='say'||scr==='book'||!deck.hidden,key=scr==='bed'&&!lightsOn?'night':scr,rails=(SCREENS[key]||[[],[]]).flat(),
@@ -1333,11 +1345,11 @@ function applyFree(){const box=document.getElementById('free'),F=FREE[camKey()]|
   for(const id in F){if(!on(id))continue;const e=freeEl(id);if(!e)continue;
     if(e.parentNode!==box){e.dataset.fid=id;e.dataset.home=e.closest('#nav')?'nav':e.closest('#top')?'top':e.id==='parentBtn'?'body':'rail';box.appendChild(e)}
     const p=F[id],z=parseFloat(getComputedStyle(e).zoom)||1,x=p.x/100*W,y=p.y/100*H;e.style.left=(sf.l+(p.ax==='r'?W-x-e.offsetWidth*z:x))/z+'px';e.style.top=(sf.t+(p.ay==='b'?H-y-e.offsetHeight*z:y))/z+'px'} // offset size: not the jelly wobble
-  box.querySelectorAll('[data-r]').forEach(b=>b.classList.toggle('cur',b.dataset.r===scr))}
+  box.querySelectorAll('[data-r]').forEach(b=>b.classList.toggle('cur',b.dataset.r===(scr==='book'?'library':scr)))}
 const LAYOUT=fetch('data/layout.json',{cache:'no-cache'}).then(r=>r.json()).then(applyLayout).catch(e=>console.warn('layout: built-in values',e));
 function applyLayout(L){for(const s in L.rooms){const R=L.rooms[s];WALLS[s]=R.walls||{};if(WALLS[s].color)WALL[s]=parseInt(WALLS[s].color.slice(1),16);
     for(const id in PROPS)if(PROPS[id].room===s)delete PROPS[id];
-    GOO[s]=R.googoo||{};CAMS[s]=R.camera||{};
+    GOO[s]=R.googoo||{};CAMS[s]=R.camera||{};if(s==='library')LIBORDER=R.books||null;
     for(const p of R.props||[])if(p.builtin)BUILT[p.id]=p;else PROPS[p.id]={f:p.file,k:p.k,x:p.x,y:p.y,z:p.z,ry:p.ry,room:s,on:p.on!==undefined?p.on:SITS[p.id],back:p.wall==='back',side:p.wall==='left',sy:p.flatten,nosq:p.noSqueeze,off:p.hidden,cast:p.castShadow,pt:p.portrait}}
   const U=L.ui||{},S=U.size||1;document.body.classList.toggle('jelly',(U.style||'jelly')==='jelly');FREE=U.free||{};NAVORDER=(U.nav||{}).order||NAVORDER;TOPORDER=(U.top||{}).order||TOPORDER;for(const k in U.screens||{})SCREENS[k]=[U.screens[k].left,U.screens[k].right];
   for(const id in U.buttons||{}){const b=document.getElementById(id);if(b&&U.buttons[id].color)b.style.background=U.buttons[id].color}
@@ -1352,8 +1364,111 @@ function applyLayout(L){for(const s in L.rooms){const R=L.rooms[s];WALLS[s]=R.wa
 // portrait overrides (pt: k size factor, x, z, y, ry) so the phone view isn't swamped by big pieces; landscape keeps the PROPS values
 function placeProps(sq){for(const g of furnGroup.children){const u=g.userData,pt=portrait&&u.pt||{};g.position.x=pt.x??u.x0*(u.nosq?1:sq);
   if(u.z0!==undefined){g.position.z=pt.z??u.z0;g.position.y=pt.y??u.y0;g.rotation.y=pt.ry??u.ry0;u.m.scale.copy(u.base).multiplyScalar(pt.k||1)}}
-  for(const g of furnGroup.children){const t=g.userData.on&&furnById(g.userData.on);if(t){t.updateMatrixWorld(true);g.position.y=new THREE.Box3().setFromObject(t.userData.m||t).max.y}}} // "sits on": on top of the other piece's real box
+  for(const g of furnGroup.children){const t=g.userData.on&&furnById(g.userData.on);if(t){t.updateMatrixWorld(true);g.position.y=new THREE.Box3().setFromObject(t.userData.m||t).max.y}}
+  layoutBooks()} // the library books follow their shelves // "sits on": on top of the other piece's real box
 function furnById(id){return furnGroup.children.find(g=>g.userData.furn===id)}
+// ---------- Library (کتابخونه): the bookshelf is the menu ----------
+// One 3D book per picture-book category (big shelf, lib_shelf) and per story (small shelf / book bin, lib_bin), made in code: ONE InstancedMesh (one shared rounded-box
+// geometry, one atlas texture of LIBN x LIBN cells = cover colour + emoji; 1 draw call). layoutBooks() (from placeProps) stands them on the shelves from each shelf's own box
+// (N levels, evenly spaced), so they follow a shelf that is moved or resized. Which shelf and the order: layout.json rooms.library.books {big:[...], small:[...]} of
+// 'cat:<category>' / 'story:<id>'; not listed: categories big, stories small (stories put on the big shelf stand in a row on its top). Tap a book: it flies out and opens (openBook), then the page runs as before.
+const LIBSH={big:'lib_shelf',small:'lib_bin'},LIBN=5,libGroup=new THREE.Group();scene.add(libGroup);libGroup.visible=false;
+GOO.library={x:0,z:0,s:.55,portrait:{s:.65}};CAMS.library={phone:{zoom:1.2,height:.55,yaw:0,pitch:6},wide:{zoom:2,height:.5,yaw:-10,pitch:6}}; // defaults until the layout has a library room: he stands lower, the shelf shows above him
+let LIBORDER=null,libItems=[],libMesh=null,libPose=[],libHide=-1,libStoryI=0;
+const libCats=()=>CATS.filter(c=>V2.some(id=>SW[id].cat===c));
+function libAll(){return [...libCats().map(c=>({key:'cat:'+c,kind:'cat',id:c,pic:SW[V2.find(id=>SW[id].cat===c)].pic,name:c})),
+  ...STORIES.map(s=>({key:'story:'+s.id,kind:'story',id:s.id,s,pic:s.cover,name:s.title_en||s.id}))].slice(0,LIBN*LIBN)}
+function libAssign(){const all=libAll(),keys=new Set(all.map(i=>i.key)),O=LIBORDER||{},seen=new Set(),out={big:[],small:[]};
+  for(const k of ['big','small'])for(const x of O[k]||[])if(keys.has(x)&&!seen.has(x)){seen.add(x);out[k].push(x)}
+  for(const i of all)if(!seen.has(i.key))out[i.kind==='cat'?'big':'small'].push(i.key);return out} // default: categories on the big shelf, stories in the book bin
+const libTex=new THREE.CanvasTexture(Object.assign(document.createElement('canvas'),{width:512,height:512})) // 512: covers are ~40 px on a phone; 1.3 MB on the GPU;libTex.encoding=THREE.sRGBEncoding;libTex.anisotropy=4;
+const libMat=new THREE.MeshStandardMaterial({map:libTex,roughness:.6});libMat.customProgramCacheKey=()=>'libBooks';
+libMat.onBeforeCompile=sh=>{sh.vertexShader='attribute vec2 aCell;\n'+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\n\tvUv=(aCell+.04+vUv*.92)/'+LIBN+'.;')}; // each book shows its own atlas cell
+const libGeo=(()=>{const s=new THREE.Shape(),r=.14,x=-.5,y=-.5; // a 1x1x1 rounded book: front (+z) = the cover cell, every other face = the cell's border colour
+  s.moveTo(x+r,y);s.lineTo(-x-r,y);s.quadraticCurveTo(-x,y,-x,y+r);s.lineTo(-x,-y-r);s.quadraticCurveTo(-x,-y,-x-r,-y);s.lineTo(x+r,-y);s.quadraticCurveTo(x,-y,x,-y-r);s.lineTo(x,y+r);s.quadraticCurveTo(x,y,x+r,y);
+  const g=new THREE.ExtrudeGeometry(s,{depth:.8,bevelEnabled:true,bevelThickness:.1,bevelSize:.05,bevelSegments:2,curveSegments:3});g.computeBoundingBox();
+  const b=g.boundingBox,c=b.getCenter(V3()),z=b.getSize(V3());g.translate(-c.x,-c.y,-c.z);g.scale(1/z.x,1/z.y,1/z.z);g.computeVertexNormals();
+  const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++)if(n.getZ(i)>.7)uv.setXY(i,p.getX(i)+.5,p.getY(i)+.5);else uv.setXY(i,.02,.02);return g})();
+function buildBooks(){libItems=libAll();const n=libItems.length,cv=libTex.image,cx=cv.getContext('2d'),C=cv.width/LIBN;cx.clearRect(0,0,cv.width,cv.height);
+  libItems.forEach((it,i)=>{const x=i%LIBN*C,y=(i/LIBN|0)*C,h=(i*360/n+10)%360,q=C*.12;cx.fillStyle=`hsl(${h},60%,56%)`;cx.fillRect(x,y,C,C);
+    cx.fillStyle=`hsl(${h},75%,86%)`;cx.beginPath();cx.moveTo(x+q*2,y+q);cx.arcTo(x+C-q,y+q,x+C-q,y+C-q,q);cx.arcTo(x+C-q,y+C-q,x+q,y+C-q,q);cx.arcTo(x+q,y+C-q,x+q,y+q,q);cx.arcTo(x+q,y+q,x+C-q,y+q,q);cx.fill();
+    cx.font=(C*.52|0)+'px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(it.pic,x+C/2,y+C*.54)});libTex.needsUpdate=true;
+  const g=libGeo.clone(),cell=new Float32Array(n*2);libItems.forEach((it,i)=>{cell[2*i]=i%LIBN;cell[2*i+1]=LIBN-1-(i/LIBN|0)});g.setAttribute('aCell',new THREE.InstancedBufferAttribute(cell,2));
+  if(libMesh){libGroup.remove(libMesh);libMesh.geometry.dispose()}
+  libMesh=new THREE.InstancedMesh(g,libMat,n);libMesh.userData.libBooks=1;libMesh.receiveShadow=true;libMesh.frustumCulled=false;libGroup.add(libMesh);layoutBooks()}
+// a piece's box in its own group's space (so a turned shelf still lines up)
+function localBox(g,inv){const bb=new THREE.Box3(),mt=new THREE.Matrix4();g.userData.m.traverse(o=>{if(o.isMesh){if(!o.geometry.boundingBox)o.geometry.computeBoundingBox();bb.union(o.geometry.boundingBox.clone().applyMatrix4(mt.multiplyMatrices(inv,o.matrixWorld)))}});return bb}
+// the shelf boards, measured once per model from its geometry: heights (0..1 of the box) of upward faces across the middle third. None found = evenly spaced levels
+function shelfLevels(g,inv,bb){const m=g.userData.m;if(m.userData.lv)return m.userData.lv;const S=bb.getSize(V3()),cx=(bb.min.x+bb.max.x)/2,H=new Array(51).fill(0),v=V3(),n=V3(),nm=new THREE.Matrix3(),mw=new THREE.Matrix4();
+  m.traverse(o=>{const P=o.isMesh&&o.geometry.attributes.position,N=o.isMesh&&o.geometry.attributes.normal;if(!N)return;mw.multiplyMatrices(inv,o.matrixWorld);nm.getNormalMatrix(mw);
+    for(let i=0;i<P.count;i++){if(n.fromBufferAttribute(N,i).applyMatrix3(nm).normalize().y<.92)continue;v.fromBufferAttribute(P,i).applyMatrix4(mw);if(Math.abs(v.x-cx)<S.x*.3)H[Math.round((v.y-bb.min.y)/S.y*50)]++}});
+  const mx=Math.max(...H.slice(3,46));let lv=[];for(let b=3;b<46;b++)if(mx&&H[b]>=mx*.2&&H[b]>=H[b-1]&&H[b]>=H[b+1])lv.push(b/50);
+  lv=lv.filter((y,i)=>!(lv[i+1]-y<.09)); // a board and its front lip: keep the higher one
+  if(!lv.length){const N=Math.max(1,Math.min(5,Math.round(S.y/(S.x*.3))));lv=[...Array(N).keys()].map(i=>.07+i*.86/N)}
+  return m.userData.lv=lv}
+function layoutBooks(){if(!libMesh||!RB0)return;const A=libAssign(),idx={},Z=new THREE.Matrix4().makeScale(0,0,0),mt=new THREE.Matrix4(),q=new THREE.Quaternion(),inv=new THREE.Matrix4();libPose=[];
+  libItems.forEach((it,i)=>{idx[it.key]=i;libMesh.setMatrixAt(i,Z)});
+  const shelf=k=>{const g=furnById(LIBSH[k]);return g&&g.userData.m&&!g.userData.off?g:null};let big=A.big,small=A.small;
+  if(!shelf('small')){big=[...big,...small];small=[]}else if(!shelf('big')){small=[...big,...small];big=[]} // one shelf missing or hidden: all books on the other
+  for(const [k,keys0] of [['big',big],['small',small]]){const g=shelf(k);if(!g||!keys0.length)continue;g.updateMatrixWorld(true);inv.copy(g.matrixWorld).invert();
+    const bb=localBox(g,inv),S=bb.getSize(V3()),isBig=k==='big',top=isBig?keys0.filter(x=>x[0]==='s'):[],keys=isBig?keys0.filter(x=>x[0]==='c'):keys0, // big shelf: categories on its boards, stories (if any) in a row on its top; small shelf (bin): standing in it
+      put=(key,x,y,z,bw,bh,bt)=>{const i=idx[key];if(i===undefined)return;const p=V3().set(x,y,z).applyMatrix4(g.matrixWorld);g.getWorldQuaternion(q);libPose[i]={p,q:q.clone(),bw,bh,bt};
+        if(i!==libHide)libMesh.setMatrixAt(i,mt.compose(p,q,V3().set(bw,bh,bt)))};
+    if(!isBig){const n=keys.length,bw=Math.min(S.y*1.2*.9,S.x*.86/n*.92),bh=bw/.9,bt=bw*.24;
+      keys.forEach((key,j)=>put(key,(bb.min.x+bb.max.x)/2+(j-(n-1)/2)*S.x*.86/n,bb.min.y+S.y*.55+bh/2,(bb.min.z+bb.max.z)/2,bw,bh,bt));continue} // most of the cover above the rim
+    const lv=shelfLevels(g,inv,bb).slice().reverse(),L=lv.length,per=Math.max(1,Math.ceil(keys.length/L)),slot=S.x*.8/per, // levels from the top down
+      gaps=lv.map((y,i)=>(i?lv[i-1]:.93)-y-.06),bw=Math.min(Math.min(...gaps)*S.y*.85*.9,slot*.84),bh=bw/.9,bt=bw*.24,
+      out=[...Array(per).keys()].sort((a,b)=>Math.abs(b-(per-1)/2)-Math.abs(a-(per-1)/2)); // a short bottom row keeps to the ends: Googoo stands in front of the middle
+    keys.forEach((key,j)=>{const r=j/per|0,cnt=Math.min(per,keys.length-r*per),last=r===L-1,c=last&&cnt<per?out.slice(0,cnt).sort((a,b)=>a-b)[j%per]:j%per;
+      put(key,bb.min.x+S.x*.1+slot*(c+.5+(last?0:(per-cnt)/2)),bb.min.y+(lv[Math.min(r,L-1)]+.06)*S.y+bh/2,bb.max.z-bt/2-S.z*.12,bw,bh,bt)});
+    top.forEach((key,j)=>put(key,(bb.min.x+bb.max.x)/2+(j-(top.length-1)/2)*Math.min(S.x*.84/top.length,bw*1.3),bb.max.y+bh*.46,(bb.min.z+bb.max.z)/2,bw,bh,bt))}
+  libMesh.instanceMatrix.needsUpdate=true;garlandLetters()}
+// the letter garland's five blank flags get ا ب پ ت ث (right to left), drawn on one see-through plane in front of it (flag spots measured from the model's preview)
+const GARL=[[.88,.55,'ا'],[.69,.69,'ب'],[.48,.76,'پ'],[.28,.69,'ت'],[.09,.55,'ث']];let garTex=null;
+function garlandLetters(){const g=furnById('lib_garland');if(!g||!g.userData.m)return;let pl=g.userData.letters;
+  if(!pl){const c=Object.assign(document.createElement('canvas'),{width:512,height:256}),draw=()=>{const x=c.getContext('2d');x.clearRect(0,0,512,256);x.fillStyle='#5a4a8a';x.textAlign='center';x.textBaseline='middle';
+      x.font='800 64px Vazirmatn,sans-serif';for(const [fx,fy,ch] of GARL)x.fillText(ch,fx*512,fy*256);if(garTex)garTex.needsUpdate=true};
+    garTex=new THREE.CanvasTexture(c);garTex.encoding=THREE.sRGBEncoding;draw();document.fonts&&document.fonts.ready.then(draw);
+    pl=g.userData.letters=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:garTex,transparent:true,depthWrite:false,toneMapped:false}));pl.raycast=()=>{};g.add(pl)}
+  g.updateMatrixWorld(true);const bb=localBox(g,new THREE.Matrix4().copy(g.matrixWorld).invert()),S=bb.getSize(V3());pl.scale.set(S.x,S.y,1);pl.position.set((bb.min.x+bb.max.x)/2,(bb.min.y+bb.max.y)/2,bb.max.z+.01)}
+// tap a book: it slides out toward the camera, grows and opens (~600 ms), then the page/story runs
+const libFly=(()=>{const G=new THREE.Group(),pages=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),M(0xfffaf0,.9,0)),piv=new THREE.Group(),g=libGeo.clone();
+  g.setAttribute('aCell',new THREE.InstancedBufferAttribute(new Float32Array(2),2));const cover=new THREE.InstancedMesh(g,libMat,1);cover.setMatrixAt(0,new THREE.Matrix4());cover.frustumCulled=false;
+  piv.add(cover);G.add(pages,piv);G.visible=false;G.traverse(o=>o.raycast=()=>{});libGroup.add(G);return {G,pages,piv,cover,t:1}})();
+function openBook(i){const it=libItems[i],P=libPose[i];if(!it||!P||libFly.t<1||curRoom!=='library'||scr!=='library')return;
+  endGame();goHome();st.lastPoke=performance.now();const tok=game.token,F=libFly,a=F.cover.geometry.attributes.aCell;a.setXY(0,i%LIBN,LIBN-1-(i/LIBN|0));a.needsUpdate=true;
+  F.pages.scale.set(P.bw*.94,P.bh*.94,P.bt*.7);F.pages.position.z=-P.bt*.12;F.piv.position.set(-P.bw/2,0,P.bt*.25);F.cover.position.set(P.bw/2,0,0);F.cover.scale.set(P.bw,P.bh,P.bt*.3);F.piv.rotation.y=0;
+  Object.assign(F,{t:0,i,P,done:()=>{if(game.token!==tok||curRoom!=='library')return;showScreen('book');if(it.kind==='cat')bookCat(it.id);else storyPage(it.s,0)}});
+  libHide=i;layoutBooks();F.G.position.copy(P.p);F.G.quaternion.copy(P.q);F.G.scale.setScalar(1);F.G.visible=true;SFX.beep();kick('squash',3)}
+function stepFly(dt){const F=libFly;F.t=Math.min(1,F.t+dt/.6);const t=F.t,e=t<.5?2*t*t:1-(2-2*t)**2/2,
+    c=V3().set(0,0,.5).unproject(camera).sub(camera.position).normalize(),D=Math.max(2.5,RB.h*.8),tp=camera.position.clone().addScaledVector(c,D), // the middle of the screen, D in front
+    s1=2*D*Math.tan(camera.fov*Math.PI/360)/camera.zoom*.42/F.P.bh; // grows to ~42% of the screen height
+  F.G.position.lerpVectors(F.P.p,tp,e);F.G.quaternion.copy(F.P.q).slerp(camera.quaternion,e);F.G.scale.setScalar(1+(s1-1)*e);F.piv.rotation.y=-2.3*Math.max(0,(t-.45)/.55)**.7; // the cover swings open
+  if(t>=1){F.G.visible=false;libHide=-1;layoutBooks();F.done()}}
+function libStory(){if(curRoom!=='library')return;const s=libItems.map((it,i)=>it.kind==='story'?i:-1).filter(i=>i>=0);if(s.length)openBook(s[libStoryI++%s.length])} // Story button: the next story book
+// ---------- Pages on his face screen (picture book, Say it): the camera glides to a close-up of his head, the page's picture is his face, arrows sit beside his ears ----------
+let pagePic='',fvT=0,CB=null,earGo=null;const earL=document.getElementById('earL'),earR=document.getElementById('earR'),faceWord=document.getElementById('faceWord'),fcam=new THREE.PerspectiveCamera();
+function faceShow(pic,fa,go){pagePic=pic;earGo=go;faceWord.textContent=fa||'';faceWord.classList.toggle('on',!!fa);document.body.classList.add('face')}
+function faceOff(){if(!pagePic)return;pagePic='';earGo=null;faceWord.classList.remove('on');document.body.classList.remove('face')}
+earL.onclick=()=>{st.lastPoke=performance.now();earGo&&earGo(-1)};earR.onclick=()=>{st.lastPoke=performance.now();earGo&&earGo(1)};
+function faceTarget(){const U=RB.h*HOME.s,c=V3();(FACEP||headObj()).getWorldPosition(c);c.y-=.02*U;const tn=Math.tan(camera.fov*Math.PI/360),
+    d=Math.max(.48*U/.7/(2*tn),.34*U*2.5/(2*tn*camera.aspect)),ry=robot.rotation.y; // head and shoulders ~70% of the height; narrow screens: room for the arrows
+  fcam.position.copy(c).add(V3().set(Math.sin(ry),.15,Math.cos(ry)).normalize().multiplyScalar(d));fcam.lookAt(c);return fcam}
+function fvApply(){if(!CB||fvT<=0)return;const e=fvT<.5?2*fvT*fvT:1-(2-2*fvT)**2/2,T=faceTarget();camera.position.copy(CB.p).lerp(T.position,e);camera.quaternion.copy(CB.q).slerp(T.quaternion,e);
+  camera.zoom=CB.z+(1-CB.z)*e;if(CB.v){camera.view.offsetX=CB.v[0]*(1-e);camera.view.offsetY=CB.v[1]*(1-e)}camera.updateProjectionMatrix();camera.updateMatrixWorld()}
+function faceStep(dt){const on=!!pagePic,was=fvT;fvT=Math.max(0,Math.min(1,fvT+(on?dt:-dt)/.6));if(fvT>0||was>0)fvApply();
+  if(was>0&&fvT===0&&CB){camera.position.copy(CB.p);camera.quaternion.copy(CB.q);camera.zoom=CB.z;if(CB.v){camera.view.offsetX=CB.v[0];camera.view.offsetY=CB.v[1]}camera.updateProjectionMatrix();camera.updateMatrixWorld()} // exactly the room camera again
+  const show=on&&fvT>.95;if(earL.hidden===show){earL.hidden=earR.hidden=!show}if(!show)return;
+  const sf=safeIns(),bs=earL.offsetWidth,W=innerWidth,H=innerHeight,cl=(v,a,b)=>Math.max(a,Math.min(b,v)),P=o=>{const v=o.getWorldPosition(V3()).project(camera);return [(v.x+1)/2*W,(1-v.y)/2*H]};
+  const pts=EARS.length>1?EARS.map(P).sort((a,b)=>a[0]-b[0]):[[W*.3,H*.45],[W*.7,H*.45]],gap=Math.max(8,(pts[1][0]-pts[0][0])*.1);
+  [[earL,pts[0][0]-gap-bs,pts[0][1]],[earR,pts[1][0]+gap,pts[1][1]]].forEach(([el,x,y])=>{el.style.left=cl(x,sf.l+6,W-sf.r-bs-6)+'px';el.style.top=cl(y-bs/2,sf.t+6,H-sf.b-bs-6)+'px'});
+  if(faceWord.classList.contains('on')&&FACEP){const v=FACEP.getWorldPosition(V3());v.y-=.14*RB.h*HOME.s;v.project(camera);faceWord.style.left=(v.x+1)/2*W+'px';faceWord.style.top=(1-v.y)/2*H+'px'}}
+// Design mode: this room as a layout.json entry (the built-in values), used when the layout has no library room yet
+function roomLayout(s){const W=WALLS[s]||{},hx=n=>'#'+n.toString(16).padStart(6,'0');
+  return {walls:{left:W.left??-RW/2,right:W.right??RW/2,back:W.back??BACK,color:W.color||hx(WALL[s]),floor:W.floor||'#ffffff'},
+    props:Object.entries(PROPS).filter(([,P])=>P.room===s).map(([id,P])=>{const p={id,file:P.f,k:P.k};for(const [a,b] of [['x','x'],['y','y'],['z','z'],['ry','ry'],['sy','flatten']])if(P[a]!=null)p[b]=P[a];
+      if(P.back)p.wall='back';if(P.side)p.wall='left';if(P.nosq)p.noSqueeze=true;p.castShadow=!!P.cast;p.hidden=!!P.off;if(P.pt)p.portrait={...P.pt};return p}),
+    googoo:{...(GOO[s]||{})},camera:JSON.parse(JSON.stringify(CAMS[s]||{})),...(s==='library'?{books:libAssign()}:{})}}
 const lampLight=new THREE.PointLight(0xffc77a,0,7,2);
 function setLights(on){lightsOn=on;const L=on?ROOM_DAY:ROOM_NIGHT;sun.intensity=L.sun;if(hemiLight)hemiLight.intensity=L.hemi;
   windowGlow.intensity=L.win;scene.environment=on?dayEnv:null;fill.intensity=L.fill;renderer.toneMappingExposure=L.exp;scene.background.setHex(L.bg);
@@ -1541,13 +1656,14 @@ function playBack(buf){
 // ---------- Input ----------
 const ray=new THREE.Raycaster(),ptr=new THREE.Vector2();let down=null;
 function hit(e){const r=renderer.domElement.getBoundingClientRect();ptr.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
-  ray.setFromCamera(ptr,camera);return ray.intersectObjects([itemsGroup,bubbleGroup,robot,ball,furnGroup,sky],true).find(h=>{for(let o=h.object;o;o=o.parent)if(!o.visible)return false;return true})}
+  ray.setFromCamera(ptr,camera);return ray.intersectObjects([itemsGroup,bubbleGroup,robot,ball,furnGroup,libGroup,sky],true).find(h=>{for(let o=h.object;o;o=o.parent)if(!o.visible)return false;return true})}
 renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,moved:false,h:hit(e)}});
 renderer.domElement.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-down.x;
   if(Math.abs(dx)>12){down.moved=true;st.spinVel+=(e.movementX||0)*.02;}});
 addEventListener('pointerup',e=>{if(!down)return;
   if(!down.moved){const h=down.h;
     if(h&&h.object.userData.item){answer('item',h.object.userData.item)}
+    else if(h&&h.object.userData.libBooks){if(h.instanceId!=null)openBook(h.instanceId)}
     else if(h&&h.object.userData.furn){tapFurniture(h.object.userData.furn)}
     else if(h&&h.object===ball){bv.set((Math.random()-.5)*3,5,(Math.random()-.5)*2);SFX.kick()}
     else if(h&&h.object.userData.bubble)popBubble(h.object);
@@ -1576,13 +1692,14 @@ onBtn('bBubbles',blowBubbles);
 onBtn('bBall',throwBall,false);
 onBtn('bFeed',playFeed);
 onBtn('bFind',playFindCards);onBtn('bColour',playColour);onBtn('bCount',playCount);onBtn('bAnimals',playAnimal);
-onBtn('bBookHome',()=>bookHome());onBtn('bStories',bookStories);
+onBtn('bBookHome',()=>{if(scr==='book')showScreen('library')});onBtn('bStories',libStory); // Back to the shelf; 📚 = the next story book
+onBtn('bRead',()=>{const c=libItems.map((it,i)=>it.kind==='cat'?i:-1).filter(i=>i>=0);if(c.length)openBook(c[Math.random()*c.length|0])}); // Read to me: a picture book from the shelf
 onBtn('bNext',()=>sayRound(sayNext||pickSay()));
 onBtn('bRepeat',()=>sayRound(sayCur||pickSay()));
 onBtn('bMoves',playMoves);
 onBtn('bLamp',()=>{if(curRoom==='bed')return tapFurniture('lamp');setLights(!lightsOn);SFX.beep();sayIf(lightsOn?'lamp_home_on':'lamp_home_off')});
 onBtn('bDisco',()=>disco(!discoOn));onBtn('bDark',()=>playFindCards(true));onBtn('bStars',playStars);
-onBtn('bNStory',async()=>{const s=STORIES.find(s=>s.id==='bedtime')||STORIES[0];if(!s)return;await sayIf('night_story');if(scr==='bed'&&!game.type)storyPage(s,0)});
+onBtn('bNStory',async()=>{if(curRoom==='library')return libStory();const s=STORIES.find(s=>s.id==='bedtime')||STORIES[0];if(!s)return;await sayIf('night_story');if(scr==='bed'&&!game.type)storyPage(s,0)});
 onBtn('bSleep',()=>{setMode('sleep');say(HAS.has('x_khabam_miad')&&Math.random()<.5?'x_khabam_miad':'sleep');setFace('sleep',1e9);music(false);ggClip(...YAWN)});
 document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false);await Promise.race([MANIFEST.then(()=>loadVoices(['name','hi'])),wait(2500)]);loadCore();propsOn=true;loadProps(curRoom);document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;say(HAS.has('name')?'name':'hi');SFX.beep();kick('squash',8);speak();wave('wave_hello');ggAnims()};
 // the start button waits until Googoo (model + face kit) has loaded, at most 25 s; without them the old robot plays (and Googoo swaps in if he arrives later)
@@ -1610,22 +1727,24 @@ setInterval(()=>{if(!document.getElementById('start').hidden)return;if(curRoom!=
 let curRoom='home',scr='home';
 const LEARN=['bFind','bColour','bCount','bAnimals']; // right rail, same in every room; left = this room's actions. Off screen for now: bJump, bMoves, bDark (bTalk lives in #top)
 const SCREENS={home:[['bFeed','bDance','bSing','bLamp'],LEARN],play:[['bBall','bBubbles','bDisco','bPeek'],LEARN],
-  bed:[['bSleep','bLamp','bPeek','bNStory'],LEARN],night:[['bSleep','bLamp','bStars','bNStory'],LEARN],say:[['bRepeat'],['bNext']],book:[['bBookHome'],['bStories']]};
-const WALL={home:0xffffff,play:0xfff27a,bed:0x6f9cff};
+  bed:[['bSleep','bLamp','bPeek','bNStory'],LEARN],night:[['bSleep','bLamp','bStars','bNStory'],LEARN],say:[['bRepeat'],['bNext']],book:[['bBookHome'],[]],
+  library:[['bNStory','bRead','bLamp','bSing'],LEARN]}; // book = a book or story open in the library: Back to the shelf
+const WALL={home:0xffffff,play:0xfff27a,bed:0x6f9cff,library:0xc4aef0}; // library: soft lavender
 function showScreen(s){const old=scr;scr=s;
-  if(s!==old){disco(false,1);if(!lightsOn&&(old==='home'||old==='play'||ROOM_HI[s]&&s!=='bed'))setLights(true)} // leaving a room: normal lights (bedroom lamp stays as it was)
+  if(s!==old){disco(false,1);if(!lightsOn&&(old==='home'||old==='play'||old==='library'&&s!=='book'||ROOM_HI[s]&&s!=='bed'&&!(old==='book'&&s==='library')))setLights(true)} // (a book open in the library keeps its lamp) // leaving a room: normal lights (bedroom lamp stays as it was)
   if(ROOM_HI[s]){curRoom=s;if(propsOn)loadProps(s);furnGroup.children.forEach(g=>g.visible=g.userData.room===s&&!g.userData.off);roomProps(s);furnGroup.children.forEach(g=>{if(!g.visible)g.traverse(o=>{if(o.isMesh&&o.material)for(const k of TEXK)o.material[k]?.dispose()})}); // other rooms' props give their GPU textures back (re-uploaded when shown again): keeps a visit to every room under the memory budget
-  wallMat.color.setHex(WALL[s]);applyWalls(s)}
+  libGroup.visible=s==='library';wallMat.color.setHex(WALL[s]);applyWalls(s)}
   const night=s==='bed'&&!lightsOn;document.body.classList.toggle('night',night);surpEl.hidden=!(surp&&surp.room===s);
   document.querySelectorAll('.col .rb').forEach(b=>document.getElementById('btns').appendChild(b));
   ['colL','colR'].forEach((c,i)=>{c=document.getElementById(c);SCREENS[night?'night':s][i].forEach(id=>c.appendChild(document.getElementById(id)))});
-  document.querySelectorAll('[data-r]').forEach(b=>b.classList.toggle('cur',b.dataset.r===s));document.getElementById('card').hidden=s!=='say';document.body.classList.toggle('say',s==='say');resize()}
-async function setRoom(s){if(s===scr&&ROOM_HI[s])return;const f=document.getElementById('fade');
+  document.querySelectorAll('[data-r]').forEach(b=>b.classList.toggle('cur',b.dataset.r===(s==='book'?'library':s)));document.getElementById('card').hidden=true;document.body.classList.toggle('say',s==='say');resize()}
+async function setRoom(s){if(s==='book')s='library'; // the picture book lives in the library now
+  if(s===scr&&ROOM_HI[s])return;const f=document.getElementById('fade');
   endGame();try{voiceSrc&&voiceSrc.stop()}catch(e){}if(st.mode!=='idle')setMode('idle');setFace('happy',0);goHome();
   while(bubbleGroup.children.length)bubbleGroup.remove(bubbleGroup.children[0]);
   f.classList.add('on');await wait(320);showScreen(s);robot.position.x=HOME.x;robot.position.z=HOME.z;f.classList.remove('on');
   if(s==='bed')awayT=0;
-  if(s==='say')sayRound(pickSay(sayCur));else if(s==='book')bookHome(true);
+  if(s==='say')sayRound(pickSay(sayCur));
   else if(s==='bed'&&bedInvite){bedInvite=false;doneN=0;navB('bed').classList.remove('invite');say(HAS.has('bed_night_start')?'bed_night_start':ROOM_HI[s]);wave('wave_bye_both'); // cosy ending: good-night wave, the lamp goes off by itself
     setTimeout(()=>{if(scr==='bed'&&lightsOn&&!game.type){setLights(false);SFX.beep()}},4000)}
   else{say(ROOM_HI[s]);if(Math.random()<.6)wave('wave_hello')}
@@ -1675,9 +1794,10 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
           hd=F(new THREE.Vector3(HOME.x,(RB.y0+RB.h*(GG&&sat?SITH:1))*HOME.s,HOME.z)),ft=F(new THREE.Vector3(HOME.x,RB.y0*HOME.s,HOME.z));
         k=Math.max(1,sb/(hd-w));if(k*(ft-w)>N)k=Math.max(1,N/(ft-w));o=Math.max(c+k*w,c+k*hd-sb,c+k*ft-N)}
       camera.zoom=k;camera.view.offsetY=o;camera.updateProjectionMatrix()}}
+  CB={p:camera.position.clone(),q:camera.quaternion.clone(),z:camera.zoom,v:camera.view&&camera.view.enabled?[camera.view.offsetX,camera.view.offsetY]:null};fvApply(); // the room camera: the face close-up glides from/to it
   applyFree()}
 const camKey=()=>portrait&&innerWidth<700?'phone':'wide'; // saved camera views: upright phones, everything else
-addEventListener('resize',resize);addEventListener('load',resize);showScreen('home');measureRobot();
+addEventListener('resize',resize);addEventListener('load',resize);buildBooks();showScreen('home');measureRobot();
 
 // ---------- Loop ----------
 const clock=new THREE.Clock();let nextBlink=2,faceKey='',raf=0;
@@ -1787,6 +1907,7 @@ function loop(){
   if(talk.an){const b=talk.buf||(talk.buf=new Float32Array(talk.an.fftSize));talk.an.getFloatTimeDomainData(b);let q=0;for(const v of b)q+=v*v;talk.level=Math.sqrt(q/b.length)}
   mouthOpen=talk.playing?Math.min(1,talk.level*7):now<mouthT?Math.abs(Math.sin(now/70)):0;
   const fk=face+(face==='pic'?facePic:'')+(blink>0)+(mouthOpen>.05?Math.round(mouthOpen*8):0);if(fk!==faceKey||face==='dizzy'){faceKey=fk;drawFace(t)}} // redraw the face only when it changes
+  if(libFly&&libFly.t<1)stepFly(dt);faceStep(dt);
   renderer.render(scene,camera);
 }
 loop();

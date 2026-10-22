@@ -15,7 +15,7 @@ from browser import launch, gpu_info, fps
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CALLS, TRIS, TEX_MB = 100, 200_000, 96
-SCREENS = ["home", "play", "bed", "bed-night", "say", "book"]
+SCREENS = ["home", "play", "bed", "bed-night", "say", "library", "library-book"]  # library-book: a picture book open on his face
 DEVICES = {"phone 414x896@2 (iPhone 11)": dict(viewport={"width": 414, "height": 896}, screen={"width": 414, "height": 896},
                                                 device_scale_factor=2, is_mobile=True, has_touch=True),
            "tablet 810x1080@2 (iPad 9)": dict(viewport={"width": 810, "height": 1080}, screen={"width": 810, "height": 1080},
@@ -62,6 +62,7 @@ def main():
                 room = s.split("-")[0]
                 pg.evaluate(f"setRoom('{room}')"); pg.wait_for_timeout(1200)
                 if s.endswith("night"): pg.evaluate("setLights(false)"); pg.wait_for_timeout(300)
+                if s.endswith("book"): pg.evaluate("openBook(libItems.findIndex(i=>i.kind==='cat'))"); pg.wait_for_timeout(2000)
                 i = pg.evaluate(INFO); f = fps(pg, 3)
                 bad = [k for k, v, m in (("calls", i["calls"], CALLS), ("tris", i["tris"], TRIS), ("tex", i["texMB"], TEX_MB)) if v > m]
                 over |= bool(bad)

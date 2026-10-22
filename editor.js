@@ -7,8 +7,9 @@
 // the copy of the game in this page stops (the one in the iframe is the one we edit)
 try { window.loop = function () {}; cancelAnimationFrame(raf); renderer.forceContextLoss(); renderer.domElement.remove(); } catch (e) {}
 
-const ROOMS = ['home', 'play', 'bed'], ROOM_NAME = { home: 'Living room', play: 'Play room', bed: 'Bedroom' };
-const SCREEN_NAME = { home: 'Living room', play: 'Play room', bed: 'Bedroom', night: 'Bedroom, lamp off', say: 'Say it', book: 'Picture book', top: 'Top bar (stars, mic, gear)', nav: 'Room tabs (bottom)' };
+const ROOMS = ['home', 'play', 'bed', 'library'], ROOM_NAME = { home: 'Living room', play: 'Play room', bed: 'Bedroom', library: 'Library' };
+const SHELVES = { lib_shelf: 'big', lib_bin: 'small' }; // the library's two shelves (game LIBSH): their books are set in the Props panel
+const SCREEN_NAME = { home: 'Living room', play: 'Play room', bed: 'Bedroom', night: 'Bedroom, lamp off', library: 'Library', say: 'Say it', book: 'Library, book open', top: 'Top bar (stars, mic, gear)', nav: 'Room tabs (bottom)' };
 const DEVICES = { up: ['iPhone upright', 390, 844], side: ['iPhone sideways', 844, 390], small: ['Small phone', 360, 640], ipad: ['iPad', 820, 1180] };
 // these stand in for a built-in piece of the room: removing them would bring the old piece back, so they are hidden instead
 const BUILTIN = ['window', 'tv', 'picture', 'chair', 'carpet', 'toybox', 'teddy', 'blocks', 'drum', 'kite', 'bed', 'lamp', 'nightstand', 'rug', 'book', 'star'];
@@ -17,9 +18,10 @@ const PRIM = ['bed', 'lamp', 'book', 'chair', 'tv', 'picture', 'shelf', 'teddy',
 const NAMES = { living_armchair: 'Armchair', living_window_curtains: 'Window', living_carpet_persian: 'Persian carpet', living_tv_cabinet: 'TV', living_coffee_table: 'Coffee table',
   living_floor_lamp: 'Floor lamp', living_picture_frame: 'Picture', living_bookshelf: 'Bookshelf', living_door: 'Door', living_korsi: 'Korsi', living_sofa: 'Sofa',
   toy_teddy_bear: 'Teddy bear', toy_box: 'Toy box', toy_blocks: 'Blocks', toy_ball: 'Ball', toy_doll: 'Doll', toy_drum: 'Drum', toy_kite: 'Kite', toy_piano: 'Piano', farm_cow: 'Cow',
-  bedroom_bed: 'Bed', bedroom_lamp: 'Bedside lamp', bedroom_nightstand: 'Nightstand', bedroom_rug: 'Rug', bedroom_wardrobe: 'Wardrobe', bedroom_pillow: 'Pillow', bedroom_blanket: 'Blanket' };
+  bedroom_bed: 'Bed', bedroom_lamp: 'Bedside lamp', bedroom_nightstand: 'Nightstand', bedroom_rug: 'Rug', bedroom_wardrobe: 'Wardrobe', bedroom_pillow: 'Pillow', bedroom_blanket: 'Blanket',
+  library_bookshelf: 'Library bookshelf', library_book_bin: 'Book bin', library_beanbag: 'Beanbag', library_reading_lamp: 'Reading lamp', library_letter_garland: 'Letter garland' };
 const TOPS = { score: ['⭐', 'Stars'], bTalk: ['🎤', 'Microphone'], parentBtn: ['⚙︎', 'Parent corner (always shown)'] };
-const TABS = { home: ['🏠', 'Living room'], play: ['🧸', 'Play room'], bed: ['🛏️', 'Bedroom'], say: ['🗣️', 'Say it'], book: ['📖', 'Picture book'] };
+const TABS = { home: ['🏠', 'Living room'], play: ['🧸', 'Play room'], bed: ['🛏️', 'Bedroom'], say: ['🗣️', 'Say it'], book: ['📖', 'Picture book'], library: ['📖', 'Library'] };
 const LIMIT = { calls: [80, 100], tris: [150e3, 200e3], mb: [64, 96] }; // docs/gpu-budget.md: target, hard limit
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/';
 const DEG = Math.PI / 180, FRONT = 7.8; // the room's open front edge (game: BACK + RD)
@@ -111,9 +113,9 @@ const screenKey = () => { const s = W.eval('scr'); return s === 'bed' && !W.eval
 const isPortrait = () => W && W.innerWidth < W.innerHeight;
 const camKey = () => W.eval('camKey()');
 const sq = () => Math.min(1, (isPortrait() ? .3 : .35) + W.innerWidth / W.innerHeight * .75); // the game's portrait squeeze (resize())
-const nice = f => NAMES[f] || f.replace(/^(living|bedroom|toy|farm)_/, '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+const nice = f => NAMES[f] || f.replace(/^(living|bedroom|toy|farm|library)_/, '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
 const nameOf = p => p.builtin ? PRIMS[p.id][1] : nice(p.file);
-const cat = f => !f ? 'decor' : /^(toy|farm)_/.test(f) ? 'toys' : /(bed|nightstand|wardrobe|sofa|armchair|bookshelf|tv_cabinet|korsi|coffee_table|door|box)$/.test(f) ? 'furniture' : 'decor';
+const cat = f => !f ? 'decor' : /^(toy|farm)_/.test(f) ? 'toys' : /(bed|nightstand|wardrobe|sofa|armchair|bookshelf|tv_cabinet|korsi|coffee_table|door|box|book_bin|beanbag)$/.test(f) ? 'furniture' : 'decor';
 const ICON = { toys: '🧸', furniture: '🛋️', decor: '🖼️' };
 const propOf = id => { for (const r of ROOMS) { const p = L.rooms[r].props.find(p => p.id === id); if (p) return p; } return virt[id] || null; };
 // the book and the star mobile are built in code: they get a layout entry only once they are actually changed (virt = not in the layout yet)
@@ -189,6 +191,10 @@ frame.addEventListener('load', async () => {
   RBH = X.RB0.h;
   try { L = await (await fetch('data/layout.json', { cache: 'no-store' })).json(); } catch (e) { L = null; }
   if (!L || !L.rooms) { status('Could not read data/layout.json', 'dirty'); return; }
+  // a layout from before the library: it starts from the game's built-in library (Save writes it into layout.json)
+  if (!L.rooms.library) L.rooms.library = clone(W.eval("roomLayout('library')"));
+  if (!L.ui.screens.library) L.ui.screens.library = { left: [...W.eval('SCREENS.library[0]')], right: [...W.eval('SCREENS.library[1]')] };
+  if (!L.ui.buttons.bRead) L.ui.buttons.bRead = { color: '#ff8fab' };
   // the book and the star mobile are built in code: give them a layout entry (their place today) so they can be moved
   for (const id in PRIMS) { const g = W.eval(`furnById('${id}')`); if (g) VIRT0[id] = { id, builtin: true, x: r2(g.userData.x0), z: r2(g.position.z), y: r2(g.position.y), ...(g.userData.spin ? {} : { ry: r2(g.rotation.y) }), hidden: false }; }
   resetVirt();
@@ -615,7 +621,8 @@ function renderRight() {
    <label class="check"><input type="checkbox" id="shadow" ${p.castShadow ? 'checked' : ''}><span>Casts a shadow<br><small class="hint">Only for big furniture (each shadow costs speed on phones).</small></span></label>`}
    <div class="row"><button class="eb" id="copy">Copy position</button><button class="eb" id="paste" ${clip ? '' : 'disabled'}>Paste position</button></div>
    ${usePt() && p.portrait ? '<div class="row"><button class="eb" id="ptClear">Use the same place as on other screens</button></div>' : ''}
-   <div class="row"><button class="eb" id="hide">${p.hidden ? '👁 Show' : '🙈 Hide'}</button><button class="eb warn" id="del">🗑 Remove</button></div>`;
+   <div class="row"><button class="eb" id="hide">${p.hidden ? '👁 Show' : '🙈 Hide'}</button><button class="eb warn" id="del">🗑 Remove</button></div>
+   ${SHELVES[p.id] ? '<div id="booksBox"></div>' : ''}`;
   const q = s => el.querySelector(s);
   if (q('#wall')) q('#wall').value = p.wall || ''; q('#on').value = onOf(p) || '';
   q('#on').onchange = e => { change(() => { p.on = e.target.value || null; }, '', 'props'); renderRight(); };
@@ -630,6 +637,22 @@ function renderRight() {
   if (q('#ptClear')) q('#ptClear').onclick = () => { change(() => { delete p.portrait; }, ''); renderRight(); };
   q('#hide').onclick = () => toggleHidden(p.id);
   q('#del').onclick = () => removeProp(p.id);
+  if (q('#booksBox')) renderBooks(q('#booksBox'));
+}
+// library: which books stand on the big shelf and which on the small shelf (book bin), in order (drag to reorder or across; ⇄ moves to the other shelf)
+function renderBooks(el) {
+  const items = clone(W.eval('libAll().map(i=>({key:i.key,pic:i.pic,name:i.name}))')), A = clone(L.rooms.library.books || W.eval('libAssign()')), by = Object.fromEntries(items.map(i => [i.key, i]));
+  const NAME = { big: 'Big shelf (bookshelf)', small: 'Small shelf (book bin)' };
+  const row = k => { const i = by[k]; return i ? `<div class="brow" draggable="true" data-key="${k}" style="cursor:grab"><span class="em">${i.pic}</span><span class="nm">${k.startsWith('story:') ? 'Story: ' : ''}${i.name}</span><button class="ib eb" data-mv="${k}" title="Move to the other shelf">⇄</button></div>` : ''; };
+  el.innerHTML = `<h2 style="margin-top:16px">Books on the shelves</h2><p class="hint">Drag a book up or down to change the order, or onto the other list. ⇄ moves it to the other shelf. The books follow the shelf when you move or resize it.</p>` +
+    ['big', 'small'].map(sh => `<h2>${NAME[sh]}</h2><div class="blist" data-shelf="${sh}" style="min-height:28px">${A[sh].map(row).join('') || '<p class="hint">none</p>'}</div>`).join('');
+  const set = fn => { change(() => { const B = clone(A); fn(B); L.rooms.library.books = B; }, '', 'all'); renderBooks(el); };
+  el.onclick = e => { const k = e.target.dataset.mv; if (k) set(B => { const from = B.big.includes(k) ? 'big' : 'small', to = from === 'big' ? 'small' : 'big'; B[from] = B[from].filter(x => x !== k); B[to].push(k); }); };
+  let dragKey = null;
+  el.ondragstart = e => { dragKey = e.target.dataset.key; e.dataTransfer.effectAllowed = 'move'; };
+  el.ondragover = e => { if (dragKey && e.target.closest('[data-shelf]')) e.preventDefault(); };
+  el.ondrop = e => { const list = e.target.closest('[data-shelf]'); if (!dragKey || !list) return; e.preventDefault(); const k = dragKey, before = e.target.closest('[data-key]')?.dataset.key; dragKey = null; if (before === k) return;
+    set(B => { B.big = B.big.filter(x => x !== k); B.small = B.small.filter(x => x !== k); const L2 = B[list.dataset.shelf], at = before ? L2.indexOf(before) : -1; if (at < 0) L2.push(k); else L2.splice(at, 0, k); }); };
 }
 function renderGoo(el) {
   const v = gooView(), g = L.rooms[room()].googoo || {};
@@ -705,8 +728,8 @@ function renderButtons(el) {
     const N = L.ui.nav || {}, order = [...d.querySelectorAll('#nav .rb')].map(x => x.dataset.r);
     body = field('Size', 'nsize', .7, 1.6, .05, N.size ?? L.ui.size) + shapeRow(N.shape ?? L.ui.shape, 'nav') + `<div class="blist">${order.map(r => `<div class="brow${r === selBtn ? ' sel' : ''}"><span class="em">${TABS[r][0]}</span><span class="nm">${TABS[r][1]}</span>
       <input type="color" data-ncol="${r}" value="${(N.colors || {})[r] || '#ffffff'}" title="Colour (the tab of the room you are in stays yellow)">
-      <input type="checkbox" data-nhide="${r}" ${(N.hide || []).includes(r) ? '' : 'checked'} ${['home', 'play', 'bed'].includes(r) ? 'disabled title="Room tabs always stay: they are the only way into the rooms"' : 'title="Show"'}></div>`).join('')}</div>
-      <p class="hint">Drag the tabs in the picture to change the order. The three room tabs always stay (they are the only way into the rooms); Say it and the book can be hidden.</p>`;
+      <input type="checkbox" data-nhide="${r}" ${(N.hide || []).includes(r) ? '' : 'checked'} ${['home', 'play', 'bed', 'library'].includes(r) ? 'disabled title="Room tabs always stay: they are the only way into the rooms"' : 'title="Show"'}></div>`).join('')}</div>
+      <p class="hint">Drag the tabs in the picture to change the order. The room tabs always stay (they are the only way into the rooms); Say it and the book can be hidden.</p>`;
   } else {
     const S = L.ui.screens[k] || { left: [], right: [] }, all = Object.keys(L.ui.buttons), on = new Set([...S.left, ...S.right]);
     const row = id => { const [em, nm] = btnLabel(id); return `<div class="brow${id === selBtn ? ' sel' : ''}"><span class="em">${em}</span><span class="nm">${nm}</span><input type="color" data-col="${id}" value="${L.ui.buttons[id].color}" title="Colour"><button class="ib eb" data-rm="${id}" title="Take off this screen">✕</button></div>`; };
