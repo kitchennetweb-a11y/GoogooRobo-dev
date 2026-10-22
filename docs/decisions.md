@@ -26,6 +26,8 @@ Newest decisions are at the bottom of each section.
 
 - **Unity move decisions (2026-10-22, plan in docs/unity-move-plan.md):** fresh Unity 6.3 LTS project (6000.3.27f1, has Android); first test build = home room + talk-back; web gets no new features from now (fixes only) and is frozen once Unity matches it (stays the free demo). No Android phone and no Apple developer account yet: test Unity Android on the Android Studio emulator (RTX GPU, mic passthrough), not Docker; the son keeps playing the web version on his iPad. Real-device cloud testing (Firebase Test Lab) decided later.
 
+- **More Unity decisions (2026-10-22):** the Unity project has git, with a private repo kitchennetweb-a11y/GoogooRobo-Unity; Design mode's layout.json is imported into Unity once, then the Unity Editor is used; picture cards get the family's own pictures first (no emoji set); test Unity's official Claude plugin for an hour (the user adds it in the Claude app), with batch mode as the fallback.
+
 ## Voice
 - **ElevenLabs Persian voice.** Use one voice ID for everything, with no filters or effects; the user found effects worse. The first 21 clips had a robot effect baked in from the ElevenLabs website, so they are being re-recorded clean.
 - **Clips must not end early.** Trim only the leading silence, keep the natural ending, then pad about 0.35 s of silence at the end. Browsers drop about 50 ms from the end of short MP3s, which caused cut-off words.
