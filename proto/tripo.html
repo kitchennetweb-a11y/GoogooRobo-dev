@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#e9dccb">
+<title>Googoo Tripo clip test</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#e9dccb;font-family:system-ui,sans-serif;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+body{display:flex;flex-direction:column}
+#view{position:relative;flex:1;min-height:0;overflow:hidden}
+#view canvas{position:absolute;left:0;top:0;display:block;touch-action:none}
+#hud{position:absolute;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px);font:700 15px system-ui,sans-serif;color:#3d4a63;text-shadow:0 1px 0 #fff8;pointer-events:none}
+#panel{flex:0 0 auto;max-height:44vh;overflow-y:auto;background:#fffaf2;border-top:2px solid #0001;padding:8px 8px calc(env(safe-area-inset-bottom,0px) + 8px)}
+.row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:7px}
+#panel button{min-height:50px;border:0;border-radius:14px;background:#fff;box-shadow:0 3px 0 #0002;font:700 15px system-ui,sans-serif;color:#3d4a63;cursor:pointer;touch-action:manipulation;padding:4px;overflow-wrap:anywhere}
+#panel button.ctl{background:#e6f0ff}
+#panel button.on{background:#ffd34d}
+#panel button:active{transform:translateY(2px);box-shadow:0 1px 0 #0002}
+body.test #panel,body.test #hud{display:none}
+</style></head><body>
+<div id="view"><div id="hud">Loading model…</div></div>
+<div id="panel">
+  <div class="row"><button class="ctl" id="bSlow">Slow-mo 0.25x</button><button class="ctl" id="bCam">Camera: front</button><button class="ctl" id="bPause">Pause</button></div>
+  <div class="row"><button class="ctl" id="bProc">Procedural dance</button><button class="ctl" id="bHi">Say hi (talk)</button><button class="ctl" id="bRest">Rest pose</button></div>
+  <div class="row" id="clips"></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+'use strict';
+// Dev test page: plays the Tripo auto-rig clips with three's AnimationMixer exactly as stored (no retargeting),
+// plus the procedural dance from index.html mapped onto the Mixamo bones. Room code is copied verbatim from index.html.
+const TEST=/[?&]test/.test(location.search);if(TEST)document.body.classList.add('test');
+// ---------- Sound (same synth as the game's SFX / music) ----------
+let AC=null;const ac=()=>AC||(AC=new (window.AudioContext||window.webkitAudioContext)());
+function tone(f1,f2,dur,type='sine',vol=.25,delay=0){const a=ac(),t=a.currentTime+delay,o=a.createOscillator(),g=a.createGain();
+  o.type=type;o.frequency.setValueAtTime(f1,t);o.frequency.exponentialRampToValueAtTime(Math.max(f2,20),t+dur);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+dur);o.connect(g).connect(a.destination);o.start(t);o.stop(t+dur+.02)}
+const SFX={
+  boing:()=>tone(180,700,.35,'triangle',.3),
+  giggle:()=>{for(let i=0;i<5;i++)tone(700+(i%2)*200,900,.08,'sine',.2,i*.1)},
+  beep:()=>{tone(880,880,.08,'square',.1);tone(1320,1320,.1,'square',.1,.1)},
+  dizzy:()=>{for(let i=0;i<6;i++)tone(500+i*120,300+i*60,.12,'triangle',.15,i*.09)},
+};
+let musicTimer=null;
+function music(on){clearInterval(musicTimer);if(!on)return;const notes=[523,659,784,659,587,698,880,698];let i=0;
+  musicTimer=setInterval(()=>{tone(notes[i%8],notes[i%8],.18,'square',.07);if(i%2==0)tone(130,60,.12,'sine',.35);i++},220)}
+// voice clips: the mouth follows the clip's loudness through an AnalyserNode
+const VOICE={};let voiceSrc=null,analyser=null,abuf=null,vPeak=.02;
+const loadVoice=k=>VOICE[k]||(VOICE[k]=fetch('../audio/'+k+'.mp3').then(r=>{if(!r.ok)throw r.status;return r.arrayBuffer()})
+  .then(b=>new Promise((ok,no)=>ac().decodeAudioData(b,ok,no))).catch(e=>{delete VOICE[k];console.warn('voice',k,e);return null}));
+async function playVoice(k){const b=await loadVoice(k);if(!b)return 0;const a=ac();try{voiceSrc&&voiceSrc.stop()}catch(e){}
+  if(!analyser){analyser=a.createAnalyser();analyser.fftSize=512;abuf=new Float32Array(analyser.fftSize);analyser.connect(a.destination)}
+  const s=a.createBufferSource();s.buffer=b;s.connect(analyser);s.start();voiceSrc=s;vPeak=.02;s.onended=()=>{if(voiceSrc===s)voiceSrc=null};return b.duration}
+function voiceLevel(){if(!voiceSrc)return 0;analyser.getFloatTimeDomainData(abuf);let r=0;for(const v of abuf)r+=v*v;r=Math.sqrt(r/abuf.length);
+  vPeak=Math.max(vPeak*.995,r);return Math.min(1,r/(vPeak*.8))} // normalised to the clip's own peak, so whispers move the mouth as much as normal lines
+
+// ---------- Renderer, scene, room (from the game: wood floor, rug, painted walls, window with day/night sky) ----------
+const SMALL=Math.min(screen.width,screen.height)<500;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.outputEncoding=THREE.sRGBEncoding;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=SMALL?THREE.PCFShadowMap:THREE.PCFSoftShadowMap;
+document.getElementById('view').prepend(renderer.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xe9dccb);
+const camera=new THREE.PerspectiveCamera(45,1,.1,60);
+const hemi=new THREE.HemisphereLight(0xdfeeff,0xb08a5e,.3);scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xfff1dc,.95);sun.position.set(-3.5,9,5.5);sun.castShadow=true; // the one shadow-casting light
+sun.shadow.mapSize.setScalar(SMALL?1024:2048);sun.shadow.bias=-.0004;sun.shadow.normalBias=.02;Object.assign(sun.shadow.camera,{left:-7,right:7,top:7,bottom:-7,far:30});scene.add(sun);
+const fill=new THREE.DirectionalLight(0xffe2c4,.18);fill.position.set(5,4,8);scene.add(fill);
+function canvasTex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1])}return t}
+const rnd=(a,b)=>a+Math.random()*(b-a),M=(c,r=.45,m=.1)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+function part(geo,mat,x=0,y=0,z=0){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=m.receiveShadow=true;return m}
+const room=new THREE.Group();scene.add(room);
+const RW=16,RD=13,RH=7,BACK=-5.2;
+const woodTex=canvasTex(1024,1024,(x,w,h)=>{const rows=8,ph=h/rows;
+  for(let r=0;r<rows;r++){let xo=-rnd(0,w*.6);while(xo<w){const len=rnd(w*.35,w*.7),b=[rnd(176,206),rnd(128,150),rnd(86,104)];
+      x.fillStyle=`rgb(${b[0]|0},${b[1]|0},${b[2]|0})`;x.fillRect(xo,r*ph,len,ph);
+      for(let g=0;g<26;g++){const y=r*ph+rnd(2,ph-2);x.strokeStyle=`rgba(90,55,30,${rnd(.04,.13)})`;x.lineWidth=rnd(.6,2);x.beginPath();
+        x.moveTo(xo,y);for(let s=0;s<=8;s++)x.lineTo(xo+len*s/8,y+Math.sin(s*rnd(.5,1.3)+g)*rnd(1,4));x.stroke()}
+      x.fillStyle='rgba(60,35,18,.55)';x.fillRect(xo,r*ph,2,ph);xo+=len}
+    x.fillStyle='rgba(60,35,18,.6)';x.fillRect(0,r*ph,w,2)}},[3,3]);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(RW,RD),new THREE.MeshStandardMaterial({map:woodTex,roughness:.55}));
+floor.rotation.x=-Math.PI/2;floor.position.set(0,0,BACK+RD/2);floor.receiveShadow=true;room.add(floor);
+const rugTex=canvasTex(1024,1024,(x,w)=>{const cx=w/2,cols=['#e76f51','#f4a261','#fbe8c8','#2a9d8f','#f4a261','#fbe8c8','#e76f51','#e9c46a'];
+  for(let i=0;i<cols.length;i++){x.fillStyle=cols[i];x.beginPath();x.arc(cx,cx,cx*(1-i/cols.length),0,7);x.fill()}
+  for(let k=0;k<9000;k++){const a=rnd(0,7),r=rnd(0,cx);x.fillStyle=`rgba(${Math.random()<.5?'255,255,255':'60,30,20'},${rnd(.03,.08)})`;x.fillRect(cx+Math.cos(a)*r,cx+Math.sin(a)*r,rnd(2,5),1.5)}
+  x.strokeStyle='rgba(255,255,255,.5)';x.setLineDash([6,8]);x.lineWidth=3;x.beginPath();x.arc(cx,cx,cx-10,0,7);x.stroke()});
+const rug=new THREE.Mesh(new THREE.CircleGeometry(3.4,64),new THREE.MeshStandardMaterial({map:rugTex,roughness:.95}));
+rug.rotation.x=-Math.PI/2;rug.position.y=.008;rug.receiveShadow=true;room.add(rug);
+const wallTex=canvasTex(512,512,(x,w,h)=>{x.fillStyle='#e8d9c4';x.fillRect(0,0,w,h);
+  for(let k=0;k<5000;k++){x.fillStyle=`rgba(${Math.random()<.5?'255,255,255':'120,90,60'},${rnd(.015,.045)})`;x.fillRect(rnd(0,w),rnd(0,h),rnd(2,8),rnd(2,8))}},[3,2]);
+const wallMat=new THREE.MeshStandardMaterial({map:wallTex,roughness:.92,color:0x6f9cff}); // bedroom wall colour (game: WALL.bed)
+const backW=new THREE.Mesh(new THREE.PlaneGeometry(RW,RH),wallMat);backW.position.set(0,RH/2,BACK);backW.receiveShadow=true;room.add(backW);
+for(const s of[-1,1]){const w=new THREE.Mesh(new THREE.PlaneGeometry(RD,RH),wallMat);w.rotation.y=-s*Math.PI/2;w.position.set(s*RW/2,RH/2,BACK+RD/2);w.receiveShadow=true;room.add(w)}
+const skirt=new THREE.Mesh(new THREE.BoxGeometry(RW,.28,.06),M(0xfaf6ef,.5));skirt.position.set(0,.14,BACK+.03);room.add(skirt);
+const skyTex=canvasTex(256,256,(x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#8fc8f0');g.addColorStop(.75,'#d6eefb');g.addColorStop(1,'#bfe0c0');x.fillStyle=g;x.fillRect(0,0,w,h);
+  x.fillStyle='rgba(255,255,255,.9)';for(const [cx,cy,r] of[[70,70,22],[95,62,28],[125,72,20],[190,110,16],[210,104,20]]){x.beginPath();x.arc(cx,cy,r,0,7);x.fill()}
+  x.fillStyle='#7fb069';x.beginPath();x.moveTo(0,h);x.quadraticCurveTo(w*.3,h*.72,w*.6,h*.85);x.quadraticCurveTo(w*.85,h*.75,w,h*.8);x.lineTo(w,h);x.fill()});
+const nightTex=canvasTex(256,256,(x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#0b1236');g.addColorStop(1,'#2a3570');x.fillStyle=g;x.fillRect(0,0,w,h);
+  x.fillStyle='#fff';for(let i=0;i<40;i++){x.globalAlpha=.4+Math.random()*.6;x.beginPath();x.arc(Math.random()*w,Math.random()*h*.75,Math.random()*1.6+.4,0,7);x.fill()}
+  x.globalAlpha=1;x.fillStyle='#fff6c8';x.shadowColor='#fff6c8';x.shadowBlur=18;x.beginPath();x.arc(180,70,26,0,7);x.fill();
+  x.shadowBlur=0;x.fillStyle='#0b1236';x.beginPath();x.arc(194,62,24,0,7);x.fill();
+  x.fillStyle='#1d3a2c';x.beginPath();x.moveTo(0,h);x.quadraticCurveTo(w*.3,h*.72,w*.6,h*.85);x.quadraticCurveTo(w*.85,h*.75,w,h*.8);x.lineTo(w,h);x.fill()});
+const WX=-1.2,WY=3.9,WW=3.2,WH=2.4;
+const skyMat=new THREE.MeshBasicMaterial({map:skyTex,toneMapped:false});
+const sky=new THREE.Mesh(new THREE.PlaneGeometry(WW,WH),skyMat);sky.position.set(WX,WY,BACK+.01);room.add(sky);
+const frameMat=M(0xffffff,.45);
+const bar=(w,h,x,y)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,.12),frameMat);m.position.set(x,y,BACK+.06);room.add(m)};
+bar(WW+.24,.14,WX,WY+WH/2);bar(WW+.24,.14,WX,WY-WH/2);bar(.14,WH,WX-WW/2,WY);bar(.14,WH,WX+WW/2,WY);bar(.08,WH,WX,WY);bar(WW,.08,WX,WY);
+const sill=new THREE.Mesh(new THREE.BoxGeometry(WW+.6,.1,.4),frameMat);sill.position.set(WX,WY-WH/2-.1,BACK+.2);room.add(sill);
+const curtainMat=new THREE.MeshStandardMaterial({color:0x7aa7c7,roughness:.9,side:THREE.DoubleSide});
+for(const s of[-1,1]){const cg=new THREE.PlaneGeometry(.9,WH+1.1,12,1),pa=cg.attributes.position;for(let i=0;i<pa.count;i++)pa.setZ(i,Math.sin(pa.getX(i)*14)*.07);cg.computeVertexNormals();
+  const cu=new THREE.Mesh(cg,curtainMat);cu.position.set(WX+s*(WW/2+.45),WY-.25,BACK+.18);room.add(cu)}
+const windowGlow=new THREE.PointLight(0xcfe8ff,.45,9,2);windowGlow.position.set(WX,WY,BACK+1.2);scene.add(windowGlow);
+let dayEnv;(function(){const pm=new THREE.PMREMGenerator(renderer),es=new THREE.Scene(); // soft room reflections, as in the game
+  es.add(new THREE.Mesh(new THREE.BoxGeometry(20,10,20),new THREE.MeshBasicMaterial({color:0x5e5244,side:THREE.BackSide})));
+  const win=new THREE.Mesh(new THREE.PlaneGeometry(6,4),new THREE.MeshBasicMaterial({color:0xbfc8d0}));win.position.set(-2,4,-9.9);es.add(win);
+  dayEnv=pm.fromScene(es,.04).texture;scene.environment=dayEnv;pm.dispose()})();
+// furniture (bed, lamp, night stand); x0 = wanted x, pulled in on narrow screens by resize()
+const furn=new THREE.Group();scene.add(furn);
+function add(id,g,x,z,ry=0){g.position.set(x,0,z);g.rotation.y=ry;g.traverse(o=>{o.userData.furn=id;if(o.isMesh)o.castShadow=o.receiveShadow=true});g.userData.x0=x;furn.add(g);
+  const bb=new THREE.Box3().setFromObject(g),sz=new THREE.Vector3(),c=new THREE.Vector3();bb.getSize(sz);bb.getCenter(c);g.worldToLocal(c); // invisible tap box
+  const hb=new THREE.Mesh(new THREE.BoxGeometry(sz.x+.3,sz.y+.3,sz.z+.3),new THREE.MeshBasicMaterial({visible:false}));hb.position.copy(c);hb.rotation.y=-ry;hb.userData.furn=id;g.add(hb);return g}
+function rbox(w,h,d,r,mat){w-=2*r;h-=2*r;const rr=r;r=Math.min(w,h)*.25;const s=new THREE.Shape(),x=-w/2,y=-h/2;
+  s.moveTo(x+r,y);s.lineTo(x+w-r,y);s.quadraticCurveTo(x+w,y,x+w,y+r);s.lineTo(x+w,y+h-r);s.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  s.lineTo(x+r,y+h);s.quadraticCurveTo(x,y+h,x,y+h-r);s.lineTo(x,y+r);s.quadraticCurveTo(x,y,x+r,y);
+  const g=new THREE.ExtrudeGeometry(s,{depth:d-rr*2,bevelEnabled:true,bevelThickness:rr,bevelSize:rr*.95,bevelSegments:4,curveSegments:8});g.translate(0,0,-(d-rr*2)/2);return new THREE.Mesh(g,mat)}
+const dark=M(0x8a5a33,.7);
+{const bed=new THREE.Group(),fr=rbox(2.2,.45,1.3,.1,dark);fr.position.y=.32;bed.add(fr);
+  const mt=rbox(2.05,.25,1.2,.12,M(0xf6f1e7,.9));mt.position.y=.62;bed.add(mt);
+  const bl=rbox(1.3,.12,1.24,.08,M(0x5aa9ff,.8));bl.position.set(.35,.75,0);bed.add(bl);
+  const pi=rbox(.5,.18,.8,.09,M(0xffffff,.9));pi.position.set(-.75,.8,0);bed.add(pi);
+  const hd=rbox(.14,1.1,1.3,.06,dark);hd.position.set(-1.1,.6,0);bed.add(hd);add('bed',bed,3.2,-3.3,-.35)}
+const shadeMat=new THREE.MeshStandardMaterial({color:0xffe08a,emissive:0xffc94d,emissiveIntensity:.6,roughness:.6,side:THREE.DoubleSide});
+const lamp=new THREE.Group();lamp.add(part(new THREE.CylinderGeometry(.3,.36,.08,24),M(0x3d4a63,.5),0,.04,0));
+lamp.add(part(new THREE.CylinderGeometry(.04,.04,1.6,10),M(0x3d4a63,.5),0,.84,0));lamp.add(part(new THREE.CylinderGeometry(.28,.45,.5,24,1,true),shadeMat,0,1.75,0));
+add('lamp',lamp,-3.2,-3.6);
+const lampLight=new THREE.PointLight(0xffc77a,0,8,2);lampLight.position.set(0,1.6,0);lamp.add(lampLight);
+{const ns=new THREE.Group();ns.add(part(new THREE.BoxGeometry(.7,.62,.55),M(0xf4f7fb,.6),0,.31,0));ns.add(part(new THREE.SphereGeometry(.04,8,6),M(0xffc93c,.4),0,.4,.29));add('nightstand',ns,1.6,-4.4,-.2)}
+// day / night (the game's ROOM_DAY / ROOM_NIGHT, plus a soft moon fill so Googoo is still readable)
+const DAY={bg:0xe9dccb,sun:.95,hemi:.3,win:.45,fill:.18,exp:.9},NIGHT={bg:0x2b2f45,sun:.05,hemi:.1,win:0,fill:.06,exp:.85};
+let lightsOn=true;
+function setLights(on){lightsOn=on;const L=on?DAY:NIGHT;sun.intensity=L.sun;hemi.intensity=L.hemi;windowGlow.intensity=L.win;fill.intensity=L.fill;
+  renderer.toneMappingExposure=L.exp;scene.background.setHex(L.bg);scene.environment=on?dayEnv:null;skyMat.map=on?skyTex:nightTex;skyMat.needsUpdate=true;
+  shadeMat.emissiveIntensity=on?.6:2.2;lampLight.intensity=on?0:1.8;document.querySelector('meta[name=theme-color]').content=on?'#e9dccb':'#2b2f45'}
+
+// ---------- Face screen: the approved face kit (layers pre-warped for the screen UVs), composed on a canvas ----------
+// face_kit.json: full canvas = screen UV 0..1, top row = glTF v=0, so flipY=false. Layers are downscaled 2048->1024, offsets scaled by FKS.
+const FKS=.5,fc=document.createElement('canvas');fc.width=1024;fc.height=688;const fx=fc.getContext('2d');
+const tmp=document.createElement('canvas');tmp.width=fc.width;tmp.height=fc.height;const tx=tmp.getContext('2d');
+const faceTex=new THREE.CanvasTexture(fc);faceTex.encoding=THREE.sRGBEncoding;faceTex.flipY=false;faceTex.anisotropy=renderer.capabilities.getMaxAnisotropy();
+let KIT=null;const LAYER={};
+fetch('facekit/face_kit.json').then(r=>r.json()).then(k=>{const need=new Set(['screen_bg']);
+  for(const n of['neutral','happy','laugh','talk_1','talk_2','talk_3','blink_half','blink'])for(const l of k.expressions[n].layers){need.add(l.layer);l.clip&&need.add(l.clip)}
+  return Promise.all([...need].map(n=>new Promise(ok=>{const im=new Image();im.onload=()=>{LAYER[n]=im;ok()};im.onerror=()=>{console.warn('layer',n);ok()};im.src='facekit/'+k.layers[n]}))).then(()=>KIT=k)});
+let faceKey='';
+function compose(name,gx,gy){if(!KIT)return;const key=name+(gx|0)+','+(gy|0);if(key===faceKey)return;faceKey=key;
+  const W=fc.width,Hh=fc.height;fx.clearRect(0,0,W,Hh);LAYER.screen_bg&&fx.drawImage(LAYER.screen_bg,0,0,W,Hh);
+  for(const l of KIT.expressions[name].layers){const im=LAYER[l.layer];if(!im)continue;const o=l.offset||[0,0];
+    if(l.clip){tx.globalCompositeOperation='source-over';tx.clearRect(0,0,W,Hh);tx.drawImage(im,(o[0]+gx)*FKS,(o[1]+gy)*FKS,W,Hh); // gaze shifts the pupils, the mask keeps them inside the eye whites
+      tx.globalCompositeOperation='destination-in';tx.drawImage(LAYER[l.clip],0,0,W,Hh);tx.globalCompositeOperation='source-over';fx.drawImage(tmp,0,0)}
+    else fx.drawImage(im,o[0]*FKS,o[1]*FKS,W,Hh)}
+  faceTex.needsUpdate=true}
+const gaze={x:0,y:0,tx:0,ty:0,next:0};let blinkT=-1,nextBlink=2,faceForce='',faceUntil=0;
+function faceFrame(t,dt,now,talk){ // talk: 0..1 mouth level (voice or a sing clip), <0 = silent
+  if(t>gaze.next){const m=KIT?KIT.pupils.max_offset_px:[63,54];gaze.tx=rnd(-.85,.85)*m[0];gaze.ty=rnd(-.7,.7)*m[1];gaze.next=t+rnd(1.2,3.2)}
+  const k=Math.min(1,dt*9);gaze.x+=(gaze.tx-gaze.x)*k;gaze.y+=(gaze.ty-gaze.y)*k;
+  let f=now<faceUntil?faceForce:'neutral';
+  if(f==='neutral'&&talk>=0)f=talk<.12?'neutral':talk>.6?'talk_1':talk>.33?'talk_3':'talk_2';
+  if(t>nextBlink){blinkT=t;nextBlink=t+rnd(2.2,5)}
+  const bi=Math.floor((t-blinkT)/.045),SEQ=['blink_half','blink','blink','blink_half'];
+  if(blinkT>=0&&bi<SEQ.length&&f!=='laugh')f=SEQ[bi];
+  compose(f,gaze.x,gaze.y)}
+const setFace=(f,ms)=>{faceForce=f;faceUntil=performance.now()+ms};
+
+// ---------- Googoo (Tripo auto-rig, Mixamo skeleton) ----------
+const H=2.7,V3=()=>new THREE.Vector3(),SIDES=['Left','Right'],SG={Left:1,Right:-1}; // his left is +x, he faces +z
+const googoo=new THREE.Group();scene.add(googoo);
+let model=null,RIG=null,mixer=null,HT=1,ready=false,mode='rest',cur='',speed=1,paused=false;
+const ACT={},B={},REST={},RESTP={},LEGP={},SH0={},FLX={},FING={Left:[],Right:[]};
+function mQ(b,q){q.identity();for(let o=b;o!==RIG;o=o.parent)q.premultiply(o.quaternion);return q}
+function mP(b,v){v.set(0,0,0);for(let o=b;o!==RIG;o=o.parent)v.applyQuaternion(o.quaternion).add(o.position);return v}
+const hud=document.getElementById('hud');
+new THREE.GLTFLoader().load('googoo_tripo_face.glb',onModel,p=>{if(p.total)hud.textContent='Loading model… '+Math.round(p.loaded/p.total*100)+'%'},e=>{hud.textContent='Could not load the model';console.error(e)});
+function onModel(g){model=g.scene;googoo.add(model);
+  model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false}
+    if(o.isBone){const n=o.name.replace(/^mixamorig:?/,'');B[n]=o;REST[n]=o.quaternion.clone();RESTP[n]=o.position.clone()}});
+  RIG=B.Hips.parent;RIG.userData.w0=new THREE.Quaternion();
+  for(const n in B)B[n].userData.w0=mQ(B[n],new THREE.Quaternion()); // rest rotation in model space: dance offsets are applied in rest-aligned axes
+  const scr=model.getObjectByName('Googoo_face_screen');
+  scr.traverse(o=>{if(o.isMesh){o.material=new THREE.MeshBasicMaterial({map:faceTex,toneMapped:false,skinning:!!o.isSkinnedMesh});o.castShadow=o.receiveShadow=false;o.userData.face=1}});
+  const bb=new THREE.Box3().setFromObject(model);HT=bb.max.y-bb.min.y;model.scale.setScalar(H/HT);model.position.y=-bb.min.y*H/HT;
+  const a=V3(),c=V3();
+  for(const s of SIDES){LEGP[s]={A0:mP(B[s+'Foot'],V3()),T0:mP(B[s+'ToeBase'],V3()),QF0:mQ(B[s+'Foot'],new THREE.Quaternion())};
+    SH0[s]=mP(B[s+'Arm'],V3()).sub(mP(B.Spine2,a));
+    FLX[s]=new THREE.Vector3(0,0,1).cross(mP(B[s+'HandMiddle1'],c).sub(mP(B[s+'Hand'],a)).normalize()).normalize(); // wrist flex axis
+    for(const n in B)if(n.startsWith(s+'Hand')&&/(Index|Middle|Ring|Pinky)[123]$/.test(n))FING[s].push(B[n])}
+  mixer=new THREE.AnimationMixer(model);
+  const box=document.getElementById('clips');
+  for(const clip of g.animations){ACT[clip.name]=mixer.clipAction(clip);const b=document.createElement('button');b.textContent=clip.name;b.dataset.clip=clip.name;
+    b.onclick=()=>playClip(clip.name);box.appendChild(b)}
+  ready=true;hud.textContent='Pick a clip';placeCam();window.__ready=1}
+function toRest(){for(const n in B){B[n].quaternion.copy(REST[n]);B[n].position.copy(RESTP[n])}}
+function mark(){document.querySelectorAll('#clips button').forEach(b=>b.classList.toggle('on',mode==='clip'&&b.dataset.clip===cur));
+  bProc.classList.toggle('on',mode==='proc');bProc.textContent=mode==='proc'?'Dance: '+STYLES[style]:'Procedural dance'}
+function playClip(n){if(!ready)return;stopMusic();mode='clip';cur=n;mixer.stopAllAction();toRest();ACT[n].reset().setLoop(THREE.LoopRepeat).play();mark()}
+function stopMusic(){music(false)}
+
+// ---------- Procedural dance (index.html's springs + 2-bone IK), mapped to Mixamo bones ----------
+// Hips/Spine/Spine2(chest)/Neck/Head get spring rotations; arms: IK Arm->ForeArm->Hand; legs: IK UpLeg->Leg->Foot with the
+// foot kept at its rest place/rotation on the floor (heel can roll up around the toe), knee pole forward + a bit outward.
+const _q=new THREE.Quaternion(),_q2=new THREE.Quaternion(),_p=new THREE.Quaternion(),_t=new THREE.Quaternion(),_e=new THREE.Euler(),_a=V3(),_b=V3(),_X=new THREE.Vector3(1,0,0);
+function rotQ(b,q){const P0=b.parent.userData.w0;_t.copy(P0).invert().multiply(q).multiply(P0);b.quaternion.premultiply(_t)} // q in rest-aligned model axes
+function rot(n,x,y,z){const b=B[n];if(b)rotQ(b,_q.setFromEuler(_e.set(x,y,z)))}
+function aim(b,c,dir){mP(b,_a);mP(c,_b).sub(_a).normalize();_q.setFromUnitVectors(_b,dir);mQ(b.parent,_p);
+  _q2.copy(_p).invert().multiply(_q).multiply(_p);b.quaternion.premultiply(_q2)}
+const _iA=V3(),_iK=V3(),_iE=V3(),_iD=V3(),_iN=V3(),_iT=V3();
+function ik(a,b,c,T,pole,clamp){mP(a,_iA);mP(b,_iK);mP(c,_iE);const la=_iK.distanceTo(_iA),lb=_iE.distanceTo(_iK);
+  _iD.subVectors(T,_iA);const L=Math.min(Math.max(_iD.length(),Math.abs(la-lb)+1e-4),la+lb-1e-4);_iD.normalize();
+  const ca=(la*la+L*L-lb*lb)/(2*la*L),sa=Math.sqrt(Math.max(0,1-ca*ca));
+  _iN.copy(pole).addScaledVector(_iD,-pole.dot(_iD)).normalize();
+  _iK.copy(_iD).multiplyScalar(ca).addScaledVector(_iN,sa);if(clamp)clamp(_iK);aim(a,b,_iK);
+  mP(b,_iK);aim(b,c,_iT.subVectors(T,_iK).normalize())}
+const _rx=new THREE.Quaternion(),_lq=new THREE.Quaternion(),_lp=V3(),_lv=V3(),_KP=V3();
+function legs(F){for(const s of SIDES){const f=F[s],L=LEGP[s];_rx.setFromAxisAngle(_X,f[3]); // f = [dx, lift, dz, heel roll]
+  _lv.copy(L.A0).sub(L.T0).applyQuaternion(_rx).add(L.T0).add(_lp.set(f[0],f[1],f[2]));
+  ik(B[s+'UpLeg'],B[s+'Leg'],B[s+'Foot'],_lv,_KP.set(SG[s]*.35,0,1).normalize()); // knees over the toes, never inward
+  B[s+'Foot'].quaternion.copy(mQ(B[s+'Leg'],_lq).invert().multiply(_q2.copy(_rx).multiply(L.QF0)))}}
+const cD=new THREE.Quaternion(),_ciq=new THREE.Quaternion();
+function chestD(){return mQ(B.Spine2,cD).multiply(_t.copy(B.Spine2.userData.w0).invert())} // chest turn since rest
+function arm(s,T,pole){const sg=SG[s];_ciq.copy(cD).invert();
+  ik(B[s+'Arm'],B[s+'ForeArm'],B[s+'Hand'],T,pole,u=>{u.applyQuaternion(_ciq); // keep the shoulder cap out of the head and the chest (chest space)
+    if(u.y>.4){const k=Math.sqrt(.84/(u.x*u.x+u.z*u.z||1));u.x*=k;u.z*=k;u.y=.4}
+    const lo=.3-.9*Math.max(0,u.z);if(u.x*sg<lo){const k=Math.sqrt((1-lo*lo)/(u.y*u.y+u.z*u.z||1));u.y*=k;u.z*=k;u.x=lo*sg}
+    u.applyQuaternion(cD)})}
+let SP={};
+function sp(k,x,dt,w,z){const s=SP[k]||(SP[k]={x,v:0}),n=Math.ceil(dt/.008),h=dt/n;
+  for(let i=0;i<n;i++){s.v+=(w*w*(x-s.x)-2*z*w*s.v)*h;s.x+=s.v*h}return s.x}
+const sv=(k,a,dt,w,z)=>a.map((x,i)=>sp(k+i,x,dt,w,z));
+const TAU=Math.PI*2,cl=(x,a=0,b=1)=>Math.min(b,Math.max(a,x)),ss=x=>(x=cl(x),x*x*(3-2*x)),
+  dip=b=>Math.pow(.5+.5*Math.cos(TAU*b),2),mix=(a,b,k)=>a.map((v,i)=>v+(b[i]-v)*k);
+const STYLES=['Bounce & clap','Side-step wave','Robot pop','Twirl'];
+const ROBOT=[[[.12,.12,.02],[.12,-.11,.02],[1,-1,0],[1,1,0],.22,-.3,0],[[.07,-.12,.14],[.07,-.12,.14],[.4,-1,-.3],[.4,-1,-.3],0,0,.16],
+  [[.12,-.11,.02],[.12,.12,.02],[1,1,0],[1,-1,0],-.22,.3,0],[[.03,-.02,.23],[.07,-.12,.14],[.3,-1,0],[.4,-1,-.3],.15,-.15,-.16]];
+let style=-1,danceT0=0,spinY=0;
+function targets(t){ // index.html's dance styles, verbatim (offsets in model units; this rig has the old rig's proportions)
+  const P={hip:[0,0,0],hipR:[0,0,0],spine:[0,0,0],chest:[Math.sin(t*2.2)*.025,0,0],neck:[0,0,0],head:[0,0,0],
+    hand:{Left:[.07,-.22,.03],Right:[.07,-.22,.03]},pole:{Left:[.3,0,-1],Right:[.3,0,-1]},
+    flex:{Left:0,Right:0},curl:{Left:.15,Right:.15},foot:{Left:[0,0,0,0],Right:[0,0,0,0]},snap:1};
+  spinY=0;const b=(t-danceT0-.22)/.44,d=dip(b);
+  if(style===0){const sw=Math.sin(TAU*b/4),c=ss(1.7*(.5+.5*Math.cos(Math.PI*b))-.45),hb=dip(b-.12);
+    P.hip=[.012*sw,-.008-.022*d,-.012*d];P.hipR=[.04*d,.1*sw,.04*sw];P.spine=[.05*d,0,-.03*sw];P.chest[0]+=.04*d;P.chest[1]=-.12*sw;
+    P.neck[0]+=.06*hb;P.head[0]+=.1*hb;P.head[2]-=.06*sw;
+    for(const s of SIDES){P.hand[s]=mix([.11,-.05,.12],[-.055,-.03,.17],c);P.pole[s]=[1,-.4,-.3];P.flex[s]=.9*c;P.curl[s]=.05}
+    P.foot.Left[3]=.25*cl(-sw*1.5);P.foot.Right[3]=.25*cl(sw*1.5)}
+  else if(style===1){const sh=Math.sin(TAU*b/4),wl=ss(.5+.5*sh*1.3),tap=.5-.5*Math.cos(TAU*b);
+    P.hip=[.03*sh,-.01-.016*d,-.006*d];P.hipR=[0,.08*sh,.07*sh];P.spine[2]=-.05*sh;P.chest[2]=-.07*sh;P.chest[1]=.1*Math.sin(TAU*b/4-.8);
+    P.neck[2]=-.04*sh;P.head[2]=.07*Math.sin(TAU*b/4-1.2);P.head[0]+=.08*dip(b-.15);
+    P.foot.Left=[.012*cl(-sh),.025*cl(-sh*1.5-.3)*tap,0,.3*cl(-sh*1.5)];P.foot.Right=[-.012*cl(sh),.025*cl(sh*1.5-.3)*tap,0,.3*cl(sh*1.5)];
+    for(const s of SIDES){const k=s==='Left'?wl:1-wl,h=mix([.03,-.18,.15],[.17,.13,.05],k);h[0]+=.07*Math.sin(Math.PI*k);
+      P.hand[s]=h;P.pole[s]=mix([.6,-.5,-.6],[1,-1,-.2],k);P.flex[s]=.45*Math.sin(TAU*b/4-1.3)*SG[s]}}
+  else if(style===2){const R=ROBOT[Math.floor(b)&3],pop=Math.pow(1-(b-Math.floor(b)),6);P.snap=2.6;
+    P.hip=[0,-.012-.014*pop,-.006*pop];P.hipR=[0,R[4]*.4,0];P.chest[1]=R[4];P.head[1]=R[5];P.head[2]=R[6];P.head[0]+=.06*pop;
+    SIDES.forEach((s,i)=>{P.hand[s]=R[i].slice();P.pole[s]=R[2+i];P.curl[s]=.9})}
+  else{const q=((b%8)+8)%8,e=ss((q-4.6)/.5)*ss((7.4-q)/.4),sw=Math.sin(TAU*b/2)*(1-e);spinY=ss((q-5)/2)*TAU;
+    P.hip=[.02*sw,-.01-.014*d,0];P.hipR=[0,.12*sw,.05*sw];P.chest[1]=-.1*sw;P.head[2]=.06*sw;P.head[0]+=.08*dip(b-.12)*(1-e);
+    const drag=.07*Math.sin(Math.PI*cl((q-5)/2));
+    for(const s of SIDES){P.hand[s]=mix([.1,.05+.05*d,.07],[.22,-.02,drag*SG[s]],e);P.pole[s]=mix([1,-1,0],[.6,-.4,-.7],e);P.curl[s]=.5*(1-e)}
+    P.foot.Left[1]=.02*Math.max(0,Math.sin(TAU*q*2))*e;P.foot.Right[1]=.02*Math.max(0,-Math.sin(TAU*q*2))*e}
+  return P}
+const _HT=V3(),_PL=V3(),_cp=V3(),_fq=new THREE.Quaternion();
+function animate(t,dt){toRest();
+  const P=targets(t),k=P.snap,hip=sv('hp',P.hip,dt,16*k,.75);
+  B.Hips.position.x+=hip[0];B.Hips.position.y+=Math.min(hip[1],0);B.Hips.position.z+=hip[2];
+  rot('Hips',...sv('hr',P.hipR,dt,14*k,.65));
+  legs({Left:sv('fL',P.foot.Left,dt,22*k,.85),Right:sv('fR',P.foot.Right,dt,22*k,.85)});
+  const s_=sv('sp',P.spine,dt,12*k,.6);rot('Spine',s_[0]-Math.min(hip[1],0)*1.6,s_[1],s_[2]); // lean over the feet as the hips drop
+  rot('Spine2',...sv('ch',P.chest,dt,11*k,.55));rot('Neck',...sv('nk',P.neck,dt,9*k,.45));rot('Head',...sv('hd',P.head,dt,7*k,.4));
+  chestD();mP(B.Spine2,_cp);
+  for(const s of SIDES){const o=P.hand[s],sg=SG[s],pl=sv('pl'+s,P.pole[s],dt,9*k,.8);
+    _HT.set(o[0]*sg,o[1],o[2]).add(SH0[s]).applyQuaternion(cD).add(_cp);
+    _HT.set(sp('hx'+s,_HT.x,dt,10*k,.5),sp('hy'+s,_HT.y,dt,10*k,.5),sp('hz'+s,_HT.z,dt,10*k,.5));
+    arm(s,_HT,_PL.set(pl[0]*sg,pl[1],pl[2]).applyQuaternion(cD));
+    rotQ(B[s+'Hand'],_fq.setFromAxisAngle(FLX[s],sp('fl'+s,P.flex[s],dt,9*k,.5)));
+    const cu=sp('cu'+s,P.curl[s],dt,14*k,.7);
+    for(const f of FING[s])f.quaternion.multiply(_q.setFromAxisAngle(_X,-sg*cu*(/1$/.test(f.name)?1.3:1.05)))} // Mixamo fingers curl about local x (mirrored)
+  googoo.rotation.y=spinY}
+function startProc(){if(!ready)return;if(mode==='proc'&&style===STYLES.length-1){mode='rest';style=-1;stopMusic();toRest();googoo.rotation.y=0;return mark()}
+  if(mode!=='proc'){mixer.stopAllAction();SP={};danceT0=procT;music(true)}mode='proc';style++;setFace('laugh',900);mark()}
+
+// ---------- Input / UI ----------
+const ray=new THREE.Raycaster(),ptr=new THREE.Vector2(),view=document.getElementById('view');
+renderer.domElement.addEventListener('pointerdown',e=>{if(!model)return;const r=renderer.domElement.getBoundingClientRect();
+  ptr.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ptr,camera);
+  if(ray.intersectObject(model,true).length){SFX.giggle();setFace(Math.random()<.5?'laugh':'happy',1400);jump.v=Math.max(jump.v,3)}});
+const jump={v:0,y:0};
+const bProc=document.getElementById('bProc'),bSlow=document.getElementById('bSlow'),bCam=document.getElementById('bCam'),bPause=document.getElementById('bPause');
+bProc.onclick=startProc;
+bSlow.onclick=()=>{speed=speed===1?.25:1;bSlow.classList.toggle('on',speed<1)};
+bPause.onclick=()=>{paused=!paused;bPause.classList.toggle('on',paused);bPause.textContent=paused?'Play':'Pause'};
+const CAMS=['front','3/4','side','low (legs)'];let camI=0;
+bCam.onclick=()=>{camI=(camI+1)%CAMS.length;bCam.textContent='Camera: '+CAMS[camI];placeCam()};
+document.getElementById('bRest').onclick=()=>{if(!ready)return;stopMusic();mode='rest';style=-1;mixer.stopAllAction();toRest();googoo.rotation.y=0;mark()};
+let talkUntil=0;document.getElementById('bHi').onclick=async()=>{ac().resume();const d=await playVoice('hi');talkUntil=performance.now()+d*1000};
+function placeCam(){const w=view.clientWidth,h=view.clientHeight;renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(w,h);
+  camera.aspect=w/h;camera.fov=w<h?50:38;camera.updateProjectionMatrix();
+  const tan=Math.tan(camera.fov*Math.PI/360),d=Math.max(H/.78,H*1.1/camera.aspect)/(2*tan),cy=H*.5,c=CAMS[camI];
+  if(c==='front'){camera.position.set(0,cy+H*.12,d);camera.lookAt(0,cy,0)}
+  else if(c==='3/4'){camera.position.set(d*.71,cy+H*.25,d*.71);camera.lookAt(0,cy,0)}
+  else if(c==='side'){camera.position.set(Math.min(d,7.4),cy,0);camera.lookAt(0,cy,0)} // from his left
+  else{camera.position.set(H*.35,H*.1,H*.95);camera.lookAt(0,H*.24,0)}}
+addEventListener('resize',placeCam);placeCam();
+
+// ---------- Loop ----------
+const clock=new THREE.Clock();let raf=0,procT=0;
+function step(dt,t,now){
+  if(ready){if(mode==='clip')mixer.update(dt);else if(mode==='proc'){procT+=dt;animate(procT,dt)}}
+  jump.v-=dt*14;jump.y=Math.max(0,jump.y+jump.v*dt);if(jump.y===0)jump.v=Math.max(0,jump.v);googoo.position.y=jump.y;
+  const lvl=voiceSrc?voiceLevel():now<talkUntil?.3:mode==='clip'&&/^sing/.test(cur)?.5+.5*Math.sin(t*13):-1;
+  faceFrame(t,dt,now,lvl)}
+function frame(){raf=requestAnimationFrame(frame);if(TEST)return;const dt0=Math.min(clock.getDelta(),.1),dt=paused?0:dt0*speed,now=performance.now();
+  step(dt,clock.elapsedTime,now);
+  if(mode==='clip'){const a=ACT[cur];hud.textContent=cur+'  '+a.time.toFixed(2)+' / '+a.getClip().duration.toFixed(2)+' s'+(speed<1?'  (0.25x)':'')}
+  else if(mode==='proc')hud.textContent='Procedural: '+STYLES[style]+(speed<1?'  (0.25x)':'');else if(ready)hud.textContent='Rest pose';
+  renderer.render(scene,camera)}
+frame();
+document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelAnimationFrame(raf);raf=0;AC&&AC.suspend()}else if(!raf){clock.getDelta();frame();AC&&AC.resume()}});
+
+// ---------- Test hooks (used by the Playwright check; harmless otherwise) ----------
+function legStats(N,poseAt){const fr=[],D=new THREE.Quaternion();
+  for(let i=0;i<N;i++){poseAt(i);const f={hips:mP(B.Hips,V3())};mQ(B.Hips,D).multiply(_t.copy(B.Hips.userData.w0).invert());const Di=D.clone().invert();
+    for(const s of SIDES){const h=mP(B[s+'UpLeg'],V3()),k=mP(B[s+'Leg'],V3()),a=mP(B[s+'Foot'],V3()),toe=mP(B[s+'ToeBase'],V3());
+      const ax=a.clone().sub(h).normalize(),perp=k.clone().sub(h);perp.addScaledVector(ax,-perp.dot(ax));
+      const bend=THREE.MathUtils.radToDeg(k.clone().sub(h).angleTo(a.clone().sub(k)));
+      const ph=perp.clone().applyQuaternion(Di),fd=toe.clone().sub(a);fd.y=0;const pf=perp.clone();pf.y=0;
+      const vsFoot=THREE.MathUtils.radToDeg(Math.atan2(SG[s]*(fd.z*pf.x-fd.x*pf.z),fd.x*pf.x+fd.z*pf.z)); // + = knee outside the foot line
+      f[s]={a,toe,bend,dir:THREE.MathUtils.radToDeg(Math.atan2(ph.x*SG[s],ph.z)),vsFoot,q:['UpLeg','Leg','Foot'].map(n=>B[s+n].quaternion.clone())}}
+    fr.push(f)}
+  const r=x=>Math.round(x*10)/10,pc=x=>r(x/HT*100),med=a=>{const b=[...a].sort((x,y)=>x-y);return b.length?b[b.length>>1]:null},
+    pct=(a,p)=>{const b=[...a].sort((x,y)=>x-y);return b.length?b[Math.min(b.length-1,Math.floor(b.length*p))]:null};
+  const out={frames:N,hips_dy_pct:[pc(Math.min(...fr.map(f=>f.hips.y))-RESTP.Hips.y),pc(Math.max(...fr.map(f=>f.hips.y))-RESTP.Hips.y)],
+    hips_xz_travel_pct:pc(Math.max(...fr.map(f=>Math.hypot(f.hips.x-fr[0].hips.x,f.hips.z-fr[0].hips.z))))};
+  const airborne=fr.filter(f=>SIDES.every(s=>Math.min(f[s].a.y-LEGP[s].A0.y,f[s].toe.y-LEGP[s].T0.y)>.02)).length;out.both_feet_up_frames=airborne;
+  for(const s of SIDES){const L=LEGP[s],bent=fr.filter(f=>f[s].bend>15);
+    const h=fr.map(f=>Math.min(f[s].a.y-L.A0.y,f[s].toe.y-L.T0.y));
+    let drift=0,run=null,len=0,runs=0;fr.forEach((f,i)=>{if(h[i]<.008){if(!run){run=f[s].toe;len=0}if(++len===4)runs++;if(len>=4)drift=Math.max(drift,Math.hypot(f[s].toe.x-run.x,f[s].toe.z-run.z))}else run=null}); // runs = planted >= 4 frames
+    const J={};for(const [j,nm] of ['UpLeg','Leg','Foot'].entries()){let mx=0,dev=0,devT=0,spikes=0;const ds=[];
+      for(let i=1;i<N;i++){const dd=THREE.MathUtils.radToDeg(fr[i-1][s].q[j].angleTo(fr[i][s].q[j]));ds.push(dd);mx=Math.max(mx,dd);
+        if(i<N-1){const m=fr[i-1][s].q[j].clone().slerp(fr[i+1][s].q[j],.5),e=THREE.MathUtils.radToDeg(m.angleTo(fr[i][s].q[j])); // off the neighbours' midpoint = pop/jitter
+          if(e>dev){dev=e;devT=i/24}if(e>3)spikes++}}
+      J[nm]={max_deg_per_frame:r(mx),p95:r(pct(ds,.95)),max_pop_deg:r(dev),pop_at_s:r(devT),pops_gt3deg:spikes}}
+    out[s]={frame0_bend:r(fr[0][s].bend),max_bend:r(Math.max(...fr.map(f=>f[s].bend))),bent_frames:bent.length,
+      knee_dir_deg:bent.length?[r(Math.min(...bent.map(f=>f[s].dir))),r(med(bent.map(f=>f[s].dir))),r(Math.max(...bent.map(f=>f[s].dir)))]:null,
+      inward_frames:bent.filter(f=>f[s].dir<-15).length,knee_vs_foot_deg:bent.length?[r(Math.min(...bent.map(f=>f[s].vsFoot))),r(med(bent.map(f=>f[s].vsFoot))),r(Math.max(...bent.map(f=>f[s].vsFoot)))]:null,
+      foot_min_dy_pct:pc(Math.min(...h)),foot_max_dy_pct:pc(Math.max(...h)),planted_runs:runs,planted_slide_pct:pc(drift),jitter:J}}
+  return out}
+window.__T={
+  clips:()=>Object.keys(ACT).map(n=>[n,ACT[n].getClip().duration]),
+  pose(n,t){mode='clip';cur=n;mixer.stopAllAction();toRest();const a=ACT[n];a.reset().setLoop(THREE.LoopOnce,1).play();a.clampWhenFinished=true;mixer.setTime(Math.min(t,a.getClip().duration))},
+  rest(){mode='rest';mixer.stopAllAction();toRest()},
+  proc(st,t){mixer.stopAllAction();mode='proc';style=st;SP={};danceT0=0;for(let x=0;x<=t;x+=1/60)animate(x,1/60)},
+  cam(i){camI=i;placeCam()},
+  render(face){compose(face||'neutral',0,0);renderer.render(scene,camera)},
+  measure(n){const a=ACT[n],N=Math.floor(a.getClip().duration*24+1e-6)+1;return legStats(N,i=>this.pose(n,i/24))},
+  measureProc(st,secs){mixer.stopAllAction();mode='proc';style=st;SP={};danceT0=0;let x=0;return legStats(Math.round(secs*24),i=>{for(;x<=i/24;x+=1/120)animate(x,1/120)})},
+  restStats(){return legStats(1,()=>toRest())},
+  rest_info(){toRest();return{HT,hips:RESTP.Hips.y,legs:SIDES.map(s=>[LEGP[s].A0.toArray(),LEGP[s].T0.toArray()])}}};
+</script>
+</body></html>

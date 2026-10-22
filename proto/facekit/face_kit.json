@@ -1,0 +1,345 @@
+{
+ "name": "Googoo face kit",
+ "canvas": {
+  "width": 2048,
+  "height": 1376,
+  "aspect": 1.4884,
+  "uv": "full canvas = face-screen UV 0..1; image top row = top of screen (glTF v=0 / Blender v=1); x left->right as seen from the front; no mirroring",
+  "screen_aspect_measured": 1.49,
+  "prewarp": "layers/ are pre-warped from a front-orthographic drawing (layers_front_view/, 2048x1438) through the GLB UV->position map, so the face reads undistorted from the front on Googoo_face_screen. Use layers/ on that mesh; layers_front_view/ for flat 2D UI (web).",
+  "background": "layers are transparent; engine draws its own black screen, or stack layers/screen_bg.png first"
+ },
+ "sides": "left/right are IMAGE sides as seen from the front (wink_left closes the eye on the viewer's left)",
+ "stack_order": [
+  "screen_bg (optional)",
+  "eyes",
+  "brows",
+  "mouth"
+ ],
+ "pupils": {
+  "base": "eyes_open_base",
+  "pupils": "eyes_open_pupils",
+  "mask": "eyes_open_mask",
+  "max_offset_px": [
+   63,
+   54
+  ],
+  "note": "shift eyes_open_pupils by (dx,dy) canvas px for gaze, then multiply its alpha by eyes_open_mask alpha"
+ },
+ "layers": {
+  "brows_cheeky": "layers/brows_cheeky.png",
+  "brows_curious": "layers/brows_curious.png",
+  "brows_happy": "layers/brows_happy.png",
+  "brows_neutral": "layers/brows_neutral.png",
+  "brows_raised": "layers/brows_raised.png",
+  "brows_sad": "layers/brows_sad.png",
+  "eyes_cheeky": "layers/eyes_cheeky.png",
+  "eyes_closed": "layers/eyes_closed.png",
+  "eyes_curious": "layers/eyes_curious.png",
+  "eyes_dizzy": "layers/eyes_dizzy.png",
+  "eyes_half": "layers/eyes_half.png",
+  "eyes_happy": "layers/eyes_happy.png",
+  "eyes_open": "layers/eyes_open.png",
+  "eyes_open_base": "layers/eyes_open_base.png",
+  "eyes_open_mask": "layers/eyes_open_mask.png",
+  "eyes_open_pupils": "layers/eyes_open_pupils.png",
+  "eyes_sleepy": "layers/eyes_sleepy.png",
+  "eyes_surprised": "layers/eyes_surprised.png",
+  "eyes_wink_left": "layers/eyes_wink_left.png",
+  "eyes_wink_right": "layers/eyes_wink_right.png",
+  "mouth_big_smile": "layers/mouth_big_smile.png",
+  "mouth_flat": "layers/mouth_flat.png",
+  "mouth_o": "layers/mouth_o.png",
+  "mouth_sleepy": "layers/mouth_sleepy.png",
+  "mouth_smile": "layers/mouth_smile.png",
+  "mouth_smirk": "layers/mouth_smirk.png",
+  "mouth_talk_a": "layers/mouth_talk_a.png",
+  "mouth_talk_e": "layers/mouth_talk_e.png",
+  "mouth_talk_o": "layers/mouth_talk_o.png",
+  "screen_bg": "layers/screen_bg.png"
+ },
+ "expressions": {
+  "neutral": {
+   "layers": [
+    {
+     "layer": "eyes_open_base"
+    },
+    {
+     "layer": "eyes_open_pupils",
+     "offset": [
+      0,
+      0
+     ],
+     "clip": "eyes_open_mask"
+    },
+    {
+     "layer": "brows_neutral"
+    },
+    {
+     "layer": "mouth_smile"
+    }
+   ],
+   "png": "expressions/neutral.png",
+   "png_on_screen": "expressions_on_screen/neutral.png",
+   "reference": "front"
+  },
+  "happy": {
+   "layers": [
+    {
+     "layer": "eyes_open_base"
+    },
+    {
+     "layer": "eyes_open_pupils",
+     "offset": [
+      0,
+      -36
+     ],
+     "clip": "eyes_open_mask"
+    },
+    {
+     "layer": "brows_happy"
+    },
+    {
+     "layer": "mouth_big_smile"
+    }
+   ],
+   "png": "expressions/happy.png",
+   "png_on_screen": "expressions_on_screen/happy.png",
+   "reference": "happy"
+  },
+  "curious": {
+   "layers": [
+    {
+     "layer": "eyes_curious"
+    },
+    {
+     "layer": "brows_curious"
+    },
+    {
+     "layer": "mouth_smile",
+     "offset": [
+      90,
+      -10
+     ]
+    }
+   ],
+   "png": "expressions/curious.png",
+   "png_on_screen": "expressions_on_screen/curious.png",
+   "reference": "curious"
+  },
+  "cheeky": {
+   "layers": [
+    {
+     "layer": "eyes_cheeky"
+    },
+    {
+     "layer": "brows_cheeky"
+    },
+    {
+     "layer": "mouth_smirk"
+    }
+   ],
+   "png": "expressions/cheeky.png",
+   "png_on_screen": "expressions_on_screen/cheeky.png",
+   "reference": "cheeky"
+  },
+  "surprised": {
+   "layers": [
+    {
+     "layer": "eyes_surprised"
+    },
+    {
+     "layer": "brows_raised"
+    },
+    {
+     "layer": "mouth_o"
+    }
+   ],
+   "png": "expressions/surprised.png",
+   "png_on_screen": "expressions_on_screen/surprised.png",
+   "reference": "surprised"
+  },
+  "laugh": {
+   "layers": [
+    {
+     "layer": "eyes_happy"
+    },
+    {
+     "layer": "brows_happy"
+    },
+    {
+     "layer": "mouth_big_smile"
+    }
+   ],
+   "png": "expressions/laugh.png",
+   "png_on_screen": "expressions_on_screen/laugh.png",
+   "reference": "dance"
+  },
+  "wink": {
+   "layers": [
+    {
+     "layer": "eyes_wink_left"
+    },
+    {
+     "layer": "brows_happy"
+    },
+    {
+     "layer": "mouth_big_smile"
+    }
+   ],
+   "png": "expressions/wink.png",
+   "png_on_screen": "expressions_on_screen/wink.png",
+   "reference": "hero"
+  },
+  "talk_1": {
+   "layers": [
+    {
+     "layer": "eyes_open_base"
+    },
+    {
+     "layer": "eyes_open_pupils",
+     "offset": [
+      0,
+      0
+     ],
+     "clip": "eyes_open_mask"
+    },
+    {
+     "layer": "brows_neutral"
+    },
+    {
+     "layer": "mouth_talk_a"
+    }
+   ],
+   "png": "expressions/talk_1.png",
+   "png_on_screen": "expressions_on_screen/talk_1.png",
+   "reference": null
+  },
+  "talk_2": {
+   "layers": [
+    {
+     "layer": "eyes_open_base"
+    },
+    {
+     "layer": "eyes_open_pupils",
+     "offset": [
+      0,
+      0
+     ],
+     "clip": "eyes_open_mask"
+    },
+    {
+     "layer": "brows_neutral"
+    },
+    {
+     "layer": "mouth_talk_e"
+    }
+   ],
+   "png": "expressions/talk_2.png",
+   "png_on_screen": "expressions_on_screen/talk_2.png",
+   "reference": null
+  },
+  "talk_3": {
+   "layers": [
+    {
+     "layer": "eyes_open_base"
+    },
+    {
+     "layer": "eyes_open_pupils",
+     "offset": [
+      0,
+      0
+     ],
+     "clip": "eyes_open_mask"
+    },
+    {
+     "layer": "brows_neutral"
+    },
+    {
+     "layer": "mouth_talk_o"
+    }
+   ],
+   "png": "expressions/talk_3.png",
+   "png_on_screen": "expressions_on_screen/talk_3.png",
+   "reference": null
+  },
+  "sleepy": {
+   "layers": [
+    {
+     "layer": "eyes_sleepy"
+    },
+    {
+     "layer": "brows_sad"
+    },
+    {
+     "layer": "mouth_sleepy"
+    }
+   ],
+   "png": "expressions/sleepy.png",
+   "png_on_screen": "expressions_on_screen/sleepy.png",
+   "reference": null
+  },
+  "dizzy": {
+   "layers": [
+    {
+     "layer": "eyes_dizzy"
+    },
+    {
+     "layer": "brows_sad"
+    },
+    {
+     "layer": "mouth_flat"
+    }
+   ],
+   "png": "expressions/dizzy.png",
+   "png_on_screen": "expressions_on_screen/dizzy.png",
+   "reference": null
+  },
+  "blink_half": {
+   "layers": [
+    {
+     "layer": "eyes_half"
+    },
+    {
+     "layer": "brows_neutral"
+    },
+    {
+     "layer": "mouth_smile"
+    }
+   ],
+   "png": "expressions/blink_half.png",
+   "png_on_screen": "expressions_on_screen/blink_half.png",
+   "reference": null
+  },
+  "blink": {
+   "layers": [
+    {
+     "layer": "eyes_closed"
+    },
+    {
+     "layer": "brows_neutral"
+    },
+    {
+     "layer": "mouth_smile"
+    }
+   ],
+   "png": "expressions/blink.png",
+   "png_on_screen": "expressions_on_screen/blink.png",
+   "reference": null
+  }
+ },
+ "sequences": {
+  "talking": [
+   "talk_1",
+   "talk_2",
+   "talk_3"
+  ],
+  "blink": [
+   "neutral",
+   "blink_half",
+   "blink",
+   "blink_half",
+   "neutral"
+  ]
+ }
+}
