@@ -52,3 +52,10 @@ Newest decisions are at the bottom of each section.
 - Later: house rooms stay as tabs; outside places (courtyard, street, shop, park, farm) are reached by a map tab/button plus doors in the scene, and unlock with stars. Not built yet.
 
 - **No text bubbles for the child (2026-10-21):** he can't read, so words show as pictures on Googoo's face screen (tiny picture bubble only when the face is hidden); lines without a picture show nothing. Parents can switch on a small Farsi-only caption ("Show words" in the parent corner, off by default).
+
+## Game plan decisions (2026-10-21, see docs/game-plan.md "Owner's answers")
+- Stars: total reached, never spent; low thresholds and simple achievements so kids see places sooner.
+- Real-clock routine with a parent switch; Googoo has no needs or meters.
+- Map order: courtyard first; 8th place = doctor's clinic (not the zoo).
+- Store v1 = house + courtyard, street, shops, park, farm, school; beach and clinic as free updates.
+- Price: 7-day trial then US$14.99 lifetime (US$9.99 early families). Supersedes US$59.

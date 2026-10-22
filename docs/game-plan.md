@@ -204,3 +204,15 @@ Rule from `tripo-objects.md`: build in 3D only what the child touches or what ma
 - B. 7-day trial, then US$59 lifetime (as decided).
 - C. 7-day trial, then US$29.99 lifetime.
 - D. Free house, paid outside places (one unlock), no trial.
+
+## Owner's answers (2026-10-21)
+| Question | Decision |
+|---|---|
+| Star unlocks | Total reached, never spent. **Lower thresholds plus simple achievements, so kids see everything sooner.** New star targets: courtyard 5, street 15, shops 30, park 50, farm 75, school 100, beach 130, clinic 160 (tune after testing). Achievements = simple firsts ("fed Googoo", "first story", "10 words") that give stars and stickers. |
+| Routine | Follows the real clock, with a parent switch. |
+| Googoo's needs | **None.** No hunger, dirt or sleep meters; routine hints are suggestions only. |
+| First outside place | Courtyard حیاط. |
+| Store v1 | House (5 rooms) + courtyard, street, shops, park, farm + school. Beach and the 8th place come later as free updates. |
+| School | Opens with stars; a parent can open it early. |
+| 8th place | **Doctor's clinic** (replaces the zoo): body and feelings words, helps with real visits. |
+| Price | 7-day trial, then **US$14.99 lifetime** (US$9.99 early-family price). Replaces US$59. |
