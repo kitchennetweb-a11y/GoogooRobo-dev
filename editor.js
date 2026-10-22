@@ -115,7 +115,12 @@ const nice = f => NAMES[f] || f.replace(/^(living|bedroom|toy|farm)_/, '').repla
 const nameOf = p => p.builtin ? PRIMS[p.id][1] : nice(p.file);
 const cat = f => !f ? 'decor' : /^(toy|farm)_/.test(f) ? 'toys' : /(bed|nightstand|wardrobe|sofa|armchair|bookshelf|tv_cabinet|korsi|coffee_table|door|box)$/.test(f) ? 'furniture' : 'decor';
 const ICON = { toys: '🧸', furniture: '🛋️', decor: '🖼️' };
-const propOf = id => { for (const r of ROOMS) { const p = L.rooms[r].props.find(p => p.id === id); if (p) return p; } return null; };
+const propOf = id => { for (const r of ROOMS) { const p = L.rooms[r].props.find(p => p.id === id); if (p) return p; } return virt[id] || null; };
+// the book and the star mobile are built in code: they get a layout entry only once they are actually changed (virt = not in the layout yet)
+let VIRT0 = {}, virt = {};
+function resetVirt() { virt = {}; for (const id in VIRT0) if (!L.rooms[PRIMS[id][0]].props.some(p => p.id === id)) virt[id] = clone(VIRT0[id]); }
+function promoteVirt() { for (const id in virt) if (JSON.stringify(virt[id]) !== JSON.stringify(VIRT0[id])) { L.rooms[PRIMS[id][0]].props.push(virt[id]); delete virt[id]; } }
+const propsIn = r => [...L.rooms[r].props, ...Object.values(virt).filter(v => PRIMS[v.id][0] === r)];
 const grp = id => X && X.furnGroup.children.find(g => g.userData.furn === id && (g.userData.m || PRIMS[id]));
 const usePt = () => ptMode && isPortrait();
 const r2 = v => Math.round(v * 1000) / 1000, r100 = v => Math.round(v * 100) / 100;
@@ -141,7 +146,7 @@ function doRedo() { if (!redo.length) return; undo.push(JSON.stringify(L)); rest
 // ---------- apply the layout to the game in the iframe ----------
 function apply(kind) {
   if (!X) return;
-  const r = room();
+  const r = room(); promoteVirt(); resetVirt();
   if (kind === 'all' || kind === 'ui') W.applyLayout(L);
   else if (kind === 'walls') { X.WALLS[r] = walls(r); W.applyWalls(r); }
   else if (kind === 'goo' || kind === 'cam') { X.GOO[r] = L.rooms[r].googoo || {}; X.CAMS[r] = L.rooms[r].camera || {}; }
@@ -154,7 +159,7 @@ function apply(kind) {
 // loaded prop groups follow L: size, place, turn, portrait values, shadow, hidden; removed ones go, new ones load
 function syncProps() {
   const cur = room(), want = new Map();
-  for (const r of ROOMS) for (const p of L.rooms[r].props) want.set(p.id, [p, r]);
+  for (const r of ROOMS) for (const p of propsIn(r)) want.set(p.id, [p, r]);
   for (const g of [...X.furnGroup.children]) {
     const u = g.userData, w = want.get(u.furn);
     if (PRIMS[u.furn] && w) { const [p] = w; u.x0 = p.x ?? u.x0; if (p.z != null) g.position.z = p.z; if (p.y != null) g.position.y = p.y; if (p.ry != null && !u.spin) g.rotation.y = p.ry; u.off = p.hidden ? 1 : 0; u.on = onOf(p); g.visible = PRIMS[u.furn][0] === cur && !p.hidden; continue; }
@@ -185,7 +190,8 @@ frame.addEventListener('load', async () => {
   try { L = await (await fetch('data/layout.json', { cache: 'no-store' })).json(); } catch (e) { L = null; }
   if (!L || !L.rooms) { status('Could not read data/layout.json', 'dirty'); return; }
   // the book and the star mobile are built in code: give them a layout entry (their place today) so they can be moved
-  for (const id in PRIMS) { const r = PRIMS[id][0], g = W.eval(`furnById('${id}')`); if (g && !L.rooms[r].props.some(p => p.id === id)) L.rooms[r].props.push({ id, builtin: true, x: r2(g.userData.x0), z: r2(g.position.z), y: r2(g.position.y), ...(g.userData.spin ? {} : { ry: r2(g.rotation.y) }), hidden: false }); }
+  for (const id in PRIMS) { const g = W.eval(`furnById('${id}')`); if (g) VIRT0[id] = { id, builtin: true, x: r2(g.userData.x0), z: r2(g.position.z), y: r2(g.position.y), ...(g.userData.spin ? {} : { ry: r2(g.rotation.y) }), hidden: false }; }
+  resetVirt();
   saved = JSON.stringify(L);
   // start the game without the start screen (no sound in Design mode); the room's props load
   W.eval("document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;propsOn=true;loadProps(curRoom)");
@@ -430,7 +436,7 @@ function camVals() { const V = camView() || {}, A = W.eval('CAMAUTO') || { pitch
 function camSet(k, v) { const r = room(), c = L.rooms[r].camera = L.rooms[r].camera || {}, cur = camVals(); c[camKey()] = { ...cur, ...(c[camKey()] || {}), [k]: r2(v) }; }
 function camFromFree() { // the free camera's angle, as a saved view around Googoo
   const H = W.eval('HOME'), RB = W.eval('RB'), A = W.eval('CAMAUTO'), V = camVals(), cy = RB.y0 + RB.h / 2, ty = cy + V.height * RB.h;
-  const p = X.camera.position.clone().sub(new X.THREE.Vector3(H.x, 0, H.z)).divideScalar(H.s).sub(new X.THREE.Vector3(0, ty, 0)), D = p.length();
+  const p = X.camera.position.clone().sub(new X.THREE.Vector3(H.x, 0, H.z)).sub(new X.THREE.Vector3(0, ty, 0)), D = p.length();
   change(() => { const r = room(); (L.rooms[r].camera = L.rooms[r].camera || {})[camKey()] = { zoom: r2(D / A.D), height: V.height, yaw: r2(Math.atan2(p.x, p.z) / DEG), pitch: r2(Math.asin(p.y / D) / DEG) }; }, '', 'cam');
   setFree(false); renderRight();
 }
@@ -493,7 +499,7 @@ function renderLeft() {
       camera: `<h2>Camera</h2><p class="hint">Each room can have its own view: one for upright phones and one for everything else (sideways phones, iPads). Change the screen size at the top to set the other one.</p><p class="hint">Rooms without their own view are "automatic": the camera fits Googoo by itself. Card games and stories always use the automatic view.</p>` }[mode];
     return;
   }
-  const r = room(), here = L.rooms[r].props, gooOn = sel === 'googoo';
+  const r = room(), here = propsIn(r), gooOn = sel === 'googoo';
   const files = propsList.length ? propsList : [...new Set(ROOMS.flatMap(x => L.rooms[x].props.filter(p => p.file).map(p => p.file)))].map(name => ({ name }));
   const keepFocus = document.activeElement && document.activeElement.id === 'search';
   if (!el.querySelector('#search')) {
@@ -541,7 +547,7 @@ function renderRight() {
    ${p.builtin ? '' : ptBox(por, p.portrait)}
    ${p.builtin ? '' : pctUnit(p) ? field(p.flatten ? 'Length (% of Googoo)' : 'Height (% of Googoo)', 'pct', 5, 300, 1, Math.round(v.k * pctUnit(p))) : field('Size', 'k', .05, 2.5, .01, r100(v.k))}
    ${p.builtin && p.ry == null ? '' : field('Turn (°)', 'ry', -180, 180, 1, Math.round(v.ry / DEG))}
-   <div class="field"><label>Sits on</label><select class="eb" id="on"><option value="">Nothing (stands free)</option>${L.rooms[room()].props.filter(q => q.id !== p.id && !q.flatten).map(q => `<option value="${q.id}">${nameOf(q)}</option>`).join('')}</select><span></span></div>
+   <div class="field"><label>Sits on</label><select class="eb" id="on"><option value="">Nothing (stands free)</option>${propsIn(room()).filter(q => q.id !== p.id && !q.flatten).map(q => `<option value="${q.id}">${nameOf(q)}</option>`).join('')}</select><span></span></div>
    ${onOf(p) ? '' : field('Lift (height)', 'y', -.5, 6, .05, r100(v.y))}
    ${field('Left / right', 'x', -10, 10, .05, r100(v.x))}
    ${field('Back / front', 'z', -14, 8, .05, r100(v.z))}
@@ -584,6 +590,7 @@ function renderCamera(el) {
    ${field('Turn (°)', 'yaw', -70, 70, 1, Math.round(v.yaw))}${field('Tilt (°)', 'pitch', -10, 70, 1, Math.round(v.pitch))}
    <p class="hint">Zoom: bigger number = further away. Height moves the view up or down. Turn and tilt go around Googoo.</p>
    <div class="row"><button class="eb go" id="camSave">📌 Save this view</button><button class="eb" id="camAuto" ${V ? '' : 'disabled'}>Back to automatic</button></div>
+   <div class="row"><select class="eb" id="camTo"><option value="all">All rooms</option>${ROOMS.filter(r => r !== room()).map(r => `<option value="${r}">${ROOM_NAME[r]}</option>`).join('')}</select><button class="eb" id="camCopy" title="Give the chosen rooms this room's view (or automatic) for ${grpName}">Copy view to…</button></div>
    <div class="row"><button class="eb" id="camFree" ${free ? '' : 'disabled'} title="Turn on the free camera at the top, turn the room, then press this">Use the free camera's angle</button></div>
    <p class="hint">Card games and stories keep their own automatic framing.</p>`;
   el.oninput = e => { const k = e.target.dataset.k; if (!k) return; const val = parseFloat(e.target.value); if (isNaN(val)) return;
@@ -591,6 +598,9 @@ function renderCamera(el) {
   el.querySelector('#camSave').onclick = () => { change(() => camSet('zoom', camVals().zoom), '', 'cam'); status(`View kept for the ${ROOM_NAME[room()].toLowerCase()} on ${grpName}. Press Save to keep it for good.`); renderRight(); };
   el.querySelector('#camAuto').onclick = () => { change(() => { const c = L.rooms[room()].camera; if (c) { delete c[camKey()]; if (!Object.keys(c).length) delete L.rooms[room()].camera; } }, '', 'cam'); renderRight(); };
   el.querySelector('#camFree').onclick = camFromFree;
+  el.querySelector('#camCopy').onclick = () => { const to = el.querySelector('#camTo').value, key = camKey(), V = camView(), rs = to === 'all' ? ROOMS.filter(r => r !== room()) : [to];
+    change(() => { for (const r of rs) { const R = L.rooms[r]; if (V) (R.camera = R.camera || {})[key] = clone(V); else if (R.camera) { delete R.camera[key]; if (!Object.keys(R.camera).length) delete R.camera; } } }, '', 'all');
+    status(`${V ? 'This view' : 'Automatic'} copied to ${rs.map(r => ROOM_NAME[r].toLowerCase()).join(' and ')} (${grpName}). Press Save to keep it.`); };
 }
 // keep the numbers in the right panel live while dragging in the picture (without rebuilding it)
 setInterval(() => {

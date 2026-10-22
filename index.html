@@ -1633,7 +1633,9 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
   // saved camera (layout.json, per room, upright phones / the rest): orbit around him from the auto-fit distance; card screens, stories and toys keep the auto-fit
   const D=Math.hypot(camera.position.z,camera.position.y-cy),V=!cards&&!toys&&ROOM_HI[scr]&&(CAMS[curRoom]||{})[camKey()];CAMAUTO={pitch:Math.atan2(camera.position.y-cy,camera.position.z)*180/Math.PI,D};
   if(V){const R=Math.PI/180,ty=cy+(V.height||0)*RB.h,d=D*(V.zoom||1),yw=(V.yaw||0)*R,pt=(V.pitch??CAMAUTO.pitch)*R;camera.position.set(d*Math.sin(yw)*Math.cos(pt),ty+d*Math.sin(pt),d*Math.cos(yw)*Math.cos(pt));camera.lookAt(0,ty,0)}
-  camera.position.multiplyScalar(HOME.s).add(new THREE.Vector3(HOME.x,0,HOME.z));camera.updateMatrixWorld(); // framed at size 1 around the origin, then moved to his place and size
+  // framed at his base size around the origin, then moved to his place: in the room his size multiplier really makes him bigger/smaller (a saved view stays as saved);
+  // card screens, stories and toys frame his scaled size (camera scaled with him), so he stays fully visible under the card and above the tabs
+  camera.position.multiplyScalar(cards||toys?HOME.s:1).add(new THREE.Vector3(HOME.x,0,HOME.z));camera.updateMatrixWorld();
   camera.updateProjectionMatrix()}
 const camKey=()=>portrait&&innerWidth<700?'phone':'wide'; // saved camera views: upright phones, everything else
 addEventListener('resize',resize);addEventListener('load',resize);showScreen('home');measureRobot();
