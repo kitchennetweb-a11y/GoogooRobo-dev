@@ -326,6 +326,8 @@ Voice lines: 50 distinct Farsi words in this list are not in words_v2 or the sta
 | `library_bookshelf.glb` | library | قفسه | 1.4x0.4x1.1 | L large, 10k, 1024 px | N | N | M | L | left | front-facing kids' library bookshelf, empty display shelves, lavender, cyan strip |
 | `library_beanbag.glb` | library | — | 0.8x0.8x0.6 | M medium, 5k, 1024 px | N | N | M | L | left | squishy orange beanbag |
 | `library_book_bin.glb` | library | — | 0.6x0.4x0.35 | S small, 3k, 512 px | N | N | M | L | left | mint wooden book bin, empty |
-| `library_floor_cushion.glb` | library | بالش | 0.6x0.6x0.18 | S small, 2.5k, 512 px | N | N | M | L | left | round pink floor cushion with button |
+| `library_floor_cushion.glb` (SKIPPED: the 3D came out broken; owner chose no cushion) | library | بالش | 0.6x0.6x0.18 | S small, 2.5k, 512 px | N | N | M | L | left | round pink floor cushion with button |
 | `library_reading_lamp.glb` | library | چراغ | 0.35x0.3x0.6 | M medium, 4k, 1024 px | N | N | M | L | right | bent cream reading lamp, cyan glow |
 | `library_letter_garland.glb` | library | — | 1.2x0.05x0.35 | S small, 2k, 512 px | N | N | M | L | left | blank pastel bunting, letters added in code |
+
+> Library 3D done 2026-10-22: 6 made (270 credits; 23,045 left); the cushion came out broken (131 faces of shards), so it's skipped. The other 5 are sized, optimized (WebP) and pass gpu_check. Preview: docs/style-tests/library-3d-sheet.png.
