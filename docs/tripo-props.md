@@ -310,3 +310,8 @@ Voice lines: 50 distinct Farsi words in this list are not in words_v2 or the sta
 | [donmccurdy/glTF-Transform](https://github.com/donmccurdy/glTF-Transform) (MIT) | Compress and optimise GLBs before shipping (meshopt/Draco, KTX2 textures) | Could also do the real-size step; check compression works in both three.js r128 and glTFast. |
 | [chr15m/jsfxr](https://github.com/chr15m/jsfxr) (Unlicense) | Robot bleeps, boops and reaction sounds | Authoring tool; export WAV/MP3 into audio/. |
 | [Kenney assets](https://kenney.nl/assets) (CC0, check each pack's licence) | UI icons, extra props, sound effects | Download from kenney.nl; keep each pack's licence file. |
+
+## Web layout to-do (owner, 2026-10-21; waiting for the new Googoo to be merged into src_pash-robot.html)
+- Bedroom: bed BIG (bigger than Googoo; he sleeps in it) in the back corner.
+- Toys (teddy, cow, later ones): 30% smaller than now (teddy k 0.7 -> 0.49, cow k 0.38 -> 0.27, or the same on-screen size if RB.h changes) and placed IN FRONT of Googoo, not behind.
+- Portrait: put Googoo slightly lower on screen (shift the framing band down a little in resize()), so there's room behind him for the bed and in front for toys.
