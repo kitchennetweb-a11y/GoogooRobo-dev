@@ -391,6 +391,11 @@ sun.color.setHex(0xfff1dc);sun.intensity=.95;sun.position.set(-3.5,9,5.5);Object
 const hemiL=scene.children.find(o=>o.isHemisphereLight);if(hemiL){hemiL.color.setHex(0xdfeeff);hemiL.groundColor.setHex(0xb08a5e);hemiL.intensity=.3}
 const windowGlow=new THREE.PointLight(0xcfe8ff,.45,9,2);windowGlow.position.set(WX,WY,BACK+1.2);scene.add(windowGlow);
 const fill=new THREE.DirectionalLight(0xffe2c4,.18);fill.position.set(5,4,8);scene.add(fill);
+// walls per room from data/layout.json (WALLS[room]: left/right x, back z, floor tint); the shell is built at RW x RD and moved/stretched here
+const WALLS={},wallSides=room.children.filter(o=>o.material===wallMat&&o!==back),skirts=room.children.filter(o=>o.material===skirtMat);winParts.forEach(o=>o.userData.z0=o.position.z);
+function applyWalls(s){const W=WALLS[s]||{},l=W.left??-RW/2,r=W.right??RW/2,b=W.back??BACK,cx=(l+r)/2;back.scale.x=wood.scale.x=skirts[0].scale.x=(r-l)/RW;
+  back.position.set(cx,RH/2,b);wood.position.set(cx,0,b+RD/2);skirts[0].position.set(cx,.14,b+.03);wallSides.forEach((o,i)=>o.position.set(i?r:l,RH/2,b+RD/2));
+  skirts.slice(1).forEach((o,i)=>o.position.set(i?r-.03:l+.03,.14,b+RD/2));winParts.forEach(o=>o.position.z=o.userData.z0+b-BACK);windowGlow.position.z=b+1.2;floorMat.color.set(W.floor||'#ffffff')}
 let dayEnv=null;
 // soft reflections of the room on Pash and the toys
 (function(){const pm=new THREE.PMREMGenerator(renderer);const es=new THREE.Scene();
@@ -1274,11 +1279,15 @@ const PROPS={
 const TEXK=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'],FLAT=['carpet','rug']; // floor mats: no tap box, rays pass through (taps on the floor still go home)
 function roomProps(s){winParts.forEach(o=>o.visible=!(GOT.has('window')&&s==='home'));newRug.visible=!(GOT.has('carpet')&&s==='home'||GOT.has('rug')&&s==='bed')}
 function loadProps(room){if(!THREE.GLTFLoader||ASKED.has(room))return;ASKED.add(room);const ld=new THREE.GLTFLoader();
-  for(const id in PROPS){const P=PROPS[id];if(P.room!==room)continue;ld.load(MODELS+P.f+'.glb',gl=>{try{
+  for(const id in PROPS)if(PROPS[id].room===room)loadProp(id,ld);
+  if(room==='play')ld.load(MODELS+'toy_ball.glb',gl=>{try{ // the ball keeps its sphere for physics and taps; its look is the GLB (a child, so it rolls with it)
+    const m=gl.scene;m.scale.setScalar(2*BR/.97);m.position.y=-BR;m.traverse(o=>{if(o.isMesh){o.raycast=()=>{};o.castShadow=false}});
+    ball.material=ball.material.clone();ball.material.visible=false;ball.add(m);GOT.add('ball')}catch(e){console.warn('ball',e)}},0,e=>console.warn('ball',e))}
+function loadProp(id,ld=new THREE.GLTFLoader()){const P=PROPS[id],room=P.room;ld.load(MODELS+P.f+'.glb',gl=>{try{
     const m=gl.scene,old=furnById(id),sc=RB0.h*P.k;m.scale.set(sc,sc*(P.sy||1),sc);m.updateMatrixWorld(true);
     const bb=new THREE.Box3().setFromObject(m),g=new THREE.Group();g.add(m);
     let x=P.x??old?.userData.x0??0,z=P.z??old?.position.z??0;
-    if(P.back)z=BACK-bb.min.z+.03;if(P.side)x=-RW/2-bb.min.z+.03; // flush with the back / left wall
+    if(P.back)z=(WALLS[room]?.back??BACK)-bb.min.z+.03;if(P.side)x=(WALLS[room]?.left??-RW/2)-bb.min.z+.03; // flush with the back / left wall
     if(old)furnGroup.remove(old);addF(id,g,x,z,P.ry||0,room);
     m.traverse(o=>{if(o.isMesh){o.castShadow=!!P.cast;o.receiveShadow=true;if(FLAT.includes(id))o.raycast=()=>{}}});
     if(FLAT.includes(id)||id==='bed')g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's would cover the lamp and nightstand, rugs would swallow floor taps
@@ -1288,9 +1297,15 @@ function loadProps(room){if(!THREE.GLTFLoader||ASKED.has(room))return;ASKED.add(
     if(id==='tv'){const mt=tvMat=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0);mt.emissiveMap=mt.map;mt.emissiveIntensity=.4;mt.userData.on=0xffffff}
     if(id==='toybox'){const sh=furnById('shelf');if(sh)furnGroup.remove(sh)} // the primitive toy shelf makes way for the toy box
     GOT.add(id);roomProps(curRoom);resize()}catch(e){console.warn('prop',id,e)}},0,e=>console.warn('prop',id,e))}
-  if(room==='play')ld.load(MODELS+'toy_ball.glb',gl=>{try{ // the ball keeps its sphere for physics and taps; its look is the GLB (a child, so it rolls with it)
-    const m=gl.scene;m.scale.setScalar(2*BR/.97);m.position.y=-BR;m.traverse(o=>{if(o.isMesh){o.raycast=()=>{};o.castShadow=false}});
-    ball.material=ball.material.clone();ball.material.visible=false;ball.add(m);GOT.add('ball')}catch(e){console.warn('ball',e)}},0,e=>console.warn('ball',e))}
+// data/layout.json (written by Design mode, ?design=1) replaces PROPS, WALLS/WALL and the rail buttons; the values in this file are the fallback if it can't load
+const LAYOUT=fetch('data/layout.json',{cache:'no-cache'}).then(r=>r.json()).then(applyLayout).catch(e=>console.warn('layout: built-in values',e));
+function applyLayout(L){for(const s in L.rooms){const R=L.rooms[s];WALLS[s]=R.walls||{};if(WALLS[s].color)WALL[s]=parseInt(WALLS[s].color.slice(1),16);
+    for(const id in PROPS)if(PROPS[id].room===s)delete PROPS[id];
+    for(const p of R.props||[])PROPS[p.id]={f:p.file,k:p.k,x:p.x,y:p.y,z:p.z,ry:p.ry,room:s,back:p.wall==='back',side:p.wall==='left',sy:p.flatten,nosq:p.noSqueeze,off:p.hidden,cast:p.castShadow,pt:p.portrait}}
+  const U=L.ui||{},S=U.size||1;for(const k in U.screens||{})SCREENS[k]=[U.screens[k].left,U.screens[k].right];
+  for(const id in U.buttons||{}){const b=document.getElementById(id);if(b&&U.buttons[id].color)b.style.background=U.buttons[id].color}
+  const css=(S!==1?`.col .rb,#nav .rb{width:calc(var(--b)*${S});height:calc(var(--b)*${S});font-size:calc(var(--b)*${S/2})}`:'')+(U.shape==='square'?'.col .rb,#nav .rb{border-radius:24%}':'');
+  (document.getElementById('uiCss')||document.head.appendChild(Object.assign(document.createElement('style'),{id:'uiCss'}))).textContent=css;showScreen(scr)}
 // portrait overrides (pt: k size factor, x, z, y, ry) so the phone view isn't swamped by big pieces; landscape keeps the PROPS values
 function placeProps(sq){for(const g of furnGroup.children){const u=g.userData,pt=portrait&&u.pt||{};g.position.x=pt.x??u.x0*(u.nosq?1:sq);
   if(u.z0!==undefined){g.position.z=pt.z??u.z0;g.position.y=pt.y??u.y0;g.rotation.y=pt.ry??u.ry0;u.m.scale.copy(u.base).multiplyScalar(pt.k||1)}}}
@@ -1528,7 +1543,7 @@ onBtn('bSleep',()=>{setMode('sleep');say(HAS.has('x_khabam_miad')&&Math.random()
 document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false);await Promise.race([MANIFEST.then(()=>loadVoices(['name','hi'])),wait(2500)]);loadCore();propsOn=true;loadProps(curRoom);document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;say(HAS.has('name')?'name':'hi');SFX.beep();kick('squash',8);speak();wave('wave_hello');ggAnims()};
 // the start button waits until Googoo (model + face kit) has loaded, at most 25 s; without them the old robot plays (and Googoo swaps in if he arrives later)
 {const b=document.getElementById('go'),txt=b.textContent;b.disabled=true;b.textContent='…';
-  Promise.race([Promise.all([ggLoad,ggFace]),wait(25000)]).then(()=>{b.disabled=false;b.textContent=txt;window.__ggReady=1})}
+  Promise.race([Promise.all([ggLoad,ggFace,LAYOUT]),wait(25000)]).then(()=>{b.disabled=false;b.textContent=txt;window.__ggReady=1})}
 
 // ---------- Bedtime invite (after 3 finished games or ~6 min away from the bedroom) + hidden surprises ----------
 let doneN=0,awayT=0,bedInvite=false,surp=null,surpAt=Infinity;
@@ -1556,7 +1571,7 @@ const WALL={home:0xffffff,play:0xfff27a,bed:0x6f9cff};
 function showScreen(s){const old=scr;scr=s;
   if(s!==old){disco(false,1);if(!lightsOn&&(old==='home'||old==='play'||ROOM_HI[s]&&s!=='bed'))setLights(true)} // leaving a room: normal lights (bedroom lamp stays as it was)
   if(ROOM_HI[s]){curRoom=s;if(propsOn)loadProps(s);furnGroup.children.forEach(g=>g.visible=g.userData.room===s&&!g.userData.off);roomProps(s);furnGroup.children.forEach(g=>{if(!g.visible)g.traverse(o=>{if(o.isMesh&&o.material)for(const k of TEXK)o.material[k]?.dispose()})}); // other rooms' props give their GPU textures back (re-uploaded when shown again): keeps a visit to every room under the memory budget
-  wallMat.color.setHex(WALL[s])}
+  wallMat.color.setHex(WALL[s]);applyWalls(s)}
   const night=s==='bed'&&!lightsOn;document.body.classList.toggle('night',night);surpEl.hidden=!(surp&&surp.room===s);
   document.querySelectorAll('.col .rb').forEach(b=>document.getElementById('btns').appendChild(b));
   ['colL','colR'].forEach((c,i)=>{c=document.getElementById(c);SCREENS[night?'night':s][i].forEach(id=>c.appendChild(document.getElementById(id)))});
@@ -1715,4 +1730,5 @@ function loop(){
 loop();
 // installable app: offline cache (sw.js); skipped where service workers aren't allowed (file://, artifact viewer)
 if('serviceWorker' in navigator&&/^http/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
+if(/[?&]design=1(&|$)/.test(location.search))document.body.appendChild(Object.assign(document.createElement('script'),{src:'editor.js'})); // Design mode (room editor, tools/design_server.py)
 </script>

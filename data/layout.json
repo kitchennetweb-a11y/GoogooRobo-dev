@@ -1,0 +1,418 @@
+{
+ "version": 1,
+ "rooms": {
+  "home": {
+   "walls": {
+    "left": -8,
+    "right": 8,
+    "back": -5.2,
+    "color": "#ffffff",
+    "floor": "#ffffff"
+   },
+   "props": [
+    {
+     "id": "window",
+     "file": "living_window_curtains",
+     "k": 1.2,
+     "x": -3.3,
+     "y": 0.9,
+     "wall": "back",
+     "castShadow": false,
+     "hidden": false,
+     "portrait": {
+      "k": 0.36,
+      "x": -1.6,
+      "y": 2.4
+     }
+    },
+    {
+     "id": "tv",
+     "file": "living_tv_cabinet",
+     "k": 0.62,
+     "x": 0.8,
+     "wall": "back",
+     "castShadow": true,
+     "hidden": false
+    },
+    {
+     "id": "bookshelf",
+     "file": "living_bookshelf",
+     "k": 0.8,
+     "x": 4.5,
+     "wall": "back",
+     "castShadow": true,
+     "hidden": false
+    },
+    {
+     "id": "picture",
+     "file": "living_picture_frame",
+     "k": 0.5,
+     "x": 0.8,
+     "y": 3.2,
+     "wall": "back",
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "door",
+     "file": "living_door",
+     "k": 1.2,
+     "z": -3.7,
+     "ry": 1.5707963267948966,
+     "wall": "left",
+     "noSqueeze": true,
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "floorlamp",
+     "file": "living_floor_lamp",
+     "k": 1,
+     "x": -6.9,
+     "z": -1.5,
+     "ry": 0.5,
+     "noSqueeze": true,
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "chair",
+     "file": "living_armchair",
+     "k": 0.7,
+     "x": -6.3,
+     "z": 0.4,
+     "ry": 1.2,
+     "noSqueeze": true,
+     "castShadow": false,
+     "hidden": false,
+     "portrait": {
+      "k": 0.85,
+      "x": -2.4,
+      "z": -3,
+      "ry": 0.5
+     }
+    },
+    {
+     "id": "carpet",
+     "file": "living_carpet_persian",
+     "k": 1.4,
+     "x": 0,
+     "z": -0.8,
+     "ry": 1.5707963267948966,
+     "flatten": 0.12,
+     "castShadow": false,
+     "hidden": false,
+     "portrait": {
+      "k": 0.42,
+      "z": 0.4
+     }
+    },
+    {
+     "id": "korsi",
+     "file": "living_korsi",
+     "k": 0.9,
+     "x": 3,
+     "z": -2.8,
+     "castShadow": true,
+     "hidden": true
+    }
+   ]
+  },
+  "play": {
+   "walls": {
+    "left": -8,
+    "right": 8,
+    "back": -5.2,
+    "color": "#fff27a",
+    "floor": "#ffffff"
+   },
+   "props": [
+    {
+     "id": "toybox",
+     "file": "toy_box",
+     "k": 0.6,
+     "x": -2.6,
+     "wall": "back",
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "piano",
+     "file": "toy_piano",
+     "k": 0.45,
+     "x": 0.2,
+     "wall": "back",
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "blocks",
+     "file": "toy_blocks",
+     "k": 0.4,
+     "x": 2.7,
+     "wall": "back",
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "drum",
+     "file": "toy_drum",
+     "k": 0.35,
+     "x": -5,
+     "z": -3.4,
+     "ry": 0.3,
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "doll",
+     "file": "toy_doll",
+     "k": 0.5,
+     "x": 5,
+     "z": -3.4,
+     "ry": -0.3,
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "kite",
+     "file": "toy_kite",
+     "k": 0.9,
+     "x": 3.6,
+     "y": 3,
+     "wall": "back",
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "teddy",
+     "file": "toy_teddy_bear",
+     "k": 0.49,
+     "x": -2.1,
+     "z": 1.6,
+     "ry": 0.3,
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "cow",
+     "file": "farm_cow",
+     "k": 0.27,
+     "x": 2.1,
+     "z": 1.6,
+     "ry": -0.4,
+     "castShadow": false,
+     "hidden": false
+    }
+   ]
+  },
+  "bed": {
+   "walls": {
+    "left": -8,
+    "right": 8,
+    "back": -5.2,
+    "color": "#6f9cff",
+    "floor": "#ffffff"
+   },
+   "props": [
+    {
+     "id": "bed",
+     "file": "bedroom_bed",
+     "k": 0.75,
+     "x": -0.7,
+     "z": -4.9,
+     "ry": -0.15,
+     "castShadow": true,
+     "hidden": false
+    },
+    {
+     "id": "lamp",
+     "file": "bedroom_lamp",
+     "k": 0.7,
+     "x": 2.4,
+     "y": 0.62,
+     "z": -4.6,
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "nightstand",
+     "file": "bedroom_nightstand",
+     "k": 0.225,
+     "x": 2.4,
+     "z": -4.6,
+     "castShadow": false,
+     "hidden": false
+    },
+    {
+     "id": "wardrobe",
+     "file": "bedroom_wardrobe",
+     "k": 0.893,
+     "x": 6,
+     "wall": "back",
+     "castShadow": true,
+     "hidden": false,
+     "portrait": {
+      "x": 3
+     }
+    },
+    {
+     "id": "rug",
+     "file": "bedroom_rug",
+     "k": 1.2,
+     "x": 0,
+     "z": 0.2,
+     "flatten": 0.12,
+     "castShadow": false,
+     "hidden": false
+    }
+   ]
+  }
+ },
+ "ui": {
+  "size": 1,
+  "shape": "round",
+  "buttons": {
+   "bFeed": {
+    "color": "#4fd1b0"
+   },
+   "bDance": {
+    "color": "#a66cff"
+   },
+   "bSing": {
+    "color": "#ffb703"
+   },
+   "bLamp": {
+    "color": "#ffd34d"
+   },
+   "bFind": {
+    "color": "#2bb673"
+   },
+   "bColour": {
+    "color": "#ff6b8b"
+   },
+   "bCount": {
+    "color": "#ffc93c"
+   },
+   "bAnimals": {
+    "color": "#8bc34a"
+   },
+   "bMoves": {
+    "color": "#00a6a6"
+   },
+   "bJump": {
+    "color": "#ff9f1c"
+   },
+   "bPeek": {
+    "color": "#e05aa0"
+   },
+   "bBubbles": {
+    "color": "#3bb4e5"
+   },
+   "bBall": {
+    "color": "#ff7a59"
+   },
+   "bSleep": {
+    "color": "#5b7bd5"
+   },
+   "bNext": {
+    "color": "#2bb673"
+   },
+   "bRepeat": {
+    "color": "#f15bb5"
+   },
+   "bBookHome": {
+    "color": "#3bb4e5"
+   },
+   "bStories": {
+    "color": "#a66cff"
+   },
+   "bDisco": {
+    "color": "#ff4fd8"
+   },
+   "bDark": {
+    "color": "#3d4a7a"
+   },
+   "bStars": {
+    "color": "#2b3a78"
+   },
+   "bNStory": {
+    "color": "#6a4fb3"
+   }
+  },
+  "screens": {
+   "home": {
+    "left": [
+     "bFeed",
+     "bDance",
+     "bSing",
+     "bLamp"
+    ],
+    "right": [
+     "bFind",
+     "bColour",
+     "bCount",
+     "bAnimals"
+    ]
+   },
+   "play": {
+    "left": [
+     "bBall",
+     "bBubbles",
+     "bDisco",
+     "bPeek"
+    ],
+    "right": [
+     "bFind",
+     "bColour",
+     "bCount",
+     "bAnimals"
+    ]
+   },
+   "bed": {
+    "left": [
+     "bSleep",
+     "bLamp",
+     "bPeek",
+     "bNStory"
+    ],
+    "right": [
+     "bFind",
+     "bColour",
+     "bCount",
+     "bAnimals"
+    ]
+   },
+   "night": {
+    "left": [
+     "bSleep",
+     "bLamp",
+     "bStars",
+     "bNStory"
+    ],
+    "right": [
+     "bFind",
+     "bColour",
+     "bCount",
+     "bAnimals"
+    ]
+   },
+   "say": {
+    "left": [
+     "bRepeat"
+    ],
+    "right": [
+     "bNext"
+    ]
+   },
+   "book": {
+    "left": [
+     "bBookHome"
+    ],
+    "right": [
+     "bStories"
+    ]
+   }
+  }
+ }
+}
