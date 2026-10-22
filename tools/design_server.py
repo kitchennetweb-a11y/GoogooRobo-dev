@@ -75,10 +75,36 @@ def validate(L):
         for k in ('color', 'floor'):
             if not COLOR.match(str(W.get(k, ''))):
                 raise ValueError(f'{r} {k} colour {W.get(k)!r}')
+        for k, v in (W.get('floorRect') or {}).items():
+            if k not in ('left', 'right', 'back', 'front'):
+                raise ValueError(f'{r} floor {k}')
+            num(v, -40, 40, f'{r} floor {k}')
+        G = R.get('googoo') or {}
+        for part in (G, G.get('portrait') or {}):
+            for k, v in part.items():
+                if k == 'portrait':
+                    continue
+                if k not in ('x', 'z', 'ry', 's'):
+                    raise ValueError(f'{r} googoo {k}')
+                num(v, 0.2 if k == 's' else -40, 4 if k == 's' else 40, f'{r} googoo {k}')
+        for grp, V in (R.get('camera') or {}).items():
+            if grp not in ('phone', 'wide'):
+                raise ValueError(f'{r} camera {grp}')
+            for k in ('zoom', 'height', 'yaw', 'pitch'):
+                num(V.get(k), -180, 180, f'{r} camera {k}')
         for p in R.get('props', []):
             if not NAME.match(str(p.get('id', ''))) or p['id'] in ids:
                 raise ValueError(f'prop id {p.get("id")!r} is bad or used twice')
             ids.add(p['id'])
+            if p.get('on') is not None and not NAME.match(str(p['on'])):  # "sits on" another piece (id) or null
+                raise ValueError(f'{p["id"]} sits on {p["on"]!r}')
+            if p.get('builtin'):  # pieces made in code (book, star mobile): place only
+                if p['id'] not in ('book', 'star'):
+                    raise ValueError(f'{p["id"]} is not a built-in piece')
+                for k in ('x', 'y', 'z', 'ry'):
+                    if k in p:
+                        num(p[k], -40, 40, f'{p["id"]} {k}')
+                continue
             f = str(p.get('file', ''))
             if not NAME.match(f) or not (os.path.exists(os.path.join(ROOT, 'models', f + '.glb')) or os.path.exists(os.path.join(OPT, f + '.glb'))):
                 raise ValueError(f'prop {p["id"]}: no model file {f!r}')
@@ -96,6 +122,20 @@ def validate(L):
     num(U.get('size'), 0.5, 2, 'button size')
     if U.get('shape') not in ('round', 'square'):
         raise ValueError('button shape')
+    T, N = U.get('top') or {}, U.get('nav') or {}
+    for part, ids_ok in ((T, ('score', 'bTalk', 'parentBtn')), (N, ('home', 'play', 'bed', 'say', 'book'))):
+        if 'size' in part:
+            num(part['size'], 0.5, 2, 'top/tab size')
+        if part.get('shape', 'round') not in ('round', 'square'):
+            raise ValueError('top/tab shape')
+        for k in ('order', 'hide'):
+            if not all(x in ids_ok for x in part.get(k, [])):
+                raise ValueError(f'top/tab {k}')
+        for x, c in (part.get('colors') or {}).items():
+            if x not in ids_ok or not COLOR.match(str(c)):
+                raise ValueError(f'colour of {x}')
+    if 'parentBtn' in T.get('hide', []) or any(r in N.get('hide', []) for r in ROOMS):
+        raise ValueError('the gear and the room tabs must stay')
     for b, v in U.get('buttons', {}).items():
         if not re.match(r'^b[A-Za-z]+$', b) or not COLOR.match(str(v.get('color', ''))):
             raise ValueError(f'button {b} colour')
@@ -110,8 +150,8 @@ def save(L):
     os.makedirs(os.path.dirname(LAYOUT), exist_ok=True)
     if os.path.exists(LAYOUT):
         stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')[:-3]
-        shutil.copy2(LAYOUT, os.path.join(ROOT, 'data', f'layout.backup-{stamp}.json'))
-        for old in sorted(glob.glob(os.path.join(ROOT, 'data', 'layout.backup-*.json')))[:-20]:
+        shutil.copy2(LAYOUT, os.path.join(os.path.dirname(LAYOUT), f'layout.backup-{stamp}.json'))
+        for old in sorted(glob.glob(os.path.join(os.path.dirname(LAYOUT), 'layout.backup-*.json')))[:-20]:
             os.remove(old)
     tmp = LAYOUT + '.tmp'
     with open(tmp, 'w', encoding='utf-8', newline='\n') as f:
@@ -136,7 +176,7 @@ def publish(dry):
             return False, ('src_pash-robot.html has code changes that are not committed yet (another session is working on it). '
                            'Publishing now would put them on the test site, so nothing was done. Ask Claude to commit them first.')
     L = json.load(open(LAYOUT, encoding='utf-8'))
-    used = sorted({p['file'] for R in L['rooms'].values() for p in R.get('props', [])})
+    used = sorted({p['file'] for R in L['rooms'].values() for p in R.get('props', []) if p.get('file')})
     new = [f for f in used if not os.path.exists(os.path.join(ROOT, 'models', f + '.glb'))]
     paths = ['data/layout.json', 'index.html', 'sw.js'] + [f'models/{f}.glb' for f in new]
     steps = [[sys.executable, 'tools/build.py']] + [['copy', os.path.join(OPT, f + '.glb'), f'models/{f}.glb'] for f in new] + [
@@ -178,6 +218,10 @@ class H(http.server.SimpleHTTPRequestHandler):
         path = self.path.split('?')[0]
         if path == '/props':
             return self.reply(200, props_list())
+        if path == '/data/layout.json' and os.path.abspath(LAYOUT) != os.path.join(ROOT, 'data', 'layout.json'):  # --layout (tests)
+            b = open(LAYOUT, 'rb').read()
+            self.send_response(200); self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(b)))
+            self.end_headers(); self.wfile.write(b); return
         m = re.match(r'^/models/([a-z0-9_]+)\.glb$', path)
         if m and not os.path.exists(os.path.join(ROOT, 'models', m[1] + '.glb')) and os.path.exists(os.path.join(OPT, m[1] + '.glb')):
             b = open(os.path.join(OPT, m[1] + '.glb'), 'rb').read()
@@ -224,10 +268,19 @@ def selftest():
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(); ap.add_argument('--port', type=int, default=8770); ap.add_argument('--no-browser', action='store_true')
-    ap.add_argument('--selftest', action='store_true'); a = ap.parse_args()
+    ap.add_argument('--selftest', action='store_true'); ap.add_argument('--layout', help='edit this layout file instead of data/layout.json (tests)'); a = ap.parse_args()
+    if a.layout:
+        LAYOUT = os.path.abspath(a.layout)
     if a.selftest:
         sys.exit(selftest())
-    srv = http.server.ThreadingHTTPServer(('127.0.0.1', a.port), functools.partial(H, directory=ROOT))
+    http.server.ThreadingHTTPServer.allow_reuse_address = False  # on Windows reuse would let a second copy share the port
+    try:
+        srv = http.server.ThreadingHTTPServer(('127.0.0.1', a.port), functools.partial(H, directory=ROOT))
+    except OSError:
+        print(f'Design mode is already running (port {a.port} is in use): use the browser tab that is open, or close the other black window first.')
+        if not a.no_browser:
+            webbrowser.open(f'http://localhost:{a.port}/?design=1')
+        sys.exit(1)
     url = f'http://localhost:{a.port}/?design=1'
     print(f'Design mode: {url}  (keep this window open; close it to stop)')
     if not a.no_browser:

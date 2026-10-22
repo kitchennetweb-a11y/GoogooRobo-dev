@@ -1,24 +1,31 @@
 // Googoo Robo Design mode: a room editor on top of the real game. Loaded by the game page only with ?design=1
 // (start it with tools/design_mode.bat, which runs tools/design_server.py for Save and Publish).
 // This page becomes the editor; the real game runs in an iframe sized like a phone or tablet, and the editor
-// drives it through the game's own globals (PROPS, furnGroup, applyLayout, loadProp, ...). Everything is saved to data/layout.json.
+// drives it through the game's own globals (PROPS, furnGroup, applyLayout, loadProp, HOME, CAMS, ...). Everything is saved to data/layout.json.
 (() => {
 'use strict';
 // the copy of the game in this page stops (the one in the iframe is the one we edit)
 try { window.loop = function () {}; cancelAnimationFrame(raf); renderer.forceContextLoss(); renderer.domElement.remove(); } catch (e) {}
 
 const ROOMS = ['home', 'play', 'bed'], ROOM_NAME = { home: 'Living room', play: 'Play room', bed: 'Bedroom' };
-const SCREEN_NAME = { home: 'Living room', play: 'Play room', bed: 'Bedroom', night: 'Bedroom, lamp off', say: 'Say it', book: 'Picture book' };
+const SCREEN_NAME = { home: 'Living room', play: 'Play room', bed: 'Bedroom', night: 'Bedroom, lamp off', say: 'Say it', book: 'Picture book', top: 'Top bar (stars, mic, gear)', nav: 'Room tabs (bottom)' };
 const DEVICES = { up: ['iPhone upright', 390, 844], side: ['iPhone sideways', 844, 390], small: ['Small phone', 360, 640], ipad: ['iPad', 820, 1180] };
-// these replace a built-in piece of the room: removing them would bring the old piece back, so they are hidden instead
-const BUILTIN = ['window', 'tv', 'picture', 'chair', 'carpet', 'toybox', 'teddy', 'blocks', 'drum', 'kite', 'bed', 'lamp', 'nightstand', 'rug'];
-const PRIM = ['bed', 'lamp', 'book', 'chair', 'tv', 'picture', 'shelf', 'teddy', 'blocks', 'drum', 'kite', 'nightstand', 'star', 'ball'];
+// these stand in for a built-in piece of the room: removing them would bring the old piece back, so they are hidden instead
+const BUILTIN = ['window', 'tv', 'picture', 'chair', 'carpet', 'toybox', 'teddy', 'blocks', 'drum', 'kite', 'bed', 'lamp', 'nightstand', 'rug', 'book', 'star'];
+const PRIMS = { book: ['home', 'Book', '📕'], star: ['bed', 'Star mobile', '⭐'] }; // built-in pieces made in code: movable, no size
+const PRIM = ['bed', 'lamp', 'book', 'chair', 'tv', 'picture', 'shelf', 'teddy', 'blocks', 'drum', 'kite', 'nightstand', 'star', 'ball', 'googoo'];
+const NAMES = { living_armchair: 'Armchair', living_window_curtains: 'Window', living_carpet_persian: 'Persian carpet', living_tv_cabinet: 'TV', living_coffee_table: 'Coffee table',
+  living_floor_lamp: 'Floor lamp', living_picture_frame: 'Picture', living_bookshelf: 'Bookshelf', living_door: 'Door', living_korsi: 'Korsi', living_sofa: 'Sofa',
+  toy_teddy_bear: 'Teddy bear', toy_box: 'Toy box', toy_blocks: 'Blocks', toy_ball: 'Ball', toy_doll: 'Doll', toy_drum: 'Drum', toy_kite: 'Kite', toy_piano: 'Piano', farm_cow: 'Cow',
+  bedroom_bed: 'Bed', bedroom_lamp: 'Bedside lamp', bedroom_nightstand: 'Nightstand', bedroom_rug: 'Rug', bedroom_wardrobe: 'Wardrobe', bedroom_pillow: 'Pillow', bedroom_blanket: 'Blanket' };
+const TOPS = { score: ['⭐', 'Stars'], bTalk: ['🎤', 'Microphone'], parentBtn: ['⚙︎', 'Parent corner (always shown)'] };
+const TABS = { home: ['🏠', 'Living room'], play: ['🧸', 'Play room'], bed: ['🛏️', 'Bedroom'], say: ['🗣️', 'Say it'], book: ['📖', 'Picture book'] };
 const LIMIT = { calls: [80, 100], tris: [150e3, 200e3], mb: [64, 96] }; // docs/gpu-budget.md: target, hard limit
 const CDN = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/';
-const DEG = Math.PI / 180;
+const DEG = Math.PI / 180, FRONT = 7.8; // the room's open front edge (game: BACK + RD)
 
 let L = null, saved = '', undo = [], redo = [], lastKey = '', lastT = 0;
-let W = null, X = null, RBH = 1, mode = 'props', sel = null, selWall = null, selBtn = null, ptMode = false, clip = null;
+let W = null, X = null, RBH = 1, mode = 'props', sel = null, selWall = null, selBtn = null, bscr = null, ptMode = false, clip = null;
 let free = false, orbit = null, freeCam = null, device = 'up', chip = 'all', query = '', propsList = [], serverOk = false;
 const inflight = new Set();
 
@@ -52,15 +59,16 @@ body{background:#e9edf2!important;overflow:hidden;user-select:none;-webkit-user-
 .dot.g{background:#16a34a}.dot.a{background:#f59e0b}.dot.r{background:#dc2626}
 #search{width:100%;box-sizing:border-box;border:1px solid #cdd4de;border-radius:8px;padding:6px 10px;margin-bottom:8px}
 .chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}.chips .eb{padding:3px 9px;font-size:13px;border-radius:14px}
-.prow{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px}
+.prow{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:8px}
 .prow .ic{font-size:20px;width:26px;text-align:center;flex:none}.prow .nm{flex:1;min-width:0}.prow .nm small{display:block;color:#7a8394;font-size:11.5px}
-.prow .ib{border:0;background:none;cursor:pointer;font-size:16px;padding:3px 5px;border-radius:6px}.prow .ib:hover{background:#e8edf4}
-.inst{margin-left:34px;cursor:pointer}.inst:hover{background:#f2f5f9}.inst.sel{background:#dbe7ff}.inst.off .nm{opacity:.5;text-decoration:line-through}
+.prow .ib{border:0;background:none;cursor:pointer;font-size:15px;padding:3px 4px;border-radius:6px}.prow .ib:hover{background:#e8edf4}
+.prow.placed{cursor:pointer}.prow.placed:hover{background:#f2f5f9}.prow.sel{background:#dbe7ff}.prow.off .nm{opacity:.5}
+.prow.new .nm{color:#5b6576}.sub{font:700 11.5px system-ui;color:#7a8394;text-transform:uppercase;letter-spacing:.04em;margin:12px 6px 4px}
 .field{display:grid;grid-template-columns:96px 1fr 64px;align-items:center;gap:8px;margin:8px 0}
 .field label{color:#3b4455}.field input[type=number]{width:64px;box-sizing:border-box;border:1px solid #cdd4de;border-radius:6px;padding:3px 5px}
 .field input[type=range]{width:100%}.row{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
 .check{display:flex;gap:8px;align-items:flex-start;margin:10px 0}.check input{margin-top:3px}
-.tabs{display:flex;margin-bottom:12px}.tabs .eb{flex:1}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:12px}.tabs .eb{border-radius:8px;margin:0}
 .blist{margin:6px 0}.brow{display:flex;align-items:center;gap:8px;padding:3px 4px;border-radius:8px}.brow.sel{background:#dbe7ff}
 .brow .em{font-size:18px;width:24px;text-align:center}.brow .nm{flex:1}
 .brow input[type=color],.field input[type=color]{width:38px;height:26px;border:1px solid #cdd4de;border-radius:6px;padding:0;background:#fff}
@@ -84,7 +92,7 @@ ed.innerHTML = `
  <button class="eb pub" id="publish" title="Put the saved layout on the test site">🚀 Publish to test site</button>
 </header>
 <aside class="l">
- <div class="tabs grp"><button class="eb on" data-mode="props">🪑 Props</button><button class="eb" data-mode="walls">🧱 Walls</button><button class="eb" data-mode="buttons">🔘 Buttons</button></div>
+ <div class="tabs"><button class="eb on" data-mode="props">🪑 Props</button><button class="eb" data-mode="walls">🧱 Walls & floor</button><button class="eb" data-mode="buttons">🔘 Buttons</button><button class="eb" data-mode="camera">📷 Camera</button></div>
  <div id="left"></div>
 </aside>
 <main id="main"><div id="fbox"><iframe id="frame" title="Game preview"></iframe></div></main>
@@ -101,16 +109,24 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const room = () => X ? W.eval('curRoom') : 'home';
 const screenKey = () => { const s = W.eval('scr'); return s === 'bed' && !W.eval('lightsOn') ? 'night' : s; };
 const isPortrait = () => W && W.innerWidth < W.innerHeight;
+const camKey = () => W.eval('camKey()');
 const sq = () => Math.min(1, (isPortrait() ? .3 : .35) + W.innerWidth / W.innerHeight * .75); // the game's portrait squeeze (resize())
-const pretty = f => f.replace(/^(living|bedroom|toy|farm)_/, '').replace(/_/g, ' ');
-const cat = f => /^(toy|farm)_/.test(f) ? 'toys' : /(bed|nightstand|wardrobe|sofa|armchair|bookshelf|tv_cabinet|korsi|coffee_table|door|box)$/.test(f) ? 'furniture' : 'decor';
+const nice = f => NAMES[f] || f.replace(/^(living|bedroom|toy|farm)_/, '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+const nameOf = p => p.builtin ? PRIMS[p.id][1] : nice(p.file);
+const cat = f => !f ? 'decor' : /^(toy|farm)_/.test(f) ? 'toys' : /(bed|nightstand|wardrobe|sofa|armchair|bookshelf|tv_cabinet|korsi|coffee_table|door|box)$/.test(f) ? 'furniture' : 'decor';
 const ICON = { toys: '🧸', furniture: '🛋️', decor: '🖼️' };
 const propOf = id => { for (const r of ROOMS) { const p = L.rooms[r].props.find(p => p.id === id); if (p) return p; } return null; };
-const grp = id => X && X.furnGroup.children.find(g => g.userData.furn === id && g.userData.m);
+const grp = id => X && X.furnGroup.children.find(g => g.userData.furn === id && (g.userData.m || PRIMS[id]));
 const usePt = () => ptMode && isPortrait();
-const r2 = v => Math.round(v * 1000) / 1000;
+const r2 = v => Math.round(v * 1000) / 1000, r100 = v => Math.round(v * 100) / 100;
+const hex = c => { const m = String(c).match(/\d+(\.\d+)?/g); return m ? '#' + m.slice(0, 3).map(v => (+v | 0).toString(16).padStart(2, '0')).join('') : '#ffffff'; };
 function status(t, cls) { const s = $('status'); s.textContent = t; s.className = cls || ''; }
 function dirtyStatus() { const d = JSON.stringify(L) !== saved; if (d) status('● Unsaved changes', 'dirty'); return d; }
+const walls = (r = room()) => L.rooms[r].walls;
+const onOf = p => p.on !== undefined ? p.on : X.SITS[p.id]; // "sits on" another piece (the lamp on the nightstand by default)
+// size as the real rendered height in % of Googoo's height (each GLB has its own inner scale, so k alone says little); rugs: their length
+function pctUnit(p) { const u = grp(p.id)?.userData; if (!u || !u.bb1) return null; const s = u.bb1.getSize(new X.THREE.Vector3()); return (p.flatten ? Math.max(s.x, s.z) : s.y) * RBH / W.eval('RB.h') * 100; }
+const floorOf = (r = room()) => { const w = walls(r); return w.floorRect || { left: w.left, right: w.right, back: w.back, front: FRONT }; };
 
 // ---------- history ----------
 function change(fn, key, kind = 'props') {
@@ -125,10 +141,13 @@ function doRedo() { if (!redo.length) return; undo.push(JSON.stringify(L)); rest
 // ---------- apply the layout to the game in the iframe ----------
 function apply(kind) {
   if (!X) return;
+  const r = room();
   if (kind === 'all' || kind === 'ui') W.applyLayout(L);
-  else if (kind === 'walls') { W.applyWalls(room()); }
+  else if (kind === 'walls') { X.WALLS[r] = walls(r); W.applyWalls(r); }
+  else if (kind === 'goo' || kind === 'cam') { X.GOO[r] = L.rooms[r].googoo || {}; X.CAMS[r] = L.rooms[r].camera || {}; }
   syncProps();
-  if (kind !== 'props' || !sel) renderLeft();
+  if (kind === 'all' || kind === 'goo' || kind === 'cam') { W.resize(); if (kind !== 'cam') W.eval('robot.position.x=HOME.x;robot.position.z=HOME.z'); }
+  if (kind !== 'props' && kind !== 'goo' || !sel) renderLeft();
   if (kind === 'all') renderRight(); // panels rebuild only on big changes, so a slider being dragged keeps working
   dirtyStatus(); $('undo').disabled = !undo.length; $('redo').disabled = !redo.length;
 }
@@ -137,10 +156,12 @@ function syncProps() {
   const cur = room(), want = new Map();
   for (const r of ROOMS) for (const p of L.rooms[r].props) want.set(p.id, [p, r]);
   for (const g of [...X.furnGroup.children]) {
-    const u = g.userData; if (!u.m) continue;
-    const w = want.get(u.furn); if (!w) { X.furnGroup.remove(g); inflight.delete(u.furn); continue; }
+    const u = g.userData, w = want.get(u.furn);
+    if (PRIMS[u.furn] && w) { const [p] = w; u.x0 = p.x ?? u.x0; if (p.z != null) g.position.z = p.z; if (p.y != null) g.position.y = p.y; if (p.ry != null && !u.spin) g.rotation.y = p.ry; u.off = p.hidden ? 1 : 0; u.on = onOf(p); g.visible = PRIMS[u.furn][0] === cur && !p.hidden; continue; }
+    if (!u.m) continue;
+    if (!w) { X.furnGroup.remove(g); inflight.delete(u.furn); continue; }
     const [p, r] = w, sc = RBH * p.k;
-    u.base.set(sc, sc * (p.flatten || 1), sc); u.y0 = p.y || 0; u.ry0 = p.ry || 0; u.pt = p.portrait; u.nosq = p.noSqueeze ? 1 : 0; u.off = p.hidden ? 1 : 0; u.room = r;
+    u.base.set(sc, sc * (p.flatten || 1), sc); u.y0 = p.y || 0; u.ry0 = p.ry || 0; u.pt = p.portrait; u.nosq = p.noSqueeze ? 1 : 0; u.off = p.hidden ? 1 : 0; u.room = r; u.on = onOf(p);
     if (!u.bb1) { const s0 = u.m.scale.clone(), par = u.m.parent; par.remove(u.m); u.m.scale.set(1, 1, 1); u.m.updateMatrixWorld(true); u.bb1 = new X.THREE.Box3().setFromObject(u.m); u.m.scale.copy(s0); par.add(u.m); }
     const WL = L.rooms[r].walls;
     u.x0 = p.wall === 'left' ? WL.left - u.bb1.min.z * sc + .03 : p.x ?? u.x0;
@@ -148,7 +169,7 @@ function syncProps() {
     u.m.traverse(o => { if (o.isMesh) o.castShadow = !!p.castShadow; });
     g.visible = r === cur && !p.hidden;
   }
-  for (const p of L.rooms[cur].props) if (!grp(p.id) && !inflight.has(p.id) && X.PROPS[p.id]) { inflight.add(p.id); W.loadProp(p.id); }
+  for (const p of L.rooms[cur].props) if (!p.builtin && !grp(p.id) && !inflight.has(p.id) && X.PROPS[p.id]) { inflight.add(p.id); W.loadProp(p.id); }
   W.roomProps(cur); W.placeProps(sq());
   if (free) restoreFree();
 }
@@ -159,16 +180,18 @@ frame.addEventListener('load', async () => {
   W = frame.contentWindow;
   for (let i = 0; i < 300 && !(W.__ggReady && typeof W.applyLayout === 'function'); i++) await new Promise(r => setTimeout(r, 100));
   await W.eval('LAYOUT');
-  X = W.eval('({THREE,scene,camera,renderer,furnGroup,PROPS,WALLS,back,wallSides,RB0})');
+  X = W.eval('({THREE,scene,camera,renderer,furnGroup,PROPS,WALLS,GOO,CAMS,SITS,back,wallSides,wood,robot,RB0})');
   RBH = X.RB0.h;
   try { L = await (await fetch('data/layout.json', { cache: 'no-store' })).json(); } catch (e) { L = null; }
   if (!L || !L.rooms) { status('Could not read data/layout.json', 'dirty'); return; }
+  // the book and the star mobile are built in code: give them a layout entry (their place today) so they can be moved
+  for (const id in PRIMS) { const r = PRIMS[id][0], g = W.eval(`furnById('${id}')`); if (g && !L.rooms[r].props.some(p => p.id === id)) L.rooms[r].props.push({ id, builtin: true, x: r2(g.userData.x0), z: r2(g.position.z), y: r2(g.position.y), ...(g.userData.spin ? {} : { ry: r2(g.rotation.y) }), hidden: false }); }
   saved = JSON.stringify(L);
   // start the game without the start screen (no sound in Design mode); the room's props load
   W.eval("document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;propsOn=true;loadProps(curRoom)");
   for (const p of L.rooms[room()].props) inflight.add(p.id);
   setupFrame(); apply('all'); setDevice(device); renderTop();
-  status(serverOk ? 'Ready. Click a piece in the room to move it.' : 'Design server is not running (start tools/design_mode.bat): you can try things but Save and Publish will not work.', serverOk ? '' : 'dirty');
+  status(serverOk ? 'Ready. Click a piece (or Googoo) in the room to move it.' : 'Design server is not running (start tools/design_mode.bat): you can try things but Save and Publish will not work.', serverOk ? '' : 'dirty');
   setInterval(tick, 250); setInterval(budget, 1500);
 });
 fetch('props').then(r => r.json()).then(list => { propsList = list; serverOk = true; renderLeft(); }).catch(() => { serverOk = false; });
@@ -178,8 +201,8 @@ let ov, box;
 function setupFrame() {
   const d = W.document, st = d.createElement('style');
   st.textContent = `#edOv{position:fixed;inset:0;z-index:50;cursor:default}#edOv.grab{cursor:grabbing}
-    body.edBtns .col{z-index:60}body.edBtns .col .rb{cursor:grab}.edSel{outline:3px dashed #2563eb!important;outline-offset:4px}
-    #parentBtn,#top,#surp{pointer-events:none}`;
+    body.edBtns .col,body.edBtns #nav,body.edBtns #top,body.edBtns #parentBtn{z-index:60}body.edBtns :is(.col .rb,#nav .rb,#top>*,#parentBtn){cursor:grab}
+    .edSel{outline:3px dashed #2563eb!important;outline-offset:4px}body:not(.edBtns) :is(#parentBtn,#top,#surp){pointer-events:none}`;
   d.head.appendChild(st);
   ov = d.createElement('div'); ov.id = 'edOv'; d.body.appendChild(ov);
   box = new X.THREE.BoxHelper(undefined, 0x2563eb); box.visible = false; box.material.depthTest = false; box.renderOrder = 999; X.scene.add(box);
@@ -187,9 +210,9 @@ function setupFrame() {
   ov.addEventListener('wheel', onWheel, { capture: true, passive: false });
   W.addEventListener('pointermove', onMove); W.addEventListener('pointerup', onUp);
   W.addEventListener('keydown', onKey);
-  // buttons mode: rail buttons drag; their game actions are blocked
+  // buttons mode: buttons drag; their game actions (and the gear's hold) are blocked
   d.addEventListener('pointerdown', onBtnDown, true);
-  d.addEventListener('click', e => { if (e.target.closest && e.target.closest('.col .rb')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+  d.addEventListener('click', e => { if (mode === 'buttons' && e.target.closest && e.target.closest('.col .rb,#nav .rb,#top>*,#parentBtn')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
   // the game's resize() re-aims the camera: in free camera mode keep ours
   const orig = W.resize;
   W.resize = function () { orig(); if (free) restoreFree(); };
@@ -197,50 +220,60 @@ function setupFrame() {
 }
 const ray = () => new X.THREE.Raycaster();
 function ndc(e) { return new X.THREE.Vector2(e.clientX / W.innerWidth * 2 - 1, -(e.clientY / W.innerHeight) * 2 + 1); }
-function pickProp(e) {
-  const rc = ray(); rc.setFromCamera(ndc(e), X.camera);
-  const cands = X.furnGroup.children.filter(g => g.visible && g.userData.m && propOf(g.userData.furn));
-  const h = rc.intersectObjects(cands.map(g => g.userData.m), true)[0]; // the model itself, not the game's padded tap box (sized before the portrait shrink)
-  if (h) { let o = h.object; while (o.parent !== X.furnGroup) o = o.parent; return o; }
-  let best = null, bd = 1e9; // flat rugs ignore rays in the game: fall back to their boxes
-  for (const g of cands.filter(g => propOf(g.userData.furn).flatten)) { const b = new X.THREE.Box3().setFromObject(g), p = rc.ray.intersectBox(b, new X.THREE.Vector3()); if (p) { const dd = p.distanceTo(rc.ray.origin); if (dd < bd) { bd = dd; best = g; } } }
+// a prop id, 'googoo', or null: the nearest of the props' own meshes, Googoo's box, rugs' boxes
+function pick(e) {
+  const T = X.THREE, rc = ray(); rc.setFromCamera(ndc(e), X.camera);
+  const cands = X.furnGroup.children.filter(g => g.visible && propOf(g.userData.furn) && (g.userData.m || PRIMS[g.userData.furn]));
+  let best = null, bd = 1e9;
+  const h = rc.intersectObjects(cands.map(g => g.userData.m || g), true)[0]; // the model itself, not the game's padded tap box (sized before the portrait shrink)
+  if (h) { let o = h.object; while (o.parent !== X.furnGroup) o = o.parent; best = o.userData.furn; bd = h.distance; }
+  const hit = (b, id) => { const p = rc.ray.intersectBox(b, new T.Vector3()); if (p) { const dd = p.distanceTo(rc.ray.origin); if (dd < bd) { bd = dd; best = id; } } };
+  hit(new T.Box3().setFromObject(X.robot), 'googoo');
+  if (!best) for (const g of cands.filter(g => propOf(g.userData.furn).flatten)) hit(new T.Box3().setFromObject(g), g.userData.furn);
   return best;
 }
 function planeHit(e, plane) { const rc = ray(); rc.setFromCamera(ndc(e), X.camera); return rc.ray.intersectPlane(plane, new X.THREE.Vector3()); }
+const objPos = id => id === 'googoo' ? X.robot.position : grp(id).position;
 
 let drag = null;
 function onDown(e) {
   if (mode === 'buttons') return;
   const T = X.THREE;
+  if (mode === 'camera') return; // the camera tab works with its sliders (free camera still orbits)
   if (mode === 'walls') {
     const rc = ray(); rc.setFromCamera(ndc(e), X.camera);
-    const ws = [X.back, ...X.wallSides], h = rc.intersectObjects(ws)[0];
+    const h = rc.intersectObjects([X.back, ...X.wallSides, X.wood])[0];
     if (!h) { if (!free) { selWall = null; renderRight(); showBox(); } return; }
-    selWall = h.object === X.back ? 'back' : h.object === X.wallSides[0] ? 'left' : 'right'; renderRight(); showBox();
-    drag = { wall: selWall, key: 'wall' + Date.now(), plane: new T.Plane(new T.Vector3(0, 1, 0), 0) };
+    selWall = h.object === X.back ? 'back' : h.object === X.wallSides[0] ? 'left' : h.object === X.wallSides[1] ? 'right' : 'floor'; renderRight(); showBox();
+    let edge = null;
+    if (selWall === 'floor') { const f = floorOf(), p = h.point; edge = Object.entries({ left: Math.abs(p.x - f.left), right: Math.abs(p.x - f.right), back: Math.abs(p.z - f.back), front: Math.abs(p.z - f.front) }).sort((a, b) => a[1] - b[1])[0][0]; }
+    drag = { wall: selWall, edge, key: 'wall' + Date.now(), plane: new T.Plane(new T.Vector3(0, 1, 0), 0) };
     e.stopImmediatePropagation(); ov.setPointerCapture(e.pointerId); ov.classList.add('grab'); return;
   }
-  const g = pickProp(e);
-  if (!g) { if (!free) select(null); return; }
-  select(g.userData.furn); e.stopImmediatePropagation();
-  const p = propOf(sel), y = g.position.y;
-  if (e.shiftKey) { // Shift+drag: height
+  const id = pick(e);
+  if (!id) { if (!free) select(null); return; }
+  if (id !== sel) select(id); e.stopImmediatePropagation();
+  const o = objPos(id), y = id === 'googoo' ? 0 : o.y;
+  if (e.shiftKey && id !== 'googoo') { // Shift+drag: height
     const n = new T.Vector3(); X.camera.getWorldDirection(n); n.y = 0; n.normalize();
-    const plane = new T.Plane().setFromNormalAndCoplanarPoint(n, g.position), h = planeHit(e, plane);
-    drag = { id: sel, key: 'h' + Date.now(), plane, height: true, dy: h ? h.y - y : 0 };
+    const plane = new T.Plane().setFromNormalAndCoplanarPoint(n, o), h = planeHit(e, plane);
+    drag = { id, key: 'h' + Date.now(), plane, height: true, dy: h ? h.y - y : 0 };
   } else {
-    const plane = new T.Plane(new T.Vector3(0, 1, 0), -y), h = planeHit(e, plane);
-    drag = { id: sel, key: 'm' + Date.now(), plane, ox: h ? h.x - g.position.x : 0, oz: h ? h.z - g.position.z : 0, z0: g.position.z, x0: g.position.x, wall: p.wall };
+    const plane = new T.Plane(new T.Vector3(0, 1, 0), -y), h = planeHit(e, plane), p = propOf(id);
+    drag = { id, key: 'm' + Date.now(), plane, ox: h ? h.x - o.x : 0, oz: h ? h.z - o.z : 0, z0: o.z, x0: o.x, wall: p && p.wall };
   }
   ov.setPointerCapture(e.pointerId); ov.classList.add('grab');
 }
 function onMove(e) {
   if (!drag) return onBtnMove(e);
   const h = planeHit(e, drag.plane); if (!h) return;
-  if (drag.wall && !drag.id) { // a wall
-    const r = room(), v = drag.wall === 'back' ? Math.min(-1.5, Math.max(-14, h.z)) : drag.wall === 'left' ? Math.min(-2, Math.max(-16, h.x)) : Math.max(2, Math.min(16, h.x));
-    return change(() => { L.rooms[r].walls[drag.wall] = r2(v); }, drag.key, 'walls');
+  if (drag.wall && !drag.id) { // a wall or the floor
+    const r = room();
+    if (drag.wall === 'floor') return change(() => { const f = walls(r).floorRect = { ...floorOf(r) }; f[drag.edge] = r2(drag.edge === 'left' || drag.edge === 'right' ? h.x : h.z); }, drag.key, 'walls');
+    const v = drag.wall === 'back' ? Math.min(-1.5, Math.max(-14, h.z)) : drag.wall === 'left' ? Math.min(-2, Math.max(-16, h.x)) : Math.max(2, Math.min(16, h.x));
+    return change(() => { const w = walls(r); w.floorRect = { ...floorOf(r) }; w[drag.wall] = r2(v); }, drag.key, 'walls'); // the floor stays where it is
   }
+  if (drag.id === 'googoo') return change(() => { gooSet('x', h.x - drag.ox); gooSet('z', h.z - drag.oz); }, drag.key, 'goo');
   const p = propOf(drag.id);
   if (drag.height) return change(() => setVal(p, 'y', Math.max(-.5, h.y - drag.dy)), drag.key);
   let x = h.x - drag.ox, z = h.z - drag.oz;
@@ -254,16 +287,23 @@ function onWheel(e) {
   if (mode !== 'props' || !sel) return;
   e.preventDefault(); e.stopImmediatePropagation(); resizeSel(e.deltaY < 0 ? 1.05 : 1 / 1.05);
 }
-function resizeSel(f) { const p = propOf(sel); if (p) change(() => setVal(p, 'k', view(p).k * f), 'size' + sel); }
+function resizeSel(f) {
+  if (sel === 'googoo') return change(() => gooSet('s', Math.min(3, Math.max(.3, gooView().s * f))), 'gs', 'goo');
+  const p = propOf(sel); if (p && !p.builtin) change(() => setVal(p, 'k', view(p).k * f), 'size' + sel);
+}
 
+// Googoo's place and size in this room (upright-phone values when "upright phones only" is ticked)
+function gooView() { const g = L.rooms[room()].googoo || {}, p = usePt() ? g.portrait || {} : {}; return { x: p.x ?? g.x ?? 0, z: p.z ?? g.z ?? 0, ry: p.ry ?? g.ry ?? 0, s: p.s ?? g.s ?? 1 }; }
+function gooSet(k, v) { const r = room(), g = L.rooms[r].googoo = L.rooms[r].googoo || {}; v = r2(v); if (usePt()) (g.portrait = g.portrait || {})[k] = v; else g[k] = v; }
 // values the current view shows (portrait-only edits read/write p.portrait)
 function view(p) {
   const u = grp(p.id)?.userData || {}, pt = usePt() ? p.portrait || {} : {};
-  return { x: pt.x ?? (p.wall === 'left' ? u.x0 ?? 0 : p.x ?? 0), z: pt.z ?? (p.wall === 'back' ? u.z0 ?? 0 : p.z ?? 0), y: pt.y ?? p.y ?? 0, ry: pt.ry ?? p.ry ?? 0, k: p.k * (pt.k || 1) };
+  return { x: pt.x ?? (p.wall === 'left' ? u.x0 ?? 0 : p.x ?? 0), z: pt.z ?? (p.wall === 'back' ? u.z0 ?? 0 : p.z ?? 0), y: pt.y ?? p.y ?? 0, ry: pt.ry ?? p.ry ?? 0, k: (p.k || 1) * (pt.k || 1) };
 }
 // x/z arrive as world positions from drags; the shared x is stored before the portrait squeeze
 function setVal(p, key, v, world = true) {
   v = r2(v);
+  if (p.builtin) { if (key === 'k') return; if (key === 'x' && world && isPortrait()) v = r2(v / sq()); p[key] = v; return; }
   if (usePt()) { const pt = p.portrait = p.portrait || {}; pt[key] = key === 'k' ? r2(Math.max(.01, v) / p.k) : v; return; }
   if (key === 'k') { p.k = Math.max(.01, v); return; }
   // a piece against the back wall leaves it when its z changes, one against the left wall when its x changes
@@ -274,15 +314,16 @@ function setVal(p, key, v, world = true) {
 
 // ---------- selection ----------
 function select(id) {
-  sel = id; selBtn = null; const p = id && propOf(id); ptMode = !!(p && p.portrait && isPortrait());
+  sel = id; selBtn = null; const p = id && id !== 'googoo' && propOf(id), g = id === 'googoo' && L.rooms[room()].googoo;
+  ptMode = !!((p && p.portrait || g && g.portrait) && isPortrait());
   showBox(); renderLeft(); renderRight();
 }
 function showBox() {
   if (!box) return;
-  const o = mode === 'props' && sel ? grp(sel) : mode === 'walls' && selWall ? (selWall === 'back' ? X.back : X.wallSides[selWall === 'left' ? 0 : 1]) : null;
+  const o = mode === 'props' && sel ? (sel === 'googoo' ? X.robot : grp(sel)) : mode === 'walls' && selWall ? ({ back: X.back, left: X.wallSides[0], right: X.wallSides[1], floor: X.wood })[selWall] : null;
   box.visible = !!(o && o.visible); if (o) box.setFromObject(o);
 }
-function tick() { if (box && box.visible) showBox(); else if (sel || selWall) showBox(); if (X && X.furnGroup.children.length !== tick.n) { tick.n = X.furnGroup.children.length; syncProps(); renderLeft(); } }
+function tick() { showBox(); if (X && X.furnGroup.children.length !== tick.n) { tick.n = X.furnGroup.children.length; syncProps(); renderLeft(); } }
 
 // ---------- keyboard ----------
 function onKey(e) {
@@ -292,7 +333,14 @@ function onKey(e) {
   if (ctrl && k === 'z' && !e.shiftKey) { if (typing) return; e.preventDefault(); return doUndo(); }
   if (ctrl && (k === 'y' || k === 'z' && e.shiftKey)) { if (typing) return; e.preventDefault(); return doRedo(); }
   if (typing || mode !== 'props' || !sel || ctrl) return;
-  const p = propOf(sel); if (!p) return; const v = view(p), st = e.shiftKey ? .25 : .05;
+  const st = e.shiftKey ? .25 : .05;
+  if (sel === 'googoo') {
+    const v = gooView(), G = (key, val) => () => change(() => gooSet(key, val), 'gk' + key, 'goo');
+    const act = { r: G('ry', v.ry + (e.shiftKey ? -15 : 15) * DEG), escape: () => select(null), '+': () => resizeSel(1.05), '=': () => resizeSel(1.05), '-': () => resizeSel(1 / 1.05),
+      arrowleft: G('x', v.x - st), arrowright: G('x', v.x + st), arrowup: G('z', v.z - st), arrowdown: G('z', v.z + st) }[k];
+    if (act) { e.preventDefault(); act(); } return;
+  }
+  const p = propOf(sel); if (!p) return; const v = view(p);
   const act = {
     r: () => change(() => setVal(p, 'ry', v.ry + (e.shiftKey ? -15 : 15) * DEG), 'ry' + sel),
     delete: () => removeProp(sel), backspace: () => removeProp(sel), escape: () => select(null),
@@ -306,44 +354,60 @@ function onKey(e) {
 addEventListener('keydown', onKey);
 addEventListener('beforeunload', e => { if (L && JSON.stringify(L) !== saved) { e.preventDefault(); e.returnValue = ''; } });
 
-// ---------- props: add, hide, remove ----------
+// ---------- props: add, duplicate, hide, remove ----------
+function newId(file) {
+  const base = nice(file).toLowerCase().replace(/[^a-z0-9]+/g, '_'), used = new Set([...PRIM, ...ROOMS.flatMap(x => L.rooms[x].props.map(p => p.id))]);
+  let id = base, n = 2; while (used.has(id)) id = base + '_' + n++; return id;
+}
 function addProp(file) {
-  const r = room(), info = propsList.find(p => p.name === file) || {}, base = pretty(file).replace(/ /g, '_');
-  const used = new Set([...PRIM, ...ROOMS.flatMap(x => L.rooms[x].props.map(p => p.id))]);
-  let id = base, n = 2; while (used.has(id)) id = base + '_' + n++;
+  const r = room(), info = propsList.find(p => p.name === file) || {}, id = newId(file);
   const k = { S: .3, M: .5, L: .7 }[info.class] || .5; // new pieces start at the back on the right, out of Googoo's way
   change(() => L.rooms[r].props.push({ id, file, k, x: 2.6, z: -3, ry: 0, castShadow: info.class === 'L', hidden: false }), '', 'all');
-  select(id); status(`Added ${pretty(file)}. Drag it where you want it.`);
+  select(id); status(`Added ${nice(file)}. Drag it where you want it.`);
+}
+function duplicate(id) {
+  const p = propOf(id), r = room(); if (!p || p.builtin) return; const q = clone(p); q.id = newId(p.file); q.x = r2((view(p).x || 0) + .8); delete q.wall; if (q.z == null) q.z = r2(view(p).z);
+  change(() => L.rooms[r].props.push(q), '', 'all'); select(q.id); status(`Added another ${nice(p.file).toLowerCase()}.`);
 }
 function removeProp(id) {
   const p = propOf(id); if (!p) return;
-  if (BUILTIN.includes(id)) { change(() => { p.hidden = true; }, '', 'all'); return status(`${pretty(p.file)} is hidden (it stands in for a built-in piece of the room). Use 👁 to show it again.`); }
+  if (BUILTIN.includes(id)) { change(() => { p.hidden = true; }, '', 'all'); return status(`${nameOf(p)} is hidden (it stands in for a built-in piece of the room). Use 👁 to show it again.`); }
   change(() => { for (const r of ROOMS) L.rooms[r].props = L.rooms[r].props.filter(q => q.id !== id); }, '', 'all');
   if (sel === id) select(null);
 }
 function toggleHidden(id) { const p = propOf(id); change(() => { p.hidden = !p.hidden; }, '', 'all'); }
 
-// ---------- buttons mode: drag rail buttons ----------
+// ---------- buttons mode: drag rail buttons, the top bar and the room tabs ----------
 let bdrag = null;
 function onBtnDown(e) {
   if (mode !== 'buttons') return;
-  const b = e.target.closest && e.target.closest('.col .rb'); if (!b) return;
+  const b = e.target.closest && e.target.closest('.col .rb,#nav .rb,#top>*,#parentBtn'); if (!b) return;
   e.stopImmediatePropagation(); e.preventDefault();
-  selBtn = b.id; markBtn(); renderRight(); bdrag = { b, moved: false };
+  const g = b.closest('#nav') ? 'nav' : b.closest('#top') || b.id === 'parentBtn' ? 'top' : 'rails';
+  selBtn = b.id || b.dataset.r; bscr = g === 'rails' ? screenKey() : g; markBtn(); renderRight();
+  if (b.id !== 'parentBtn') bdrag = { b, g, moved: false };
 }
 function onBtnMove(e) {
   if (!bdrag) return; const d = W.document, b = bdrag.b;
-  const rail = d.getElementById(e.clientX < W.innerWidth / 2 ? 'colL' : 'colR');
-  const others = [...rail.children].filter(x => x !== b && !x.hidden);
-  const before = others.find(x => { const r = x.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
-  if (b.parentNode !== rail || b.nextElementSibling !== (before || null)) { rail.insertBefore(b, before || null); bdrag.moved = true; }
+  if (bdrag.g === 'rails') {
+    const rail = d.getElementById(e.clientX < W.innerWidth / 2 ? 'colL' : 'colR'), others = [...rail.children].filter(x => x !== b && !x.hidden);
+    const before = others.find(x => { const r = x.getBoundingClientRect(); return e.clientY < r.top + r.height / 2; });
+    if (b.parentNode !== rail || b.nextElementSibling !== (before || null)) { rail.insertBefore(b, before || null); bdrag.moved = true; }
+    return;
+  }
+  const box = b.parentNode, before = [...box.children].filter(x => x !== b).find(x => { const r = x.getBoundingClientRect(); return e.clientX < r.left + r.width / 2; });
+  if (b.nextElementSibling !== (before || null)) { box.insertBefore(b, before || null); bdrag.moved = true; }
 }
 function onBtnUp() {
-  if (!bdrag) return; const moved = bdrag.moved; bdrag = null; if (!moved) return;
+  if (!bdrag) return; const { moved, g } = bdrag; bdrag = null; if (!moved) return;
   const d = W.document, k = screenKey(), ids = id => [...d.getElementById(id).children].map(x => x.id);
-  change(() => { L.ui.screens[k] = { left: ids('colL'), right: ids('colR') }; }, '', 'ui'); markBtn(); renderRight();
+  if (g === 'rails') change(() => { L.ui.screens[k] = { left: ids('colL'), right: ids('colR') }; }, '', 'ui');
+  else if (g === 'nav') change(() => { ui('nav').order = [...d.querySelectorAll('#nav .rb')].map(x => x.dataset.r); }, '', 'ui');
+  else change(() => { ui('top').order = ids('top'); }, '', 'ui');
+  markBtn(); renderRight();
 }
-function markBtn() { if (!W) return; W.document.querySelectorAll('.edSel').forEach(x => x.classList.remove('edSel')); if (mode === 'buttons' && selBtn) W.document.getElementById(selBtn)?.classList.add('edSel'); }
+const ui = k => L.ui[k] = L.ui[k] || {};
+function markBtn() { if (!W) return; W.document.querySelectorAll('.edSel').forEach(x => x.classList.remove('edSel')); if (mode === 'buttons' && selBtn) (W.document.getElementById(selBtn) || W.document.querySelector(`#nav [data-r="${selBtn}"]`))?.classList.add('edSel'); }
 const btnLabel = id => { const b = W && W.document.getElementById(id); return b ? [b.textContent.trim(), b.getAttribute('aria-label')] : ['', id]; };
 
 // ---------- camera ----------
@@ -351,15 +415,25 @@ async function loadScript(src) { return new Promise((res, rej) => { const s = W.
 async function setFree(on) {
   if (on && !orbit) {
     try { await loadScript(CDN + 'OrbitControls.js'); } catch (e) { return status('Could not load the free camera (no internet?)', 'dirty'); }
-    orbit = new X.THREE.OrbitControls(X.camera, ov); orbit.target.set(0, 2, -1.5); orbit.enableDamping = false;
+    orbit = new X.THREE.OrbitControls(X.camera, ov); orbit.enableDamping = false;
     orbit.addEventListener('change', () => { if (free) freeCam = { p: X.camera.position.clone(), q: X.camera.quaternion.clone() }; });
   }
   free = on; $('freeCam').classList.toggle('on', on); $('gameCam').classList.toggle('on', !on);
   if (orbit) orbit.enabled = on;
-  if (on) { freeCam = null; X.camera.clearViewOffset(); X.camera.updateProjectionMatrix(); orbit.update(); freeCam = { p: X.camera.position.clone(), q: X.camera.quaternion.clone() }; }
+  if (on) { const H = W.eval('HOME'); orbit.target.set(H.x, 2 * H.s, H.z - 1.5); freeCam = null; X.camera.clearViewOffset(); X.camera.updateProjectionMatrix(); orbit.update(); freeCam = { p: X.camera.position.clone(), q: X.camera.quaternion.clone() }; }
   else W.resize();
 }
 function restoreFree() { if (!freeCam) return; const c = X.camera; c.clearViewOffset(); c.position.copy(freeCam.p); c.quaternion.copy(freeCam.q); c.updateProjectionMatrix(); c.updateMatrixWorld(); }
+// the saved view of this room for this kind of screen (missing = automatic)
+const camView = () => (L.rooms[room()].camera || {})[camKey()];
+function camVals() { const V = camView() || {}, A = W.eval('CAMAUTO') || { pitch: 10 }; return { zoom: V.zoom ?? 1, height: V.height ?? 0, yaw: V.yaw ?? 0, pitch: V.pitch ?? r100(A.pitch) }; }
+function camSet(k, v) { const r = room(), c = L.rooms[r].camera = L.rooms[r].camera || {}, cur = camVals(); c[camKey()] = { ...cur, ...(c[camKey()] || {}), [k]: r2(v) }; }
+function camFromFree() { // the free camera's angle, as a saved view around Googoo
+  const H = W.eval('HOME'), RB = W.eval('RB'), A = W.eval('CAMAUTO'), V = camVals(), cy = RB.y0 + RB.h / 2, ty = cy + V.height * RB.h;
+  const p = X.camera.position.clone().sub(new X.THREE.Vector3(H.x, 0, H.z)).divideScalar(H.s).sub(new X.THREE.Vector3(0, ty, 0)), D = p.length();
+  change(() => { const r = room(); (L.rooms[r].camera = L.rooms[r].camera || {})[camKey()] = { zoom: r2(D / A.D), height: V.height, yaw: r2(Math.atan2(p.x, p.z) / DEG), pitch: r2(Math.asin(p.y / D) / DEG) }; }, '', 'cam');
+  setFree(false); renderRight();
+}
 
 // ---------- device size ----------
 function setDevice(k) {
@@ -372,7 +446,7 @@ addEventListener('resize', fit);
 
 // ---------- top bar ----------
 $('rooms').onclick = async e => { const r = e.target.dataset.room; if (!r || !X) return; await goRoom(r); };
-async function goRoom(r) { select(null); selWall = null; await W.setRoom(r); for (const p of L.rooms[r].props) if (!grp(p.id)) inflight.add(p.id); apply('props'); renderTop(); renderLeft(); }
+async function goRoom(r) { select(null); selWall = null; await W.setRoom(r); for (const p of L.rooms[r].props) if (!grp(p.id)) inflight.add(p.id); apply('props'); renderTop(); renderLeft(); renderRight(); }
 function renderTop() { const r = room(); document.querySelectorAll('#rooms .eb').forEach(b => b.classList.toggle('on', b.dataset.room === r)); }
 $('device').onchange = e => setDevice(e.target.value);
 $('gameCam').onclick = () => setFree(false); $('freeCam').onclick = () => setFree(true);
@@ -383,7 +457,8 @@ document.querySelector('#ed .tabs').onclick = e => { const m = e.target.dataset.
 function setMode(m) {
   mode = m; document.querySelectorAll('#ed .tabs .eb').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
   if (W) W.document.body.classList.toggle('edBtns', m === 'buttons');
-  sel = null; selWall = null; selBtn = null; showBox(); markBtn(); renderLeft(); renderRight();
+  if (m === 'camera' && free) setFree(false);
+  sel = null; selWall = null; selBtn = null; bscr = null; showBox(); markBtn(); renderLeft(); renderRight();
 }
 
 async function post(path, body) {
@@ -411,112 +486,186 @@ function showModal(title, text) {
 // ---------- left panel ----------
 function renderLeft() {
   const el = $('left'); if (!L) return;
-  if (mode === 'walls') { el.innerHTML = `<h2>Walls</h2><p class="hint">Click the back, left or right wall in the picture, then drag it in or out to make the room smaller or bigger. Colours are on the right.</p><p class="hint">Pieces standing against a wall move with it.</p>`; return; }
-  if (mode === 'buttons') { el.innerHTML = `<h2>Buttons</h2><p class="hint">Drag a round button in the picture up or down to change the order, or across to the other side.</p><p class="hint">Click a button to change its colour. Size and shape for all buttons are on the right.</p><p class="hint">Each screen has its own buttons: pick the screen on the right.</p>`; return; }
-  const r = room(), here = L.rooms[r].props;
-  const files = propsList.length ? propsList : [...new Set(ROOMS.flatMap(x => L.rooms[x].props.map(p => p.file)))].map(name => ({ name }));
+  if (mode !== 'props') {
+    el.innerHTML = {
+      walls: `<h2>Walls & floor</h2><p class="hint">Click the back, left or right wall in the picture, then drag it in or out to make the room smaller or bigger. Moving a wall never moves the floor.</p><p class="hint">Click the floor and drag near one of its edges to make the floor bigger or smaller. Numbers and colours are on the right.</p><p class="hint">Pieces standing against a wall move with it.</p>`,
+      buttons: `<h2>Buttons</h2><p class="hint">Drag a round button in the picture to change the order: up and down on the sides (or across to the other side), left and right in the top bar and the room tabs.</p><p class="hint">Click a button to change its colour, or to hide it. Size and shape are on the right.</p><p class="hint">Each screen has its own side buttons: pick the screen on the right. The top bar and the room tabs are the same everywhere.</p>`,
+      camera: `<h2>Camera</h2><p class="hint">Each room can have its own view: one for upright phones and one for everything else (sideways phones, iPads). Change the screen size at the top to set the other one.</p><p class="hint">Rooms without their own view are "automatic": the camera fits Googoo by itself. Card games and stories always use the automatic view.</p>` }[mode];
+    return;
+  }
+  const r = room(), here = L.rooms[r].props, gooOn = sel === 'googoo';
+  const files = propsList.length ? propsList : [...new Set(ROOMS.flatMap(x => L.rooms[x].props.filter(p => p.file).map(p => p.file)))].map(name => ({ name }));
   const keepFocus = document.activeElement && document.activeElement.id === 'search';
   if (!el.querySelector('#search')) {
-    el.innerHTML = `<h2>Props in the ${ROOM_NAME[r].toLowerCase()}</h2><input id="search" type="search" placeholder="Search props…"><div class="chips">${[['all', 'All'], ['furniture', 'Furniture'], ['toys', 'Toys'], ['decor', 'Decor'], ['here', 'In this room'], ['hidden', 'Hidden']].map(([k, t]) => `<button class="eb" data-chip="${k}">${t}</button>`).join('')}</div><div id="plist"></div>
+    el.innerHTML = `<h2>Props</h2><input id="search" type="search" placeholder="Search props…"><div class="chips">${[['all', 'All'], ['furniture', 'Furniture'], ['toys', 'Toys'], ['decor', 'Decor'], ['here', 'In this room'], ['hidden', 'Hidden']].map(([k, t]) => `<button class="eb" data-chip="${k}">${t}</button>`).join('')}</div><div id="plist"></div>
     <p class="hint">Click a piece in the picture to select it. Drag = move on the floor · Shift+drag = height · wheel or +/- = size · R = turn · arrows = nudge · Delete = remove.</p>`;
     el.querySelector('#search').oninput = e => { query = e.target.value.toLowerCase(); renderLeft(); };
     el.querySelector('.chips').onclick = e => { if (e.target.dataset.chip) { chip = e.target.dataset.chip; renderLeft(); } };
   }
   el.querySelector('h2').textContent = 'Props in the ' + ROOM_NAME[r].toLowerCase();
   el.querySelectorAll('[data-chip]').forEach(b => b.classList.toggle('on', b.dataset.chip === chip));
+  const info = f => propsList.find(x => x.name === f) || {}, okChip = (c, placed, hidden) => chip === 'all' || chip === c || chip === 'here' && placed || chip === 'hidden' && hidden;
+  const match = t => !query || t.toLowerCase().includes(query);
+  // one row per piece: the ones in this room (select, duplicate, hide, remove), then the ones you can add
+  const count = {}, placed = here.map(p => { const n = nameOf(p); count[n] = (count[n] || 0) + 1; return [p, count[n] > 1 ? `${n} ${count[n]}` : n]; }).sort((a, b) => a[1].localeCompare(b[1]));
   const rows = [];
-  const order = f => here.some(p => p.file === f.name) ? 0 : 1; // pieces in this room first
-  for (const f of [...files].sort((a, b) => order(a) - order(b))) {
-    const inst = here.filter(p => p.file === f.name), c = cat(f.name);
-    if (query && !pretty(f.name).includes(query) && !inst.some(p => p.id.includes(query))) continue;
-    if (['furniture', 'toys', 'decor'].includes(chip) && c !== chip) continue;
-    if (chip === 'here' && !inst.length) continue;
-    if (chip === 'hidden' && !inst.some(p => p.hidden)) continue;
-    rows.push(`<div class="prow"><span class="ic">${ICON[c]}</span><span class="nm">${pretty(f.name)}<small>${f.class ? f.class + ' · ' + (f.tris / 1000).toFixed(1) + 'k triangles' : ''}${inst.length ? ' · in this room' : ''}</small></span><button class="ib" data-add="${f.name}" title="Add to this room">➕</button></div>`);
-    for (const p of inst) rows.push(`<div class="prow inst${p.id === sel ? ' sel' : ''}${p.hidden ? ' off' : ''}" data-sel="${p.id}"><span class="nm">${p.id}${p.hidden ? ' (hidden)' : ''}</span><button class="ib" data-eye="${p.id}" title="${p.hidden ? 'Show' : 'Hide'}">${p.hidden ? '🙈' : '👁'}</button><button class="ib" data-del="${p.id}" title="Remove">🗑</button></div>`);
+  if (match('googoo') && (chip === 'all' || chip === 'here')) rows.push(`<div class="prow placed${gooOn ? ' sel' : ''}" data-sel="googoo"><span class="ic">🤖</span><span class="nm">Googoo<small>place and size in this room</small></span></div>`);
+  for (const [p, n] of placed) {
+    const c = cat(p.file), i = info(p.file); if (!match(n) || !okChip(c, true, p.hidden)) continue;
+    rows.push(`<div class="prow placed${p.id === sel ? ' sel' : ''}${p.hidden ? ' off' : ''}" data-sel="${p.id}"><span class="ic">${p.builtin ? PRIMS[p.id][2] : ICON[c]}</span><span class="nm">${n}<small>${p.hidden ? 'hidden · ' : ''}${i.class ? i.class + ' · ' + (i.tris / 1000).toFixed(1) + 'k triangles' : p.builtin ? 'built-in piece' : ''}</small></span>${p.builtin ? '' : `<button class="ib" data-dup="${p.id}" title="Add another one">⧉</button>`}<button class="ib" data-eye="${p.id}" title="${p.hidden ? 'Show' : 'Hide'}">${p.hidden ? '🙈' : '👁'}</button><button class="ib" data-del="${p.id}" title="Remove">🗑</button></div>`);
   }
+  const unplaced = files.filter(f => !here.some(p => p.file === f.name) && match(nice(f.name)) && okChip(cat(f.name), false, false)).sort((a, b) => nice(a.name).localeCompare(nice(b.name)));
+  if (unplaced.length) rows.push(`<div class="sub">Add to this room</div>`);
+  for (const f of unplaced) rows.push(`<div class="prow new"><span class="ic">${ICON[cat(f.name)]}</span><span class="nm">${nice(f.name)}<small>${f.class ? f.class + ' · ' + (f.tris / 1000).toFixed(1) + 'k triangles' : ''}</small></span><button class="ib" data-add="${f.name}" title="Add to this room">➕</button></div>`);
   const list = el.querySelector('#plist'); list.innerHTML = rows.join('') || '<p class="hint">Nothing matches.</p>';
-  list.onclick = e => { const t = e.target.closest('[data-add],[data-eye],[data-del],[data-sel]'); if (!t) return;
-    if (t.dataset.add) addProp(t.dataset.add); else if (t.dataset.eye) toggleHidden(t.dataset.eye); else if (t.dataset.del) removeProp(t.dataset.del); else select(t.dataset.sel); };
+  list.onclick = e => { const t = e.target.closest('[data-add],[data-eye],[data-del],[data-dup],[data-sel]'); if (!t) return;
+    if (t.dataset.add) addProp(t.dataset.add); else if (t.dataset.eye) toggleHidden(t.dataset.eye); else if (t.dataset.del) removeProp(t.dataset.del); else if (t.dataset.dup) duplicate(t.dataset.dup); else select(t.dataset.sel); };
   if (keepFocus) el.querySelector('#search').focus();
 }
 
 // ---------- right panel ----------
-function field(label, key, min, max, step, val, unit = '') {
-  return `<div class="field"><label>${label}</label><input type="range" data-k="${key}" min="${min}" max="${max}" step="${step}" value="${val}"><input type="number" data-k="${key}" step="${step}" value="${val}">${unit}</div>`;
+function field(label, key, min, max, step, val) {
+  return `<div class="field"><label>${label}</label><input type="range" data-k="${key}" min="${min}" max="${max}" step="${step}" value="${val}"><input type="number" data-k="${key}" step="${step}" value="${val}"></div>`;
 }
+const ptBox = (por, has) => `<label class="check"><input type="checkbox" id="ptOnly" ${usePt() ? 'checked' : ''} ${por ? '' : 'disabled'}><span>Upright phones only<br><small class="hint">${por ? (has ? 'It has its own place on upright phones.' : 'Tick to give it a different place on upright phones.') : 'Pick an upright screen size to use this.'}</small></span></label>`;
 function renderRight() {
   const el = $('right'); if (!L || !X) return;
   if (mode === 'walls') return renderWalls(el);
   if (mode === 'buttons') return renderButtons(el);
+  if (mode === 'camera') return renderCamera(el);
+  if (sel === 'googoo') return renderGoo(el);
   const p = sel && propOf(sel);
-  if (!p) { el.innerHTML = `<h2>Nothing selected</h2><p class="hint">Click a piece of furniture or a toy in the picture, or pick one in the list on the left.</p><p class="hint">Googoo is there to show the size; he can't be moved.</p>`; return; }
-  const v = view(p), por = isPortrait(), r3 = x => Math.round(x * 100) / 100;
-  el.innerHTML = `<h2>${pretty(p.file)} <span style="text-transform:none;font-weight:400">(${p.id})</span></h2>
-   <label class="check"><input type="checkbox" id="ptOnly" ${usePt() ? 'checked' : ''} ${por ? '' : 'disabled'}><span>Upright phones only<br><small class="hint">${por ? (p.portrait ? 'This piece has its own place on upright phones.' : 'Tick to give it a different place on upright phones.') : 'Pick an upright screen size to use this.'}</small></span></label>
-   ${field('Size', 'k', .05, 2.5, .01, r3(v.k))}
-   ${field('Turn (°)', 'ry', -180, 180, 1, Math.round(v.ry / DEG))}
-   ${field('Height', 'y', -.5, 6, .05, r3(v.y))}
-   ${field('Left / right', 'x', -10, 10, .05, r3(v.x))}
-   ${field('Back / front', 'z', -10, 8, .05, r3(v.z))}
-   <div class="field"><label>Against a wall</label><select class="eb" id="wall" ${usePt() ? 'disabled' : ''}><option value="">No</option><option value="back">Back wall</option><option value="left">Left wall</option></select><span></span></div>
-   <label class="check"><input type="checkbox" id="shadow" ${p.castShadow ? 'checked' : ''}><span>Casts a shadow<br><small class="hint">Only for big furniture (each shadow costs speed on phones).</small></span></label>
+  if (!p) { el.innerHTML = `<h2>Nothing selected</h2><p class="hint">Click a piece of furniture, a toy or Googoo in the picture, or pick one in the list on the left.</p>`; return; }
+  const v = view(p), por = isPortrait();
+  el.innerHTML = `<h2>${nameOf(p)}</h2>
+   ${p.builtin ? '' : ptBox(por, p.portrait)}
+   ${p.builtin ? '' : pctUnit(p) ? field(p.flatten ? 'Length (% of Googoo)' : 'Height (% of Googoo)', 'pct', 5, 300, 1, Math.round(v.k * pctUnit(p))) : field('Size', 'k', .05, 2.5, .01, r100(v.k))}
+   ${p.builtin && p.ry == null ? '' : field('Turn (°)', 'ry', -180, 180, 1, Math.round(v.ry / DEG))}
+   <div class="field"><label>Sits on</label><select class="eb" id="on"><option value="">Nothing (stands free)</option>${L.rooms[room()].props.filter(q => q.id !== p.id && !q.flatten).map(q => `<option value="${q.id}">${nameOf(q)}</option>`).join('')}</select><span></span></div>
+   ${onOf(p) ? '' : field('Lift (height)', 'y', -.5, 6, .05, r100(v.y))}
+   ${field('Left / right', 'x', -10, 10, .05, r100(v.x))}
+   ${field('Back / front', 'z', -14, 8, .05, r100(v.z))}
+   ${p.builtin ? '' : `<div class="field"><label>Against a wall</label><select class="eb" id="wall" ${usePt() ? 'disabled' : ''}><option value="">No</option><option value="back">Back wall</option><option value="left">Left wall</option></select><span></span></div>
+   <label class="check"><input type="checkbox" id="shadow" ${p.castShadow ? 'checked' : ''}><span>Casts a shadow<br><small class="hint">Only for big furniture (each shadow costs speed on phones).</small></span></label>`}
    <div class="row"><button class="eb" id="copy">Copy position</button><button class="eb" id="paste" ${clip ? '' : 'disabled'}>Paste position</button></div>
    ${usePt() && p.portrait ? '<div class="row"><button class="eb" id="ptClear">Use the same place as on other screens</button></div>' : ''}
    <div class="row"><button class="eb" id="hide">${p.hidden ? '👁 Show' : '🙈 Hide'}</button><button class="eb warn" id="del">🗑 Remove</button></div>`;
-  el.querySelector('#wall').value = p.wall || '';
-  el.oninput = e => { const k = e.target.dataset.k; if (!k) return; let val = parseFloat(e.target.value); if (isNaN(val)) return; if (k === 'ry') val *= DEG;
+  const q = s => el.querySelector(s);
+  if (q('#wall')) q('#wall').value = p.wall || ''; q('#on').value = onOf(p) || '';
+  q('#on').onchange = e => { change(() => { p.on = e.target.value || null; }, '', 'props'); renderRight(); };
+  el.oninput = e => { let k = e.target.dataset.k; if (!k) return; let val = parseFloat(e.target.value); if (isNaN(val)) return; if (k === 'ry') val *= DEG;
+    if (k === 'pct') { k = 'k'; val /= pctUnit(p); }
     change(() => setVal(p, k, val, false), 'f' + k + sel); el.querySelectorAll(`[data-k="${k}"]`).forEach(i => { if (i !== e.target) i.value = e.target.value; }); };
+  if (q('#ptOnly')) q('#ptOnly').onchange = e => { ptMode = e.target.checked; renderRight(); };
+  if (q('#wall')) q('#wall').onchange = e => change(() => { const w = e.target.value, vv = view(p); if (w) p.wall = w; else { p.x = r2(vv.x); p.z = r2(vv.z); delete p.wall; } }, '', 'props');
+  if (q('#shadow')) q('#shadow').onchange = e => change(() => { p.castShadow = e.target.checked; });
+  q('#copy').onclick = () => { clip = view(p); status('Position copied. Pick another view or piece and press Paste.'); renderRight(); };
+  q('#paste').onclick = () => change(() => { for (const k of ['x', 'z', 'y', 'ry', 'k']) setVal(p, k, clip[k], false); }, '');
+  if (q('#ptClear')) q('#ptClear').onclick = () => { change(() => { delete p.portrait; }, ''); renderRight(); };
+  q('#hide').onclick = () => toggleHidden(p.id);
+  q('#del').onclick = () => removeProp(p.id);
+}
+function renderGoo(el) {
+  const v = gooView(), g = L.rooms[room()].googoo || {};
+  el.innerHTML = `<h2>Googoo in the ${ROOM_NAME[room()].toLowerCase()}</h2>${ptBox(isPortrait(), g.portrait)}
+   ${field('Size', 's', .3, 3, .01, r100(v.s))}${field('Turn (°)', 'ry', -180, 180, 1, Math.round(v.ry / DEG))}
+   ${field('Left / right', 'x', -8, 8, .05, r100(v.x))}${field('Back / front', 'z', -12, 6, .05, r100(v.z))}
+   <p class="hint">The camera follows him, so he still fills the screen. This is also where he walks back to after playing ball.</p>
+   <div class="row"><button class="eb" id="gooReset">Back to the middle, normal size</button></div>`;
+  el.oninput = e => { const k = e.target.dataset.k; if (!k) return; let val = parseFloat(e.target.value); if (isNaN(val)) return; if (k === 'ry') val *= DEG;
+    change(() => gooSet(k, val), 'g' + k, 'goo'); el.querySelectorAll(`[data-k="${k}"]`).forEach(i => { if (i !== e.target) i.value = e.target.value; }); };
   el.querySelector('#ptOnly').onchange = e => { ptMode = e.target.checked; renderRight(); };
-  el.querySelector('#wall').onchange = e => change(() => { const w = e.target.value, vv = view(p); if (w) p.wall = w; else { p.x = r2(vv.x); p.z = r2(vv.z); delete p.wall; } }, '', 'props');
-  el.querySelector('#shadow').onchange = e => change(() => { p.castShadow = e.target.checked; });
-  el.querySelector('#copy').onclick = () => { clip = view(p); status('Position copied. Pick another view or piece and press Paste.'); renderRight(); };
-  el.querySelector('#paste').onclick = () => change(() => { for (const k of ['x', 'z', 'y', 'ry', 'k']) setVal(p, k, clip[k], false); }, '');
-  el.querySelector('#ptClear') && (el.querySelector('#ptClear').onclick = () => { change(() => { delete p.portrait; }, ''); renderRight(); });
-  el.querySelector('#hide').onclick = () => toggleHidden(p.id);
-  el.querySelector('#del').onclick = () => removeProp(p.id);
+  el.querySelector('#gooReset').onclick = () => { change(() => { const r = room(), G = L.rooms[r].googoo; if (!G) return; if (usePt()) delete G.portrait; else { for (const k of ['x', 'z', 'ry', 's']) delete G[k]; } }, '', 'goo'); renderRight(); };
+}
+function renderCamera(el) {
+  const V = camView(), v = camVals(), grpName = camKey() === 'phone' ? 'upright phones' : 'sideways phones and iPads';
+  el.innerHTML = `<h2>${ROOM_NAME[room()]}: camera</h2><p class="hint">For <b>${grpName}</b> (change the screen size at the top for the other one). Now: <b>${V ? 'your own view' : 'automatic'}</b>.</p>
+   ${field('Zoom', 'zoom', .4, 2.5, .01, r100(v.zoom))}${field('Height', 'height', -.6, .8, .01, r100(v.height))}
+   ${field('Turn (°)', 'yaw', -70, 70, 1, Math.round(v.yaw))}${field('Tilt (°)', 'pitch', -10, 70, 1, Math.round(v.pitch))}
+   <p class="hint">Zoom: bigger number = further away. Height moves the view up or down. Turn and tilt go around Googoo.</p>
+   <div class="row"><button class="eb go" id="camSave">📌 Save this view</button><button class="eb" id="camAuto" ${V ? '' : 'disabled'}>Back to automatic</button></div>
+   <div class="row"><button class="eb" id="camFree" ${free ? '' : 'disabled'} title="Turn on the free camera at the top, turn the room, then press this">Use the free camera's angle</button></div>
+   <p class="hint">Card games and stories keep their own automatic framing.</p>`;
+  el.oninput = e => { const k = e.target.dataset.k; if (!k) return; const val = parseFloat(e.target.value); if (isNaN(val)) return;
+    change(() => camSet(k, val), 'c' + k, 'cam'); el.querySelectorAll(`[data-k="${k}"]`).forEach(i => { if (i !== e.target) i.value = e.target.value; }); };
+  el.querySelector('#camSave').onclick = () => { change(() => camSet('zoom', camVals().zoom), '', 'cam'); status(`View kept for the ${ROOM_NAME[room()].toLowerCase()} on ${grpName}. Press Save to keep it for good.`); renderRight(); };
+  el.querySelector('#camAuto').onclick = () => { change(() => { const c = L.rooms[room()].camera; if (c) { delete c[camKey()]; if (!Object.keys(c).length) delete L.rooms[room()].camera; } }, '', 'cam'); renderRight(); };
+  el.querySelector('#camFree').onclick = camFromFree;
 }
 // keep the numbers in the right panel live while dragging in the picture (without rebuilding it)
 setInterval(() => {
   if (!L || !X) return; let vals;
-  if (mode === 'walls') vals = L.rooms[room()].walls;
-  else if (mode === 'buttons') vals = { size: L.ui.size };
-  else { const p = sel && propOf(sel); if (!p) return; const v = view(p); vals = { k: Math.round(v.k * 100) / 100, ry: Math.round(v.ry / DEG), y: Math.round(v.y * 100) / 100, x: Math.round(v.x * 100) / 100, z: Math.round(v.z * 100) / 100 }; }
-  document.querySelectorAll('#right [data-k]').forEach(i => { if (i !== document.activeElement) i.value = vals[i.dataset.k]; });
+  if (mode === 'walls') { const f = floorOf(); vals = { ...walls(), 'f.left': f.left, 'f.right': f.right, 'f.back': f.back, 'f.front': f.front }; }
+  else if (mode === 'buttons') return;
+  else if (mode === 'camera') { const v = camVals(); vals = { zoom: r100(v.zoom), height: r100(v.height), yaw: Math.round(v.yaw), pitch: Math.round(v.pitch) }; }
+  else if (sel === 'googoo') { const v = gooView(); vals = { s: r100(v.s), ry: Math.round(v.ry / DEG), x: r100(v.x), z: r100(v.z) }; }
+  else { const p = sel && propOf(sel); if (!p) return; const v = view(p), pu = pctUnit(p); vals = { pct: pu && Math.round(v.k * pu), k: r100(v.k), ry: Math.round(v.ry / DEG), y: r100(v.y), x: r100(v.x), z: r100(v.z) }; }
+  document.querySelectorAll('#right [data-k]').forEach(i => { if (i !== document.activeElement && vals[i.dataset.k] != null) i.value = vals[i.dataset.k]; });
 }, 200);
 
 function renderWalls(el) {
-  const r = room(), w = L.rooms[r].walls, r3 = x => Math.round(x * 100) / 100;
+  const r = room(), w = walls(r), f = floorOf(r);
   el.innerHTML = `<h2>${ROOM_NAME[r]}: walls</h2>
-   <p class="hint">${selWall ? `Selected: <b>${selWall} wall</b>. Drag it in the picture, or type a number.` : 'Click a wall in the picture to select it.'}</p>
-   ${field('Back wall', 'back', -14, -1.5, .05, r3(w.back))}${field('Left wall', 'left', -16, -2, .05, r3(w.left))}${field('Right wall', 'right', 2, 16, .05, r3(w.right))}
+   <p class="hint">${selWall ? `Selected: <b>${selWall === 'floor' ? 'the floor' : selWall + ' wall'}</b>. Drag it in the picture, or type a number.` : 'Click a wall or the floor in the picture to select it.'}</p>
+   ${field('Back wall', 'back', -14, -1.5, .05, r100(w.back))}${field('Left wall', 'left', -16, -2, .05, r100(w.left))}${field('Right wall', 'right', 2, 16, .05, r100(w.right))}
    <div class="field"><label>Wall colour</label><input type="color" id="wcol" value="${w.color}"><span></span></div>
+   <h2 style="margin-top:16px">Floor</h2>
+   ${field('Left edge', 'f.left', -20, -1, .05, r100(f.left))}${field('Right edge', 'f.right', 1, 20, .05, r100(f.right))}${field('Back edge', 'f.back', -20, 0, .05, r100(f.back))}${field('Front edge', 'f.front', 1, 14, .05, r100(f.front))}
    <div class="field"><label>Floor colour</label><input type="color" id="fcol" value="${w.floor}"><span></span></div>
-   <p class="hint">The floor keeps its wood pattern; the colour tints it. White = as it is now.</p>`;
+   <p class="hint">The floor keeps its wood pattern (the planks stay the same size); the colour tints it. White = as it is now.</p>`;
   el.oninput = e => { const k = e.target.dataset.k, t = e.target;
-    if (k) { const val = parseFloat(t.value); if (isNaN(val)) return; change(() => { w[k] = val; }, 'w' + k, 'walls'); el.querySelectorAll(`[data-k="${k}"]`).forEach(i => { if (i !== t) i.value = t.value; }); }
-    if (t.id === 'wcol') change(() => { w.color = t.value; }, 'wcol', 'ui');
-    if (t.id === 'fcol') change(() => { w.floor = t.value; }, 'fcol', 'walls'); };
+    if (k) { const val = parseFloat(t.value); if (isNaN(val)) return;
+      change(() => { const ww = walls(r); ww.floorRect = { ...floorOf(r) }; if (k.startsWith('f.')) ww.floorRect[k.slice(2)] = val; else ww[k] = val; }, 'w' + k, 'walls');
+      el.querySelectorAll(`[data-k="${k}"]`).forEach(i => { if (i !== t) i.value = t.value; }); }
+    if (t.id === 'wcol') change(() => { walls(r).color = t.value; }, 'wcol', 'ui');
+    if (t.id === 'fcol') change(() => { walls(r).floor = t.value; }, 'fcol', 'walls'); };
 }
 function renderButtons(el) {
-  const k = screenKey(), S = L.ui.screens[k] || { left: [], right: [] }, all = Object.keys(L.ui.buttons), on = new Set([...S.left, ...S.right]);
-  const row = id => { const [em, nm] = btnLabel(id); return `<div class="brow${id === selBtn ? ' sel' : ''}"><span class="em">${em}</span><span class="nm">${nm}</span><input type="color" data-col="${id}" value="${L.ui.buttons[id].color}" title="Colour"><button class="ib eb" data-rm="${id}" title="Take off this screen">✕</button></div>`; };
-  el.innerHTML = `<h2>Buttons</h2>
-   <div class="field"><label>Screen</label><select class="eb" id="scr">${Object.keys(SCREEN_NAME).map(s => `<option value="${s}">${SCREEN_NAME[s]}</option>`).join('')}</select><span></span></div>
-   ${field('Size (all)', 'size', .7, 1.4, .05, L.ui.size)}
-   <div class="field"><label>Shape (all)</label><div class="grp"><button class="eb${L.ui.shape === 'round' ? ' on' : ''}" data-shape="round">● Round</button><button class="eb${L.ui.shape === 'square' ? ' on' : ''}" data-shape="square">■ Square</button></div><span></span></div>
-   <h2 style="margin-top:14px">Left side</h2><div class="blist">${S.left.map(row).join('') || '<p class="hint">none</p>'}</div>
-   <h2>Right side</h2><div class="blist">${S.right.map(row).join('') || '<p class="hint">none</p>'}</div>
-   <div class="field"><label>Add a button</label><select class="eb" id="addb"><option value="">Choose…</option>${all.filter(id => !on.has(id)).map(id => `<option value="${id}">${btnLabel(id).join(' ')}</option>`).join('')}</select><span></span></div>`;
+  const k = bscr || screenKey(), d = W.document;
+  const opts = `<div class="field"><label>Edit</label><select class="eb" id="scr">${Object.keys(SCREEN_NAME).map(s => `<option value="${s}">${SCREEN_NAME[s]}</option>`).join('')}</select><span></span></div>`;
+  const shapeRow = (cur, key) => `<div class="field"><label>Shape</label><div class="grp"><button class="eb${cur !== 'square' ? ' on' : ''}" data-shape="round" data-sk="${key}">● Round</button><button class="eb${cur === 'square' ? ' on' : ''}" data-shape="square" data-sk="${key}">■ Square</button></div><span></span></div>`;
+  let body;
+  if (k === 'top') {
+    const T = L.ui.top || {}, order = [...d.getElementById('top').children].map(x => x.id).concat('parentBtn');
+    body = field('Size', 'tsize', .7, 1.6, .05, T.size ?? 1) + shapeRow(T.shape, 'top') + `<div class="blist">${order.map(id => `<div class="brow${id === selBtn ? ' sel' : ''}"><span class="em">${TOPS[id][0]}</span><span class="nm">${TOPS[id][1]}</span>
+      <input type="color" data-tcol="${id}" value="${(T.colors || {})[id] || hex(W.getComputedStyle(d.getElementById(id)).backgroundColor)}" title="Colour">
+      ${id === 'parentBtn' ? '<span style="width:22px"></span>' : `<input type="checkbox" data-thide="${id}" ${(T.hide || []).includes(id) ? '' : 'checked'} title="Show">`}</div>`).join('')}</div>
+      <p class="hint">Drag the stars and the microphone in the picture to swap them. Untick to hide. The gear is the parent corner and always stays.</p>`;
+  } else if (k === 'nav') {
+    const N = L.ui.nav || {}, order = [...d.querySelectorAll('#nav .rb')].map(x => x.dataset.r);
+    body = field('Size', 'nsize', .7, 1.6, .05, N.size ?? L.ui.size) + shapeRow(N.shape ?? L.ui.shape, 'nav') + `<div class="blist">${order.map(r => `<div class="brow${r === selBtn ? ' sel' : ''}"><span class="em">${TABS[r][0]}</span><span class="nm">${TABS[r][1]}</span>
+      <input type="color" data-ncol="${r}" value="${(N.colors || {})[r] || '#ffffff'}" title="Colour (the tab of the room you are in stays yellow)">
+      <input type="checkbox" data-nhide="${r}" ${(N.hide || []).includes(r) ? '' : 'checked'} ${['home', 'play', 'bed'].includes(r) ? 'disabled title="Room tabs always stay: they are the only way into the rooms"' : 'title="Show"'}></div>`).join('')}</div>
+      <p class="hint">Drag the tabs in the picture to change the order. The three room tabs always stay (they are the only way into the rooms); Say it and the book can be hidden.</p>`;
+  } else {
+    const S = L.ui.screens[k] || { left: [], right: [] }, all = Object.keys(L.ui.buttons), on = new Set([...S.left, ...S.right]);
+    const row = id => { const [em, nm] = btnLabel(id); return `<div class="brow${id === selBtn ? ' sel' : ''}"><span class="em">${em}</span><span class="nm">${nm}</span><input type="color" data-col="${id}" value="${L.ui.buttons[id].color}" title="Colour"><button class="ib eb" data-rm="${id}" title="Take off this screen">✕</button></div>`; };
+    body = field('Size (sides)', 'size', .7, 1.4, .05, L.ui.size) + shapeRow(L.ui.shape, 'rails') +
+      `<h2 style="margin-top:14px">Left side</h2><div class="blist">${S.left.map(row).join('') || '<p class="hint">none</p>'}</div>
+      <h2>Right side</h2><div class="blist">${S.right.map(row).join('') || '<p class="hint">none</p>'}</div>
+      <div class="field"><label>Add a button</label><select class="eb" id="addb"><option value="">Choose…</option>${all.filter(id => !on.has(id)).map(id => `<option value="${id}">${btnLabel(id).join(' ')}</option>`).join('')}</select><span></span></div>`;
+  }
+  el.innerHTML = `<h2>Buttons</h2>${opts}${body}<p class="hint">Changing a button size never changes the camera.</p>`;
   el.querySelector('#scr').value = k;
-  el.querySelector('#scr').onchange = async e => { const s = e.target.value; selBtn = null; if (s === 'night') { await W.setRoom('bed'); W.setLights(false); } else { if (s === 'bed' && !W.eval('lightsOn')) W.setLights(true); await W.setRoom(s); } renderTop(); renderButtons(el); };
-  el.oninput = e => { const t = e.target;
-    if (t.dataset.k === 'size') { const v = parseFloat(t.value); if (!isNaN(v)) change(() => { L.ui.size = v; }, 'bsize', 'ui'); el.querySelectorAll('[data-k=size]').forEach(i => { if (i !== t) i.value = t.value; }); }
-    if (t.dataset.col) { const id = t.dataset.col; selBtn = id; markBtn(); change(() => { L.ui.buttons[id].color = t.value; }, 'bc' + id, 'ui'); } };
+  el.querySelector('#scr').onchange = async e => { const s = e.target.value; selBtn = null; bscr = s; markBtn();
+    if (s !== 'top' && s !== 'nav') { if (s === 'night') { await W.setRoom('bed'); W.setLights(false); } else { if (s === 'bed' && !W.eval('lightsOn')) W.setLights(true); await W.setRoom(s); } renderTop(); }
+    renderButtons(el); };
+  const toggle = (arr, v, on) => on ? arr.filter(x => x !== v) : [...new Set([...arr, v])];
+  el.oninput = e => { const t = e.target, ds = t.dataset, v = parseFloat(t.value);
+    const live = key => el.querySelectorAll(`[data-k=${key}]`).forEach(i => { if (i !== t) i.value = t.value; });
+    if (ds.k === 'size' && !isNaN(v)) { change(() => { L.ui.size = v; }, 'bsize', 'ui'); live('size'); }
+    if (ds.k === 'tsize' && !isNaN(v)) { change(() => { ui('top').size = v; }, 'tsize', 'ui'); live('tsize'); }
+    if (ds.k === 'nsize' && !isNaN(v)) { change(() => { ui('nav').size = v; }, 'nsize', 'ui'); live('nsize'); }
+    if (ds.col) { const id = ds.col; selBtn = id; markBtn(); change(() => { L.ui.buttons[id].color = t.value; }, 'bc' + id, 'ui'); }
+    if (ds.tcol) change(() => { const T = ui('top'); (T.colors = T.colors || {})[ds.tcol] = t.value; }, 'tc' + ds.tcol, 'ui');
+    if (ds.ncol) change(() => { const N = ui('nav'); (N.colors = N.colors || {})[ds.ncol] = t.value; }, 'nc' + ds.ncol, 'ui'); };
+  el.onchange = e => { const ds = e.target.dataset;
+    if (ds.thide) change(() => { const T = ui('top'); T.hide = toggle(T.hide || [], ds.thide, e.target.checked); }, '', 'ui');
+    if (ds.nhide) change(() => { const N = ui('nav'); N.hide = toggle(N.hide || [], ds.nhide, e.target.checked); }, '', 'ui'); };
   el.onclick = e => { const t = e.target;
-    if (t.dataset.shape) { change(() => { L.ui.shape = t.dataset.shape; }, '', 'ui'); renderButtons(el); }
+    if (t.dataset.shape) { const sk = t.dataset.sk; change(() => { if (sk === 'rails') L.ui.shape = t.dataset.shape; else ui(sk).shape = t.dataset.shape; }, '', 'ui'); renderButtons(el); }
     if (t.dataset.rm) { change(() => { const s = L.ui.screens[k]; s.left = s.left.filter(x => x !== t.dataset.rm); s.right = s.right.filter(x => x !== t.dataset.rm); }, '', 'ui'); renderButtons(el); } };
-  el.querySelector('#addb').onchange = e => { const id = e.target.value; if (id) { change(() => { (L.ui.screens[k] = L.ui.screens[k] || { left: [], right: [] }).left.push(id); }, '', 'ui'); renderButtons(el); } };
+  const ab = el.querySelector('#addb'); if (ab) ab.onchange = e => { const id = e.target.value; if (id) { change(() => { (L.ui.screens[k] = L.ui.screens[k] || { left: [], right: [] }).left.push(id); }, '', 'ui'); renderButtons(el); } };
   markBtn();
 }
 
@@ -539,5 +688,5 @@ function budget() {
   });
 }
 
-window.ED = { get L() { return L; }, get sel() { return sel; }, select, setMode, setDevice, setFree, goRoom, doSave, doUndo, doRedo, addProp, removeProp, toggleHidden, get saved() { return saved; } }; // for tests
+window.ED = { get L() { return L; }, get sel() { return sel; }, select, setMode, setDevice, setFree, goRoom, doSave, doUndo, doRedo, addProp, removeProp, toggleHidden, duplicate, get saved() { return saved; } }; // for tests
 })();

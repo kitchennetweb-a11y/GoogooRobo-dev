@@ -394,9 +394,11 @@ const windowGlow=new THREE.PointLight(0xcfe8ff,.45,9,2);windowGlow.position.set(
 const fill=new THREE.DirectionalLight(0xffe2c4,.18);fill.position.set(5,4,8);scene.add(fill);
 // walls per room from data/layout.json (WALLS[room]: left/right x, back z, floor tint); the shell is built at RW x RD and moved/stretched here
 const WALLS={},wallSides=room.children.filter(o=>o.material===wallMat&&o!==back),skirts=room.children.filter(o=>o.material===skirtMat);winParts.forEach(o=>o.userData.z0=o.position.z);
-function applyWalls(s){const W=WALLS[s]||{},l=W.left??-RW/2,r=W.right??RW/2,b=W.back??BACK,cx=(l+r)/2;back.scale.x=wood.scale.x=skirts[0].scale.x=(r-l)/RW;
-  back.position.set(cx,RH/2,b);wood.position.set(cx,0,b+RD/2);skirts[0].position.set(cx,.14,b+.03);wallSides.forEach((o,i)=>o.position.set(i?r:l,RH/2,b+RD/2));
-  skirts.slice(1).forEach((o,i)=>o.position.set(i?r-.03:l+.03,.14,b+RD/2));winParts.forEach(o=>o.position.z=o.userData.z0+b-BACK);windowGlow.position.z=b+1.2;floorMat.color.set(W.floor||'#ffffff')}
+// the floor has its own rectangle (W.floorRect: left/right/back/front; missing = under the walls, to the front edge), so a wall never moves or stretches it; wood tiling follows its size
+function applyWalls(s){const W=WALLS[s]||{},l=W.left??-RW/2,r=W.right??RW/2,b=W.back??BACK,F=BACK+RD,cx=(l+r)/2,fr=W.floorRect||{},fl=fr.left??l,fR=fr.right??r,fb=fr.back??b,ff=fr.front??F;
+  back.scale.x=skirts[0].scale.x=(r-l)/RW;back.position.set(cx,RH/2,b);skirts[0].position.set(cx,.14,b+.03);
+  wallSides.forEach((o,i)=>{o.scale.x=(F-b)/RD;o.position.set(i?r:l,RH/2,(b+F)/2)});skirts.slice(1).forEach((o,i)=>{o.scale.z=(F-b)/RD;o.position.set(i?r-.03:l+.03,.14,(b+F)/2)});
+  wood.scale.set((fR-fl)/RW,(ff-fb)/RD,1);wood.position.set((fl+fR)/2,0,(fb+ff)/2);woodTex.repeat.set(3*(fR-fl)/RW,3*(ff-fb)/RD);winParts.forEach(o=>o.position.z=o.userData.z0+b-BACK);windowGlow.position.z=b+1.2;floorMat.color.set(W.floor||'#ffffff')}
 let dayEnv=null;
 // soft reflections of the room on Pash and the toys
 (function(){const pm=new THREE.PMREMGenerator(renderer);const es=new THREE.Scene();
@@ -1276,8 +1278,8 @@ const PROPS={
   drum:{f:'toy_drum',k:.35,ry:.3,x:-5,z:-3.4,room:'play'}, doll:{f:'toy_doll',k:.5,ry:-.3,x:5,z:-3.4,room:'play'}, kite:{f:'toy_kite',k:.9,x:3.6,y:3,back:1,room:'play'},
   teddy:{f:'toy_teddy_bear',k:.49,ry:.3,x:-2.1,z:1.6,room:'play'}, cow:{f:'farm_cow',k:.27,ry:-.4,x:2.1,z:1.6,room:'play'},
   // bedroom
-  bed:{f:'bedroom_bed',k:.75,ry:-.15,x:-.7,z:-4.9,room:'bed',cast:1}, lamp:{f:'bedroom_lamp',k:.7,x:2.4,z:-4.6,y:.62,room:'bed'},
-  nightstand:{f:'bedroom_nightstand',k:.225,x:2.4,z:-4.6,room:'bed'}, wardrobe:{f:'bedroom_wardrobe',k:.893,x:6,back:1,room:'bed',cast:1,pt:{x:3}}, rug:{f:'bedroom_rug',k:1.2,x:0,z:.2,sy:.12,room:'bed'}};
+  bed:{f:'bedroom_bed',k:.75,ry:-.15,x:-.7,z:-4.9,room:'bed',cast:1}, lamp:{f:'bedroom_lamp',k:.7,x:2.4,z:-4.6,on:'nightstand',room:'bed'},
+  nightstand:{f:'bedroom_nightstand',k:.225,x:2.4,z:-4.6,room:'bed'}, wardrobe:{f:'bedroom_wardrobe',k:.447,x:6,back:1,room:'bed',cast:1,pt:{x:3}}, rug:{f:'bedroom_rug',k:1.2,x:0,z:.2,sy:.12,room:'bed'}};
 const TEXK=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'],FLAT=['carpet','rug']; // floor mats: no tap box, rays pass through (taps on the floor still go home)
 function roomProps(s){winParts.forEach(o=>o.visible=!(GOT.has('window')&&s==='home'));newRug.visible=!(GOT.has('carpet')&&s==='home'||GOT.has('rug')&&s==='bed')}
 function loadProps(room){if(!THREE.GLTFLoader||ASKED.has(room))return;ASKED.add(room);const ld=new THREE.GLTFLoader();
@@ -1293,24 +1295,35 @@ function loadProp(id,ld=new THREE.GLTFLoader()){const P=PROPS[id],room=P.room;ld
     if(old)furnGroup.remove(old);addF(id,g,x,z,P.ry||0,room);
     m.traverse(o=>{if(o.isMesh){o.castShadow=!!P.cast;o.receiveShadow=true;if(FLAT.includes(id))o.raycast=()=>{}}});
     if(FLAT.includes(id)||id==='bed')g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's would cover the lamp and nightstand, rugs would swallow floor taps
-    if(P.y)g.position.y=P.y;Object.assign(g.userData,{m,base:m.scale.clone(),z0:z,y0:P.y||0,ry0:P.ry||0,top:bb.max.y,pt:P.pt});if(P.nosq)g.userData.nosq=1;if(P.off)g.userData.off=1;
+    if(P.y)g.position.y=P.y;Object.assign(g.userData,{m,base:m.scale.clone(),z0:z,y0:P.y||0,ry0:P.ry||0,top:bb.max.y,pt:P.pt,on:P.on});if(P.nosq)g.userData.nosq=1;if(P.off)g.userData.off=1;
     g.visible=g.userData.room===curRoom&&!g.userData.off;
     if(id==='lamp'){const mt=g.userData.shade=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0xffc94d);mt.emissiveMap=mt.map;mt.emissiveIntensity=lightsOn?.15:.6;if(lampLight.parent)g.add(lampLight)}
     if(id==='tv'){const mt=tvMat=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0);mt.emissiveMap=mt.map;mt.emissiveIntensity=.4;mt.userData.on=0xffffff}
     if(id==='toybox'){const sh=furnById('shelf');if(sh)furnGroup.remove(sh)} // the primitive toy shelf makes way for the toy box
     GOT.add(id);roomProps(curRoom);resize()}catch(e){console.warn('prop',id,e)}},0,e=>console.warn('prop',id,e))}
 // data/layout.json (written by Design mode, ?design=1) replaces PROPS, WALLS/WALL and the rail buttons; the values in this file are the fallback if it can't load
+const SITS={lamp:'nightstand'}; // "sits on" links when the layout says nothing (on:null = stands free): the lamp stands on the nightstand's real top
+let HOME={x:0,z:0,ry:0,s:1},CAMAUTO=null;const GOO={},CAMS={},BUILT={}; // Googoo's place/size and the saved camera per room (layout.json), set by setHome() in resize()
+function setHome(){const g=GOO[curRoom]||{},p=portrait&&g.portrait||{};HOME={x:p.x??g.x??0,z:p.z??g.z??0,ry:p.ry??g.ry??0,s:p.s??g.s??1}}
 const LAYOUT=fetch('data/layout.json',{cache:'no-cache'}).then(r=>r.json()).then(applyLayout).catch(e=>console.warn('layout: built-in values',e));
 function applyLayout(L){for(const s in L.rooms){const R=L.rooms[s];WALLS[s]=R.walls||{};if(WALLS[s].color)WALL[s]=parseInt(WALLS[s].color.slice(1),16);
     for(const id in PROPS)if(PROPS[id].room===s)delete PROPS[id];
-    for(const p of R.props||[])PROPS[p.id]={f:p.file,k:p.k,x:p.x,y:p.y,z:p.z,ry:p.ry,room:s,back:p.wall==='back',side:p.wall==='left',sy:p.flatten,nosq:p.noSqueeze,off:p.hidden,cast:p.castShadow,pt:p.portrait}}
+    GOO[s]=R.googoo||{};CAMS[s]=R.camera||{};
+    for(const p of R.props||[])if(p.builtin)BUILT[p.id]=p;else PROPS[p.id]={f:p.file,k:p.k,x:p.x,y:p.y,z:p.z,ry:p.ry,room:s,on:p.on!==undefined?p.on:SITS[p.id],back:p.wall==='back',side:p.wall==='left',sy:p.flatten,nosq:p.noSqueeze,off:p.hidden,cast:p.castShadow,pt:p.portrait}}
   const U=L.ui||{},S=U.size||1;for(const k in U.screens||{})SCREENS[k]=[U.screens[k].left,U.screens[k].right];
   for(const id in U.buttons||{}){const b=document.getElementById(id);if(b&&U.buttons[id].color)b.style.background=U.buttons[id].color}
-  const css=(S!==1?`.col .rb,#nav .rb{width:calc(var(--b)*${S});height:calc(var(--b)*${S});font-size:calc(var(--b)*${S/2})}`:'')+(U.shape==='square'?'.col .rb,#nav .rb{border-radius:24%}':'');
+  for(const id in BUILT){const p=BUILT[id],g=furnById(id);if(!g)continue;g.userData.x0=p.x??g.userData.x0;if(p.z!=null)g.position.z=p.z;if(p.y!=null)g.position.y=p.y;if(p.ry!=null&&!g.userData.spin)g.rotation.y=p.ry;g.userData.off=p.hidden?1:0;g.userData.on=p.on!==undefined?p.on:SITS[id]} // book, star mobile
+  const T=U.top||{},N=U.nav||{},NS=N.size??S,top=document.getElementById('top'),nav=document.getElementById('nav'),sz=(q,k)=>k!==1?`${q}{width:calc(var(--b)*${k});height:calc(var(--b)*${k});font-size:calc(var(--b)*${k/2})}`:'';
+  (T.order||[]).forEach(id=>{const e=document.getElementById(id);if(e&&e.parentNode===top)top.appendChild(e)});['score','bTalk'].forEach(id=>document.getElementById(id).hidden=(T.hide||[]).includes(id)); // the gear always stays (parent corner)
+  for(const id in T.colors||{})document.getElementById(id).style.background=T.colors[id];
+  (N.order||[]).forEach(r=>{const e=nav.querySelector(`[data-r=${r}]`);if(e)nav.appendChild(e)});nav.querySelectorAll('.rb').forEach(e=>e.hidden=(N.hide||[]).includes(e.dataset.r)&&!ROOM_HI[e.dataset.r]); // room tabs can't be hidden
+  const css=sz('.col .rb',S)+sz('#nav .rb',NS)+(NS!==1?`@media (orientation:portrait){body.say .col,body:has(#deck:not([hidden])) .col{bottom:calc(env(safe-area-inset-bottom,0px) + var(--b)*${NS} + var(--g) + 10px)}}`:'')+(U.shape==='square'?'.col .rb{border-radius:24%}':'')+((N.shape||U.shape)==='square'?'#nav .rb{border-radius:24%}':'')+
+    Object.entries(N.colors||{}).map(([r,c])=>`#nav [data-r=${r}]:not(.cur){background:${c}}`).join('')+((T.size??1)!==1?`#top,#parentBtn{zoom:${T.size}}`:'')+(T.shape==='square'?'#bTalk,#parentBtn{border-radius:24%}':'');
   (document.getElementById('uiCss')||document.head.appendChild(Object.assign(document.createElement('style'),{id:'uiCss'}))).textContent=css;showScreen(scr)}
 // portrait overrides (pt: k size factor, x, z, y, ry) so the phone view isn't swamped by big pieces; landscape keeps the PROPS values
 function placeProps(sq){for(const g of furnGroup.children){const u=g.userData,pt=portrait&&u.pt||{};g.position.x=pt.x??u.x0*(u.nosq?1:sq);
-  if(u.z0!==undefined){g.position.z=pt.z??u.z0;g.position.y=pt.y??u.y0;g.rotation.y=pt.ry??u.ry0;u.m.scale.copy(u.base).multiplyScalar(pt.k||1)}}}
+  if(u.z0!==undefined){g.position.z=pt.z??u.z0;g.position.y=pt.y??u.y0;g.rotation.y=pt.ry??u.ry0;u.m.scale.copy(u.base).multiplyScalar(pt.k||1)}}
+  for(const g of furnGroup.children){const t=g.userData.on&&furnById(g.userData.on);if(t){t.updateMatrixWorld(true);g.position.y=new THREE.Box3().setFromObject(t.userData.m||t).max.y}}} // "sits on": on top of the other piece's real box
 function furnById(id){return furnGroup.children.find(g=>g.userData.furn===id)}
 const lampLight=new THREE.PointLight(0xffc77a,0,7,2);
 function setLights(on){lightsOn=on;const L=on?ROOM_DAY:ROOM_NIGHT;sun.intensity=L.sun;if(hemiLight)hemiLight.intensity=L.hemi;
@@ -1581,7 +1594,7 @@ function showScreen(s){const old=scr;scr=s;
 async function setRoom(s){if(s===scr&&ROOM_HI[s])return;const f=document.getElementById('fade');
   endGame();try{voiceSrc&&voiceSrc.stop()}catch(e){}if(st.mode!=='idle')setMode('idle');setFace('happy',0);goHome();
   while(bubbleGroup.children.length)bubbleGroup.remove(bubbleGroup.children[0]);
-  f.classList.add('on');await wait(320);showScreen(s);robot.position.x=robot.position.z=0;f.classList.remove('on');
+  f.classList.add('on');await wait(320);showScreen(s);robot.position.x=HOME.x;robot.position.z=HOME.z;f.classList.remove('on');
   if(s==='bed')awayT=0;
   if(s==='say')sayRound(pickSay(sayCur));else if(s==='book')bookHome(true);
   else if(s==='bed'&&bedInvite){bedInvite=false;doneN=0;navB('bed').classList.remove('invite');say(HAS.has('bed_night_start')?'bed_night_start':ROOM_HI[s]);wave('wave_bye_both'); // cosy ending: good-night wave, the lamp goes off by itself
@@ -1596,14 +1609,14 @@ const acts=document.getElementById('acts');
 let RB={h:3.6,w:2.4,y0:0},RB0=null; // RB0 = the first (primitive) robot: props keep their size from it whatever model Googoo is
 const SIZE=.9,SITH=.66; // SITH: his height sitting on the floor (SIT_R) / standing
  // Googoo's size knob: 1 = fills top..bot (or the rail gap), centred in that band
-function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3();if(GG)GG.traverse(o=>{if(o.isSkinnedMesh)b.expandByObject(o)});else b.setFromObject(robot);RB={h:b.max.y-b.min.y,w:b.max.x-b.min.x,y0:b.min.y-robot.position.y};RB0=RB0||RB;resize()}
-function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;
+function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3();if(GG)GG.traverse(o=>{if(o.isSkinnedMesh)b.expandByObject(o)});else b.setFromObject(robot);const k=robot.scale.x;RB={h:(b.max.y-b.min.y)/k,w:(b.max.x-b.min.x)/k,y0:(b.min.y-robot.position.y)/k};RB0=RB0||RB;resize()}
+function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;setHome();
   renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);camera.aspect=w/h;
   camera.fov=portrait?50:40;
   const sq=Math.min(1,(portrait?.3:.35)+w/h*.75);placeProps(sq); // portrait: pull furniture toward the middle so it stays on screen
   camera.clearViewOffset();
   // auto-fit: distance from his measured size so he spans top..bot of the screen, or fits the gap between the rails if that is narrower
-  const b=document.querySelector('#nav .rb').offsetWidth,top=portrait?.12:.08,bot=Math.min(portrait?.82:.84,(h-b-24)/h),gap=w-2*(b+34),cy=RB.y0+RB.h/2,
+  const b=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--b'))||56,top=portrait?.12:.08,bot=Math.min(portrait?.82:.84,(h-b-24)/h),gap=w-2*(b+34),cy=RB.y0+RB.h/2,
     P=(x,y)=>new THREE.Vector3(x,y,0).project(camera),aim=d=>{camera.position.set(0,3.4,d);camera.lookAt(0,cy,0);camera.updateMatrixWorld();camera.updateProjectionMatrix()};
   aim(10);const hp=(P(0,RB.y0+RB.h).y-P(0,RB.y0).y)/2*h,wp=(P(RB.w/2,cy).x-P(-RB.w/2,cy).x)/2*w;
   aim(10*Math.max(hp/((bot-top)*h),wp/gap)*(portrait&&toys&&!cards?1.16:1)/SIZE);
@@ -1617,7 +1630,12 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
     const [p,y]=cards?[new THREE.Vector3(0,topY,0),sb]:toys?[new THREE.Vector3(0,0,1.9),h*.6-40]:[null,(top+bot)/2*h-hn/2+h*.03];
     if(p){p.project(camera);camera.setViewOffset(w,h,0,(1-p.y)/2*h-y,w,h)}else camera.setViewOffset(w,h,0,y0-y,w,h)}
   else camera.setViewOffset(w,h,cards?-w*.2:0,y0-((top+bot)/2*h-hn/2)+(sat?(1-SITH)*hn*.5:0),w,h); // landscape (sitting: lifted half his drop); Say it / cards: robot moves aside for the card
+  // saved camera (layout.json, per room, upright phones / the rest): orbit around him from the auto-fit distance; card screens, stories and toys keep the auto-fit
+  const D=Math.hypot(camera.position.z,camera.position.y-cy),V=!cards&&!toys&&ROOM_HI[scr]&&(CAMS[curRoom]||{})[camKey()];CAMAUTO={pitch:Math.atan2(camera.position.y-cy,camera.position.z)*180/Math.PI,D};
+  if(V){const R=Math.PI/180,ty=cy+(V.height||0)*RB.h,d=D*(V.zoom||1),yw=(V.yaw||0)*R,pt=(V.pitch??CAMAUTO.pitch)*R;camera.position.set(d*Math.sin(yw)*Math.cos(pt),ty+d*Math.sin(pt),d*Math.cos(yw)*Math.cos(pt));camera.lookAt(0,ty,0)}
+  camera.position.multiplyScalar(HOME.s).add(new THREE.Vector3(HOME.x,0,HOME.z));camera.updateMatrixWorld(); // framed at size 1 around the origin, then moved to his place and size
   camera.updateProjectionMatrix()}
+const camKey=()=>portrait&&innerWidth<700?'phone':'wide'; // saved camera views: upright phones, everything else
 addEventListener('resize',resize);addEventListener('load',resize);showScreen('home');measureRobot();
 
 // ---------- Loop ----------
@@ -1634,7 +1652,7 @@ function loop(){
   spr('squash',140,9,dt);spr('lean',60,6,dt);spr('head',50,4,dt);
   st.spin+=st.spinVel*dt;st.spinVel*=Math.pow(.25,dt);
   antVel+=(-antAng*120-antVel*5)*dt;antAng+=antVel*dt;
-  let bob=GG?0:Math.sin(t*2.2)*.03,yaw=0,armWave=null,armFwd=null,headYaw=GG?0:Math.sin(t*.7)*.15,x=robot.position.x,z=robot.position.z+flipZ,ox=x,oz=z;
+  let bob=GG?0:Math.sin(t*2.2)*.03,yaw=HOME.ry,armWave=null,armFwd=null,headYaw=GG?0:Math.sin(t*.7)*.15,x=robot.position.x,z=robot.position.z+flipZ,ox=x,oz=z;
   const walkClip=GG&&ACT.walk_happy&&jumpY<.05,locked=ggLocked();ggLoco=null; // Googoo walks (or runs) with the clip and moves at its treadmill speed
   const face2=a=>robot.rotation.y+Math.atan2(Math.sin(a-robot.rotation.y),Math.cos(a-robot.rotation.y)); // the same heading, the short way round (no flip-flop at +-180 degrees)
   if(st.mode==='dance'){const b=t*4.5,beat=Math.floor(b/Math.PI);
@@ -1643,7 +1661,7 @@ function loop(){
     else if(danceStyle===2){const k=Math.floor(b/1.6);armWave=ROBOT_POSES[k%4];headYaw=k%2?.5:-.5;yaw=(k%3-1)*.4;bob=0;
       if(k!==lastBeat){lastBeat=k;tone(1200,1200,.05,'square',.06);kick('squash',2)}}
     else{yaw=Math.sin(b/2)*.7;armWave=[3,3];headYaw=Math.sin(b)*.3;if(beat!==lastBeat){lastBeat=beat;if(!GG)jump(4.5)}}
-    if(GG){bob=0;yaw=0;armWave=null;headYaw=0}
+    if(GG){bob=0;yaw=HOME.ry;armWave=null;headYaw=0}
     if(face==='happy'&&Math.sin(b*.5)>.9)setFace('laugh',400);
     if(st.modeT>9&&!discoOn){setMode('idle');setFace('laugh',1200);say('hi')}}
   else if(st.mode==='sleep'){bob=Math.sin(t*1.2)*.04-.05;headYaw=0;st.head=.25+Math.sin(t*1.2)*.03;st.sleepT+=dt;
@@ -1686,15 +1704,16 @@ function loop(){
         if(k>2.2)st.idleAct=null}}}
   // drive back home unless chasing the ball
   if(st.mode!=='chase'&&!locked){const r=st.homeFast?5:1.5;
-    if(walkClip&&Math.hypot(x,z)>.45&&st.mode!=='dance'){ggLoco='walk_happy';yaw=face2(Math.atan2(-x,-z))}else{x+=(0-x)*dt*r;z+=(0-z)*dt*r}if(Math.hypot(x,z)<.05)st.homeFast=false;
-    if(Math.hypot(x,z)>.1){wheelL.rotation.x+=dt*8;wheelR.rotation.x+=dt*8}}
+    const hx=HOME.x-x,hz=HOME.z-z; // home = his place in this room (layout.json)
+    if(walkClip&&Math.hypot(hx,hz)>.45&&st.mode!=='dance'){ggLoco='walk_happy';yaw=face2(Math.atan2(hx,hz))}else{x+=hx*dt*r;z+=hz*dt*r}if(Math.hypot(hx,hz)<.05)st.homeFast=false;
+    if(Math.hypot(hx,hz)>.1){wheelL.rotation.x+=dt*8;wheelR.rotation.x+=dt*8}}
   if(GG&&ggSpeed&&!locked){x+=Math.sin(robot.rotation.y)*ggSpeed*dt;z+=Math.cos(robot.rotation.y)*ggSpeed*dt} // along where he faces
   // jumping / flips
   if(st.mode!=='fly'){jumpV-=20*dt;jumpY+=jumpV*dt;if(jumpY<0){if(jumpV<-4){kick('squash',-jumpV*.9);tone(90,50,.12,'sine',.3)}jumpY=0;jumpV=0;
     if(rocketFall&&!flipping){rocketFall=false;if(st.mode==='idle'&&!game.type)ggFall()}}} // rocket landing: falls on his back and gets up
   if(flipping){flip+=dt*6.5;if(flip>=Math.PI*2){flip=0;flipping=false}}
   sitNow+=((sitDip||0)-sitNow)*Math.min(1,dt*8);sitDip=0;
-  const sc=pose.name==='big'&&now<pose.until?1.45:pose.name==='small'&&now<pose.until?.6:1;robotScale+=(sc-robotScale)*Math.min(1,dt*6);robot.scale.setScalar(robotScale);
+  const sc=pose.name==='big'&&now<pose.until?1.45:pose.name==='small'&&now<pose.until?.6:1;robotScale+=(sc-robotScale)*Math.min(1,dt*6);robot.scale.setScalar(robotScale*HOME.s);
   const fp=GG?1.8:1.2;flipZ=fp*Math.sin(flip);robot.position.set(x,jumpY+fp-fp*Math.cos(flip)-(GG?0:sitNow*.35),z-flipZ);robot.rotation.x=flip; // flipZ: the flip's arc, not part of where he stands
   robot.rotation.y+=((yaw+st.spin)-robot.rotation.y)*Math.min(1,dt*8);
   const sq=st.squash*.04;hips.scale.set(1+sq,1-sq,1+sq);hips.position.y=bob;hips.rotation.z=st.lean*.05;
