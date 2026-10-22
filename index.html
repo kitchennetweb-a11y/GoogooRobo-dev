@@ -368,7 +368,7 @@ const nightTex=canvasTex(256,256,(x,w,h)=>{const g=x.createLinearGradient(0,0,0,
   x.globalAlpha=1;x.fillStyle='#fff6c8';x.shadowColor='#fff6c8';x.shadowBlur=18;x.beginPath();x.arc(180,70,26,0,7);x.fill();
   x.shadowBlur=0;x.fillStyle='#0b1236';x.beginPath();x.arc(194,62,24,0,7);x.fill(); // crescent
   x.fillStyle='#1d3a2c';x.beginPath();x.moveTo(0,h);x.quadraticCurveTo(w*.3,h*.72,w*.6,h*.85);x.quadraticCurveTo(w*.85,h*.75,w,h*.8);x.lineTo(w,h);x.fill()});
-const WX=-1.2,WY=3.9,WW=3.2,WH=2.4;
+const WX=-1.2,WY=3.9,WW=3.2,WH=2.4,win0=room.children.length;
 const sky=new THREE.Mesh(new THREE.PlaneGeometry(WW,WH),skyMat);sky.position.set(WX,WY,BACK+.01);room.add(sky);
 const frameMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.45});
 const bar=(w,h,x,y)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,.12),frameMat);m.position.set(x,y,BACK+.06);m.castShadow=true;room.add(m)};
@@ -379,6 +379,7 @@ for(const s of[-1,1]){const cg=new THREE.PlaneGeometry(.9,WH+1.1,12,1);const pa=
   const cu=new THREE.Mesh(cg,curtainMat);cu.position.set(WX+s*(WW/2+.45),WY-.25,BACK+.18);cu.castShadow=true;room.add(cu)}
 const rod=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,WW+2.2,8),new THREE.MeshStandardMaterial({color:0x6b4a2f,roughness:.4,metalness:.3}));
 rod.rotation.z=Math.PI/2;rod.position.set(WX,WY+WH/2+.35,BACK+.2);room.add(rod);
+const winParts=room.children.slice(win0); // old window (sky, frame, sill, curtains, rod): hidden in the living room once the Tripo window has loaded
 // framed picture: a little robot doodle
 const picTex=canvasTex(256,320,(x,w,h)=>{x.fillStyle='#fffaf0';x.fillRect(0,0,w,h);x.lineWidth=7;x.lineCap='round';
   x.strokeStyle='#3a86ff';x.strokeRect(80,150,96,90);x.strokeStyle='#ff7a59';x.strokeRect(70,70,116,78);
@@ -802,7 +803,7 @@ function wake(){setMode('idle');say('wake');SFX.beep();setFace('shock',600);kick
 // ---------- Ball ----------
 const ball=new THREE.Mesh(new THREE.SphereGeometry(.3,28,20),new THREE.MeshStandardMaterial({color:0xffffff,roughness:.4,
   map:spriteTex(x=>{x.fillStyle='#fff';x.fillRect(0,0,128,128);x.fillStyle='#ff7a59';for(let i=0;i<4;i++)x.fillRect(i*32,0,16,128)})}));
-ball.castShadow=true;ball.visible=false;scene.add(ball);
+ball.castShadow=true;ball.visible=false;scene.add(ball);const BALLMAT=ball.material;
 const bv=new THREE.Vector3();
 function throwBall(){ball.visible=true;ball.position.set((Math.random()<.5?-1:1)*3.5,2.5,1.5);bv.set(-Math.sign(ball.position.x)*2,2,-.4);
   say('ball');SFX.beep();setMode('chase')}
@@ -892,7 +893,7 @@ const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(M
 const itemsGroup=new THREE.Group();scene.add(itemsGroup);
 function part(geo,mat,x=0,y=0,z=0){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;return m}
 const MAKE={
-  ball(){const g=new THREE.Group();g.add(part(new THREE.SphereGeometry(.32,28,20),ball.material,0,.32,0));return g},
+  ball(){const g=new THREE.Group();g.add(part(new THREE.SphereGeometry(.32,28,20),BALLMAT,0,.32,0));return g},
   apple(){const g=new THREE.Group(),b=part(new THREE.SphereGeometry(.32,28,20),M(0xe63946,.35,.05),0,.32,0);b.scale.y=.9;g.add(b);
     g.add(part(new THREE.CylinderGeometry(.025,.03,.18,8),M(0x6b4423,.8),0,.66,0));
     const l=part(new THREE.SphereGeometry(.09,12,8),M(0x4caf50,.6),.09,.68,0);l.scale.set(1.4,.4,.8);g.add(l);return g},
@@ -1208,18 +1209,46 @@ function makeFurniture(){
   add('star',mob,-1.7,-2.4,0,'bed').position.y=4.3;mob.userData.spin=.5;
 }
 makeFurniture();
-// Tripo GLB props (models/, real size: Googoo = 1) loaded lazily after start; each replaces its primitive group only once it has loaded, so a failed load keeps the old piece
-// id: [file, k, ry, x, z, lamp y]; scale = RB0.h (the primitive robot's height) * tweak (cow: new big toy, play room)
-const PROPS={bed:['bedroom_bed',.75,-.15,-.7,-4.9],lamp:['bedroom_lamp',.7,0,2.4,-4.6,.62],teddy:['toy_teddy_bear',.49,.3,-2.1,1.6],cow:['farm_cow',.27,-.4,2.1,1.6]};
-function loadProps(){if(!THREE.GLTFLoader)return;const ld=new THREE.GLTFLoader();
-  for(const id in PROPS){const[f,k,ry,cx,cz,y]=PROPS[id];ld.load('models/'+f+'.glb',gl=>{try{
-    const m=gl.scene,old=furnById(id);m.scale.setScalar(RB0.h*k);m.updateMatrixWorld(true);
-    const g=new THREE.Group();g.add(m);
-    if(old)furnGroup.remove(old);addF(id,g,cx??old.userData.x0,cz??old.position.z,ry,old?old.userData.room:'play');if(y)g.position.y=y;if(id==='bed')g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's box would cover the lamp and nightstand in front of it
-    
-    g.visible=g.userData.room===curRoom;
+// Tripo GLB props, loaded lazily: a room's props load the first time that room is shown (home right after the start button). Each replaces its primitive group only once it has loaded, so a failed load keeps the old piece
+const MODELS='models/'; // ONE base path for every prop GLB: point it at the optimized folder later
+let propsOn=false;const GOT=new Set(),ASKED=new Set();
+// id: {f file, k size (longest side = RB0.h*k, Googoo = 1), ry, x, z, y, room, cast (casts a shadow: only Googoo and the big furniture), sy (flatten, for rugs), back/side (flush with the back/left wall), nosq (wall piece: no portrait squeeze), off (hidden)}
+const PROPS={
+  // living room
+  window:{f:'living_window_curtains',k:1.2,x:-3.3,y:.9,back:1,room:'home'}, tv:{f:'living_tv_cabinet',k:.62,x:.8,back:1,room:'home',cast:1},
+  bookshelf:{f:'living_bookshelf',k:.8,x:4.5,back:1,room:'home',cast:1}, picture:{f:'living_picture_frame',k:.5,x:.8,y:3.2,back:1,room:'home'},
+  door:{f:'living_door',k:1.2,ry:Math.PI/2,z:-3.7,side:1,room:'home',nosq:1}, floorlamp:{f:'living_floor_lamp',k:1,ry:.5,x:-6.9,z:-1.5,room:'home',nosq:1},
+  sofa:{f:'living_sofa',k:.95,ry:Math.PI/2,z:1,side:1,room:'home',cast:1,nosq:1}, chair:{f:'living_armchair',k:.6,ry:-1.15,x:5.1,z:-2.4,room:'home'},
+  carpet:{f:'living_carpet_persian',k:1.4,ry:Math.PI/2,x:0,z:-.8,sy:.12,room:'home'}, table:{f:'living_coffee_table',k:.5,ry:Math.PI/2,x:-2.4,z:-3.7,room:'home'},
+  korsi:{f:'living_korsi',k:.9,x:3,z:-2.8,room:'home',off:1,cast:1}, // winter item: loaded but hidden (off); drop off:1 for the winter season
+  // play room (teddy and cow stay in front of Googoo)
+  toybox:{f:'toy_box',k:.6,x:-2.6,back:1,room:'play'}, piano:{f:'toy_piano',k:.45,x:.2,back:1,room:'play'}, blocks:{f:'toy_blocks',k:.4,x:2.7,back:1,room:'play'},
+  drum:{f:'toy_drum',k:.35,ry:.3,x:-5,z:-3.4,room:'play'}, doll:{f:'toy_doll',k:.5,ry:-.3,x:5,z:-3.4,room:'play'}, kite:{f:'toy_kite',k:.9,x:3.6,y:3,back:1,room:'play'},
+  teddy:{f:'toy_teddy_bear',k:.49,ry:.3,x:-2.1,z:1.6,room:'play'}, cow:{f:'farm_cow',k:.27,ry:-.4,x:2.1,z:1.6,room:'play'},
+  // bedroom
+  bed:{f:'bedroom_bed',k:.75,ry:-.15,x:-.7,z:-4.9,room:'bed',cast:1}, lamp:{f:'bedroom_lamp',k:.7,x:2.4,z:-4.6,y:.62,room:'bed'},
+  nightstand:{f:'bedroom_nightstand',k:.225,x:2.4,z:-4.6,room:'bed'}, wardrobe:{f:'bedroom_wardrobe',k:.95,x:6,back:1,room:'bed',cast:1,nosq:1}, rug:{f:'bedroom_rug',k:1.2,x:0,z:.2,sy:.12,room:'bed'}};
+const TEXK=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'],FLAT=['carpet','rug']; // floor mats: no tap box, rays pass through (taps on the floor still go home)
+function roomProps(s){winParts.forEach(o=>o.visible=!(GOT.has('window')&&s==='home'));newRug.visible=!(GOT.has('carpet')&&s==='home'||GOT.has('rug')&&s==='bed')}
+function loadProps(room){if(!THREE.GLTFLoader||ASKED.has(room))return;ASKED.add(room);const ld=new THREE.GLTFLoader();
+  for(const id in PROPS){const P=PROPS[id];if(P.room!==room)continue;ld.load(MODELS+P.f+'.glb',gl=>{try{
+    const m=gl.scene,old=furnById(id),sc=RB0.h*P.k;m.scale.set(sc,sc*(P.sy||1),sc);m.updateMatrixWorld(true);
+    const bb=new THREE.Box3().setFromObject(m),g=new THREE.Group();g.add(m);
+    let x=P.x??old?.userData.x0??0,z=P.z??old?.position.z??0;
+    if(P.back)z=BACK-bb.min.z+.03;if(P.side)x=-RW/2-bb.min.z+.03; // flush with the back / left wall
+    if(old)furnGroup.remove(old);addF(id,g,x,z,P.ry||0,room);
+    m.traverse(o=>{if(o.isMesh){o.castShadow=!!P.cast;o.receiveShadow=true;if(FLAT.includes(id))o.raycast=()=>{}}});
+    if(FLAT.includes(id)||id==='bed')g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's would cover the lamp and nightstand, rugs would swallow floor taps
+    if(P.y)g.position.y=P.y;if(P.nosq)g.userData.nosq=1;if(P.off)g.userData.off=1;
+    g.visible=g.userData.room===curRoom&&!g.userData.off;
     if(id==='lamp'){const mt=g.userData.shade=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0xffc94d);mt.emissiveMap=mt.map;mt.emissiveIntensity=lightsOn?.15:.6;if(lampLight.parent)g.add(lampLight)}
-    resize()}catch(e){console.warn('prop',id,e)}},0,e=>console.warn('prop',id,e))}}
+    if(id==='tv'){const mt=tvMat=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0);mt.emissiveMap=mt.map;mt.emissiveIntensity=.4;mt.userData.on=0xffffff}
+    if(id==='table'){const bk=furnById('book');if(bk){bk.userData.x0=x;bk.position.set(x,bb.max.y,z)}} // the book lies on the coffee table
+    if(id==='toybox'){const sh=furnById('shelf');if(sh)furnGroup.remove(sh)} // the primitive toy shelf makes way for the toy box
+    GOT.add(id);roomProps(curRoom);resize()}catch(e){console.warn('prop',id,e)}},0,e=>console.warn('prop',id,e))}
+  if(room==='play')ld.load(MODELS+'toy_ball.glb',gl=>{try{ // the ball keeps its sphere for physics and taps; its look is the GLB (a child, so it rolls with it)
+    const m=gl.scene;m.scale.setScalar(.6/.97);m.position.y=-.3;m.traverse(o=>{if(o.isMesh){o.raycast=()=>{};o.castShadow=false}});
+    ball.material=ball.material.clone();ball.material.visible=false;ball.add(m);GOT.add('ball')}catch(e){console.warn('ball',e)}},0,e=>console.warn('ball',e))}
 function furnById(id){return furnGroup.children.find(g=>g.userData.furn===id)}
 const lampLight=new THREE.PointLight(0xffc77a,0,7,2);
 function setLights(on){lightsOn=on;const L=on?ROOM_DAY:ROOM_NIGHT;sun.intensity=L.sun;if(hemiLight)hemiLight.intensity=L.hemi;
@@ -1241,7 +1270,7 @@ async function tapFurniture(id){
   if(id==='bed'){goHome();await sayAsync('w_bed');await sayAsync('x_in_takhte_mane');if(st.mode!=='game'&&curRoom==='bed'){setMode('sleep');setFace('sleep',1e9);music(false);ggClip(...YAWN)}return}
   if(id==='chair'){await sayAsync('w_chair');pose={name:'sit',until:performance.now()+1500};setMode('game');say('x_beshin');await wait(1600);if(st.mode==='game'&&!game.type)setMode('idle');return}
   // new pieces: a little reaction, and Pash names it when there's a clip
-  ({tv:()=>{tvMat.emissive.setHex(tvMat.emissive.getHex()?0:0x3a86ff);SFX.beep()},drum:()=>{tone(140,55,.3,'sine',.6);noise(.1,.3,900);jump(5)},
+  ({tv:()=>{tvMat.emissive.setHex(tvMat.emissive.getHex()?0:tvMat.userData.on||0x3a86ff);SFX.beep()},drum:()=>{tone(140,55,.3,'sine',.6);noise(.1,.3,900);jump(5)},
     teddy:()=>{SFX.giggle();emit('heart',furnById('teddy').position.clone().setY(1.8),5,{size:.3,life:1.2,g:.5})},cow:()=>{SFX.giggle();emit('heart',furnById('cow').position.clone().setY(2.5),5,{size:.3,life:1.2,g:.5})},star:()=>{[1047,1319,1568].forEach((f,i)=>tone(f,f,.2,'triangle',.08,i*.15))}}[id]||SFX.boing)();
   setFace('shock',500);kick('squash',4);if(HAS.has('w_'+id)||FURN[id])await sayAsync('w_'+id);setFace('laugh',800);
 }
@@ -1451,7 +1480,7 @@ onBtn('bLamp',()=>{if(curRoom==='bed')return tapFurniture('lamp');setLights(!lig
 onBtn('bDisco',()=>disco(!discoOn));onBtn('bDark',()=>playFindCards(true));onBtn('bStars',playStars);
 onBtn('bNStory',async()=>{const s=STORIES.find(s=>s.id==='bedtime')||STORIES[0];if(!s)return;await sayIf('night_story');if(scr==='bed'&&!game.type)storyPage(s,0)});
 onBtn('bSleep',()=>{setMode('sleep');say(HAS.has('x_khabam_miad')&&Math.random()<.5?'x_khabam_miad':'sleep');setFace('sleep',1e9);music(false);ggClip(...YAWN)});
-document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false);await Promise.race([MANIFEST.then(()=>loadVoices(['name','hi'])),wait(2500)]);loadCore();loadProps();document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;say(HAS.has('name')?'name':'hi');SFX.beep();kick('squash',8);speak();ggClip('wave_hello',2.2,{loop:1});ggAnims()};
+document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false);await Promise.race([MANIFEST.then(()=>loadVoices(['name','hi'])),wait(2500)]);loadCore();propsOn=true;loadProps(curRoom);document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;say(HAS.has('name')?'name':'hi');SFX.beep();kick('squash',8);speak();ggClip('wave_hello',2.2,{loop:1});ggAnims()};
 // the start button waits until Googoo (model + face kit) has loaded, at most 25 s; without them the old robot plays (and Googoo swaps in if he arrives later)
 {const b=document.getElementById('go'),txt=b.textContent;b.disabled=true;b.textContent='…';
   Promise.race([Promise.all([ggLoad,ggFace]),wait(25000)]).then(()=>{b.disabled=false;b.textContent=txt;window.__ggReady=1})}
@@ -1481,7 +1510,8 @@ const SCREENS={home:[['bFeed','bDance','bSing','bLamp'],LEARN],play:[['bBall','b
 const WALL={home:0xffffff,play:0xfff27a,bed:0x6f9cff};
 function showScreen(s){const old=scr;scr=s;
   if(s!==old){disco(false,1);if(!lightsOn&&(old==='home'||old==='play'||ROOM_HI[s]&&s!=='bed'))setLights(true)} // leaving a room: normal lights (bedroom lamp stays as it was)
-  if(ROOM_HI[s]){curRoom=s;furnGroup.children.forEach(g=>g.visible=g.userData.room===s);wallMat.color.setHex(WALL[s])}
+  if(ROOM_HI[s]){curRoom=s;if(propsOn)loadProps(s);furnGroup.children.forEach(g=>g.visible=g.userData.room===s&&!g.userData.off);roomProps(s);furnGroup.children.forEach(g=>{if(!g.visible)g.traverse(o=>{if(o.isMesh&&o.material)for(const k of TEXK)o.material[k]?.dispose()})}); // other rooms' props give their GPU textures back (re-uploaded when shown again): keeps a visit to every room under the memory budget
+  wallMat.color.setHex(WALL[s])}
   const night=s==='bed'&&!lightsOn;document.body.classList.toggle('night',night);surpEl.hidden=!(surp&&surp.room===s);
   document.querySelectorAll('.col .rb').forEach(b=>document.getElementById('btns').appendChild(b));
   ['colL','colR'].forEach((c,i)=>{c=document.getElementById(c);SCREENS[night?'night':s][i].forEach(id=>c.appendChild(document.getElementById(id)))});
@@ -1508,7 +1538,7 @@ function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3();i
 function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;
   renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);camera.aspect=w/h;
   camera.fov=portrait?50:40;
-  const sq=Math.min(1,(portrait?.3:.35)+w/h*.75);furnGroup.children.forEach(g=>g.position.x=g.userData.x0*sq); // portrait: pull furniture toward the middle so it stays on screen
+  const sq=Math.min(1,(portrait?.3:.35)+w/h*.75);furnGroup.children.forEach(g=>g.position.x=g.userData.x0*(g.userData.nosq?1:sq)); // portrait: pull furniture toward the middle so it stays on screen
   camera.clearViewOffset();
   // auto-fit: distance from his measured size so he spans top..bot of the screen, or fits the gap between the rails if that is narrower
   const b=document.querySelector('#nav .rb').offsetWidth,top=portrait?.12:.08,bot=Math.min(portrait?.82:.84,(h-b-24)/h),gap=w-2*(b+34),cy=RB.y0+RB.h/2,
