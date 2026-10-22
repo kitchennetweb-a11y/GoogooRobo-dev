@@ -1216,7 +1216,7 @@ async function storyPage(s,i){const tok=startGame('story'),p=s.pages[i];try{voic
 // ---------- Room furniture: tap to hear the word ----------
 const furnGroup=new THREE.Group();scene.add(furnGroup);
 const hemiLight=scene.children.find(o=>o.isHemisphereLight);let tvMat;
-let lightsOn=true,addF;
+let lightsOn=true,addF,NEO=null,neoK=1; // NEO = the library shelf's Neon/Halo materials (day/night glow, see neonSet)
 function makeFurniture(){
   const wood=M(0xc98b52,.7),dark=M(0x8a5a33,.7);
   const add=(id,g,x,z,ry=0,rm='home')=>{g.position.set(x,0,z);g.rotation.y=ry;g.traverse(o=>{o.userData.furn=id;if(o.isMesh){o.castShadow=true;o.receiveShadow=true}});
@@ -1321,6 +1321,9 @@ function loadProp(id,ld=new THREE.GLTFLoader()){const P=PROPS[id],room=P.room;ld
     if(P.back)z=(WALLS[room]?.back??BACK)-bb.min.z+.03;if(P.side)x=(WALLS[room]?.left??-RW/2)-bb.min.z+.03; // flush with the back / left wall
     if(old)furnGroup.remove(old);addF(id,g,x,z,P.ry||0,room);
     m.traverse(o=>{if(o.isMesh){o.castShadow=!!P.cast;o.receiveShadow=true;if(FLAT.includes(id))o.raycast=()=>{}}});
+    if(id==='lib_shelf'){NEO={g,n:null,h:null};m.traverse(o=>{const mt=o.isMesh&&o.material; // by material name (the optimizer may rename meshes)
+      if(mt&&mt.name==='Halo'){mt.blending=THREE.AdditiveBlending;mt.transparent=true;mt.depthWrite=false;o.castShadow=false;NEO.h=mt}
+      else if(mt&&mt.name==='Neon')NEO.n=mt});neonSet(1)}
     if(FLAT.includes(id)||id==='bed'||id.startsWith('lib_'))g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's would cover the lamp and nightstand, rugs would swallow floor taps, library pieces would cover the books (their own meshes still take taps)
     if(P.y)g.position.y=P.y;Object.assign(g.userData,{m,base:m.scale.clone(),z0:z,y0:P.y||0,ry0:P.ry||0,top:bb.max.y,pt:P.pt,on:P.on});if(P.nosq)g.userData.nosq=1;if(P.off)g.userData.off=1;
     g.visible=g.userData.room===curRoom&&!g.userData.off;
@@ -1473,7 +1476,10 @@ function roomLayout(s){const W=WALLS[s]||{},hx=n=>'#'+n.toString(16).padStart(6,
       if(P.back)p.wall='back';if(P.side)p.wall='left';if(P.nosq)p.noSqueeze=true;p.castShadow=!!P.cast;p.hidden=!!P.off;if(P.pt)p.portrait={...P.pt};return p}),
     googoo:{...(GOO[s]||{})},camera:JSON.parse(JSON.stringify(CAMS[s]||{})),...(s==='library'?{books:libAssign()}:{})}}
 const lampLight=new THREE.PointLight(0xffc77a,0,7,2);
-function setLights(on){lightsOn=on;const L=on?ROOM_DAY:ROOM_NIGHT;sun.intensity=L.sun;if(hemiLight)hemiLight.intensity=L.hemi;
+function neonSet(full){if(!NEO)return;const n=!lightsOn; // day: faint; night: bright, outside tone mapping, with a slow pulse (neoK, from the loop)
+  if(NEO.n){NEO.n.emissiveIntensity=n?2.5*neoK:1;if(full){NEO.n.toneMapped=!n;NEO.n.needsUpdate=true}}
+  if(NEO.h){NEO.h.opacity=n?.9*neoK:.25;if(full){NEO.h.toneMapped=!n;NEO.h.needsUpdate=true}}}
+function setLights(on){lightsOn=on;neonSet(1);const L=on?ROOM_DAY:ROOM_NIGHT;sun.intensity=L.sun;if(hemiLight)hemiLight.intensity=L.hemi;
   windowGlow.intensity=L.win;scene.environment=on?dayEnv:null;fill.intensity=L.fill;renderer.toneMappingExposure=L.exp;scene.background.setHex(L.bg);
   skyMat.map=on?skyTex:nightTex;skyMat.color.setHex(0xffffff);skyMat.needsUpdate=true;
   const f=furnById('lamp');if(f){f.userData.shade.emissiveIntensity=on?.6:2.2;if(!lampLight.parent){f.add(lampLight);lampLight.position.set(0,1.6,0)}}
@@ -1813,6 +1819,7 @@ const ROBOT_POSES=[[2.6,.3],[.3,2.6],[1.6,1.6],[3,3]];
 function loop(){
   raf=requestAnimationFrame(loop);
   const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime,now=performance.now();st.modeT+=dt;
+  if(NEO&&!lightsOn&&NEO.g.visible){neoK=.92+.08*Math.sin(t*1.6);neonSet()} // slow, subtle night pulse
   spr('squash',140,9,dt);spr('lean',60,6,dt);spr('head',50,4,dt);
   st.spin+=st.spinVel*dt;st.spinVel*=Math.pow(.25,dt);
   antVel+=(-antAng*120-antVel*5)*dt;antAng+=antVel*dt;
