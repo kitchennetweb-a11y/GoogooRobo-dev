@@ -2,6 +2,8 @@
 
 Replaces the rough list in `docs/tripo-objects.md`. Goal: every 3D prop and world piece for the house, the courtyard, the street, the shops, the park, the farm, the school, the beach and the moon, built with Tripo (free text-to-image first, then image-to-3D) as engine-neutral GLB files (Unity is the leaning engine, not final). Nothing here changes code.
 
+> **Style locked (owner, 2026-10-21):** the plain style prompt above is the base for everything. **Light sci-fi touch** only on hero house pieces (sofa, samovar, lamps, TV, fridge, bed, and similar "Googoo's home" tech); food, animals and most other props stay plain. Sci-fi line, inserted before "Object:": *"Playful friendly sci-fi twist, as if it belongs in a cheerful robot's home of the future: smooth rounded retro-futuristic shell, thin soft glowing cyan light strips, small rounded robot-style details, gently floating parts held by soft light."* Chosen images (docs/style-tests/): apple = right of anchor-apple.png; sofa = left of scifi-sofa.png (hovering, curved cyan side glow); samovar = right of scifi-samovar.png (round, floating teapot). Floating parts (teapot, sofa pads) must be made with Generate in Parts so they can bob in the engine.
+
 > **Tested 2026-10-21 in Tripo (Nano Banana, 1:1, 2 images, free):** the first version of the style prompt said "with cream and royal-blue accents where they fit" and painted blue stripes on the apple; it was removed. The 3 anchors (apple, sofa, samovar) then came out clean.
 
 ## 0. Rules for every model
