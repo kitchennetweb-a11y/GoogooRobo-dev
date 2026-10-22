@@ -77,6 +77,7 @@ body:not(.words) #bubble{display:none}
 #start{position:fixed;inset:0;display:grid;place-items:center;background:#bfe3f2cc;z-index:5}
 #start button{font:800 34px var(--display);background:var(--coral);color:#fff;border:0;border-radius:40px;padding:18px 44px;
   box-shadow:0 8px 0 #0003;cursor:pointer}
+#start button:disabled{opacity:.75;cursor:wait;font-variant-numeric:tabular-nums}
 #start p{text-align:center;margin:14px 16px 0;font-size:16px;opacity:.7}
 #hint{position:fixed;right:16px;top:calc(env(safe-area-inset-top,0px) + 56px);font-size:13px;background:var(--card);
   border-radius:12px;padding:6px 10px;max-width:220px;line-height:1.35}
@@ -237,9 +238,13 @@ const loadVoices=keys=>Promise.all(keys.map(loadVoice));
 // core = Pash's own reactions (pokes, greetings, variants), loaded one at a time so the phone stays responsive; word, game, book and story lines load when needed
 const loadCore=()=>MANIFEST.then(()=>[...HAS].filter(k=>!/^(w|ww|wn|where|this|say|want|song|surprise|st|book|ask|snd|hunt|count|night|dark|disco|lamp|invite)_/.test(k))
   .reduce((p,k)=>p.then(()=>loadVoice(k)),Promise.resolve()));
-let voiceSrc=null,voiceEnd=0;
+let voiceSrc=null,voiceEnd=0,VAN=null,vPeak=.02;const vBuf=new Float32Array(512);
+// mouth level of the clip playing now (0..1), normalised to the clip's own peak so whispers move the mouth too; -1 = no voice
+function voiceLevel(){if(!VAN||!AC||AC.currentTime>voiceEnd)return -1;VAN.getFloatTimeDomainData(vBuf);let r=0;for(const v of vBuf)r+=v*v;r=Math.sqrt(r/vBuf.length);
+  vPeak=Math.max(vPeak*.995,r);return Math.min(1,r/(vPeak*.8))}
 function playVoice(k){const b=VOICE[k];if(!b||!AC)return 0;try{voiceSrc&&voiceSrc.stop()}catch(e){}
-  const s=AC.createBufferSource(),g=AC.createGain();g.gain.value=k==='name'?.9:1;s.buffer=b;s.connect(g).connect(AC.destination);s.start(AC.currentTime+.05);voiceSrc=s;voiceEnd=AC.currentTime+.05+b.duration;return b.duration}
+  const s=AC.createBufferSource(),g=AC.createGain();g.gain.value=k==='name'?.9:1;s.buffer=b;
+  if(!VAN){VAN=AC.createAnalyser();VAN.fftSize=512;VAN.connect(AC.destination)}vPeak=.02;s.connect(g).connect(VAN);s.start(AC.currentTime+.05);voiceSrc=s;voiceEnd=AC.currentTime+.05+b.duration;return b.duration}
 const bubble=document.getElementById('bubble');let bubT;
 // Extra lines: variety so Pash doesn't always say the same thing
 Object.assign(LINES,{
@@ -289,7 +294,7 @@ function say(k){k=pickVar(k);lastSaid=k;try{statHeard(k)}catch(e){}hush(1600);co
   const go=()=>{const dur=playVoice(k),ms=Math.max(1500,(dur+.4)*1000);if(dur){mouthT=performance.now()+dur*1000;hush(dur*1000+600)}
     clearTimeout(pbT);pbub.classList.remove('show'); // never two pictures at once
     if(pic){ // the picture goes on his face screen; tiny round bubble beside his head only when the screen is hidden or he sleeps
-      if(st.mode==='sleep'||st.mode==='peek'||face==='hidden'){const v=new THREE.Vector3();head.getWorldPosition(v);v.project(camera);
+      if(st.mode==='sleep'||st.mode==='peek'||face==='hidden'){const v=new THREE.Vector3();headObj().getWorldPosition(v);v.project(camera);
         pbub.textContent=pic;pbub.style.left=Math.min(innerWidth-60,(v.x+1)/2*innerWidth+50)+'px';pbub.style.top=Math.max(8,(1-v.y)/2*innerHeight-40)+'px';pbub.classList.add('show');clearTimeout(pbT);pbT=setTimeout(()=>pbub.classList.remove('show'),ms)}
       else{facePic=pic;setFace('pic',ms)}}
     clearTimeout(bubT);bubT=setTimeout(()=>bubble.classList.remove('show'),Math.max(2200,(dur+.6)*1000))};
@@ -482,6 +487,214 @@ function drawFace(t){
 }
 function setFace(f,ms=1500){face=f;faceUntil=performance.now()+ms}
 
+// ---------- Googoo: the Tripo-rigged model (Mixamo skeleton "mixamorig:*", from proto/tripo.html) ----------
+// assets/googoo/ is built by assets/googoo/build_web.py: googoo.glb (7 clean clips, small texture), face.webp + face.json (the face kit atlas).
+// The primitive robot above is the fallback: it stays until the GLB has loaded and keeps driving the springs (squash, lean, head, jump).
+// Once loaded, GG is set, the primitive parts are hidden and ggUpdate() poses the bones every frame:
+// Tripo clip (wait / listen / a short reaction) -> procedural dance blended on top -> squat, steps, arm IK, head and spine offsets.
+const GOO_V='1',GOO_H=3.7; // file version (bump when the files change: the service worker keeps .glb for good) and his height in the room
+const gg=new THREE.Group();robot.add(gg);
+let GG=null,RIG=null,mixer=null,HT=1;
+const ACT={},CW={},B={},REST={},RESTP={},LEGP={},SH0={},FLX={},REACH={},FING={Left:[],Right:[]},SIDES=['Left','Right'],SG={Left:1,Right:-1},V3=()=>new THREE.Vector3();
+let FACEP=null;const ANT=[],EARS=[];
+function mQ(b,q){q.identity();for(let o=b;o!==RIG;o=o.parent)q.premultiply(o.quaternion);return q} // rotation / position in rig (model) space
+function mP(b,v){v.set(0,0,0);for(let o=b;o!==RIG;o=o.parent)v.applyQuaternion(o.quaternion).add(o.position);return v}
+function toRest(){for(const n in B){B[n].quaternion.copy(REST[n]);B[n].position.copy(RESTP[n])}}
+const headObj=()=>GG?B.Head:head; // the head pivot (neck top) for picture bubbles and dizzy stars
+const ggLoad=new Promise(res=>{if(!THREE.GLTFLoader)return res(false);const goB=document.getElementById('go');
+  new THREE.GLTFLoader().load('assets/googoo/googoo.glb?v='+GOO_V,g=>{try{ggSetup(g);res(true)}catch(e){console.warn('googoo',e);res(false)}},
+    p=>{if(p.total&&goB.disabled)goB.textContent=Math.round(p.loaded/p.total*100)+'%'},e=>{console.warn('googoo',e);res(false)})});
+function ggSetup(g){const model=g.scene;
+  model.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;o.raycast=()=>{}} // taps hit the invisible part boxes below
+    if(o.isBone){const n=o.name.replace(/^mixamorig:?/,'');B[n]=o;REST[n]=o.quaternion.clone();RESTP[n]=o.position.clone()}});
+  RIG=B.Hips.parent;RIG.userData.w0=new THREE.Quaternion();
+  for(const n in B)B[n].userData.w0=mQ(B[n],new THREE.Quaternion()); // rest rotation in model space: offsets are applied in rest-aligned axes
+  model.getObjectByName('Googoo_face_screen').traverse(o=>{if(o.isMesh){o.material=new THREE.MeshBasicMaterial({map:kitTex,toneMapped:false,skinning:!!o.isSkinnedMesh});o.castShadow=o.receiveShadow=false}});
+  const bb=new THREE.Box3().setFromObject(model);HT=bb.max.y-bb.min.y;const k=GOO_H/HT;model.scale.setScalar(k);model.position.y=-bb.min.y*k;
+  gg.position.set(0,0,0);gg.rotation.set(0,0,0);gg.scale.set(1,1,1);gg.add(model);
+  const a=V3(),c=V3();
+  for(const s of SIDES){LEGP[s]={A0:mP(B[s+'Foot'],V3()),T0:mP(B[s+'ToeBase'],V3()),QF0:mQ(B[s+'Foot'],new THREE.Quaternion())};
+    SH0[s]=mP(B[s+'Arm'],V3()).sub(mP(B.Spine2,a));
+    REACH[s]=mP(B[s+'ForeArm'],c).distanceTo(mP(B[s+'Arm'],a))+mP(B[s+'Hand'],c).distanceTo(mP(B[s+'ForeArm'],a));
+    FLX[s]=new THREE.Vector3(0,0,1).cross(mP(B[s+'HandMiddle1'],c).sub(mP(B[s+'Hand'],a)).normalize()).normalize();
+    for(const n in B)if(n.startsWith(s+'Hand')&&/(Index|Middle|Ring|Pinky)[123]$/.test(n))FING[s].push(B[n])}
+  mixer=new THREE.AnimationMixer(model);for(const cl of g.animations)ACT[cl.name]=mixer.clipAction(cl);
+  ACT.wait.play();CW.wait=1;
+  // invisible tap boxes on the bones (they follow every pose), sizes in units of his height; poke() reads userData.part
+  robot.updateMatrixWorld(true);const pm=new THREE.MeshBasicMaterial({visible:false}),U=GOO_H,wp=b=>B[b].getWorldPosition(V3());
+  const prox=(bone,part,geo,p)=>{const m=new THREE.Mesh(geo,pm);m.userData.part=part;m.position.copy(p);scene.add(m);B[bone].attach(m);return m},
+    at=(x,y,z)=>gg.localToWorld(V3().set(x*U,y*U,z*U)),box=(x,y,z)=>new THREE.BoxGeometry(x*U,y*U,z*U),ball=r=>new THREE.SphereGeometry(r*U,8,6);
+  prox('Head','head',box(.34,.31,.34),at(0,.84,0));
+  const fg=box(.31,.2,.04);fg.translate(0,.035*U,0);FACEP=prox('Head','face',fg,at(0,.78,.175)); // local y>0 = eyes, below = mouth
+  for(const s of SIDES){const x=SG[s];
+    EARS.push(prox('Head','ear',ball(.065),at(x*.225,.80,0)));ANT.push(prox('Head','antenna',box(.08,.18,.1),at(x*.21,.955,0)));
+    prox(s+'Arm','arm',ball(.055),wp(s+'Arm').lerp(wp(s+'ForeArm'),.5));prox(s+'ForeArm','arm',ball(.055),wp(s+'ForeArm').lerp(wp(s+'Hand'),.5));
+    prox(s+'Hand','arm',ball(.065),wp(s+'Hand').lerp(wp(s+'ForeArm'),-.45));
+    prox(s+'UpLeg','feet',ball(.07),wp(s+'UpLeg').lerp(wp(s+'Leg'),.5));prox(s+'Leg','feet',ball(.065),wp(s+'Leg').lerp(wp(s+'Foot'),.5));
+    prox(s+'Foot','feet',ball(.085),wp(s+'Foot').lerp(wp(s+'ToeBase'),.5).setY(.04*U))}
+  prox('Spine','belly',box(.22,.3,.22),at(0,.49,0));
+  // ear propellers (flying) + a glow on each ear (listening = red, dancing = pulse), spinning about the ear axis
+  for(const e of EARS){const pv=new THREE.Group();pv.position.copy(e.getWorldPosition(V3()));scene.add(pv);
+    const bl=new THREE.Mesh(new THREE.BoxGeometry(.04,.9,.12),YEL);bl.visible=false;pv.add(bl);
+    const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:TEX.spark,color:0xffa000,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));gl.scale.setScalar(.5);gl.visible=false;pv.add(gl);
+    pv.quaternion.copy(robot.quaternion);B.Head.attach(pv);e.userData.fx={bl,gl}}
+  robot.children.forEach(o=>{if(o!==gg)o.visible=false});GG=model;measureRobot()}
+
+// ----- face screen: the approved face kit, composed on a canvas (layers pre-warped for the screen UVs; full canvas = screen UV 0..1, flipY off) -----
+const kc=document.createElement('canvas');kc.width=1024;kc.height=688;const kx=kc.getContext('2d');
+const kt=document.createElement('canvas');kt.width=kc.width;kt.height=kc.height;const ktx=kt.getContext('2d');
+const km=document.createElement('canvas');km.width=kc.width;km.height=kc.height; // pupil mask, drawn once
+const kitTex=new THREE.CanvasTexture(kc);kitTex.encoding=THREE.sRGBEncoding;kitTex.flipY=false;kitTex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+let FK=null,FKI=null,FBG=null,kitKey='';
+const loadImg=src=>new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=no;im.src=src});
+const ggFace=Promise.all([fetch('assets/googoo/face.json?v='+GOO_V).then(r=>r.json()),loadImg('assets/googoo/face.webp?v='+GOO_V),loadImg('assets/googoo/face_bg.jpg?v='+GOO_V)])
+  .then(([k,a,bg])=>{FKI=a;FBG=bg;FK=k;const E=(...l)=>l.map(n=>[n,0,0,'']);
+    k.exp.hidden=E('eyes_closed','brows_happy','mouth_big_smile');k.exp.asleep=E('eyes_closed','brows_neutral','mouth_sleepy'); // peekaboo, asleep
+    kLayer(km.getContext('2d'),'eyes_open_mask',0,0)}).catch(e=>console.warn('face kit',e));
+function kLayer(cx,name,dx,dy){for(const [x,y,w,h,ox,oy] of FK.rects[name]||[])cx.drawImage(FKI,x,y,w,h,ox+dx,oy+dy,w,h)}
+function compose(name,gx,gy){const key=name+(name==='pic'?facePic:'')+gx+','+gy;if(key===kitKey)return;kitKey=key;
+  const W=kc.width,H=kc.height;kx.clearRect(0,0,W,H);kx.drawImage(FBG,0,0,W,H);
+  if(name==='pic'){kx.font='330px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';kx.textAlign='center';kx.textBaseline='middle';kx.fillText(facePic,W/2,H*.52)}
+  else for(const [l,ox,oy,clip] of FK.exp[name]){
+    if(clip){ktx.globalCompositeOperation='source-over';ktx.clearRect(0,0,W,H);kLayer(ktx,l,ox+gx,oy+gy); // gaze shifts the pupils, the mask keeps them inside the eye whites
+      ktx.globalCompositeOperation='destination-in';ktx.drawImage(km,0,0);ktx.globalCompositeOperation='source-over';kx.drawImage(kt,0,0)}
+    else kLayer(kx,l,ox,oy)}
+  kitTex.needsUpdate=true}
+// the game's face names -> kit expressions (happy = the resting face: neutral with blinks and look-around; a timed happy = big smile)
+const FMAP={laugh:'laugh',shock:'surprised',dizzy:'dizzy',listen:'curious',wink:'wink',cheeky:'cheeky',hidden:'hidden'};
+const gaze={x:0,y:0,tx:0,ty:0,next:0};let kBlinkT=-1,kNextBlink=2;
+function faceGG(t,dt,now,lvl){ // lvl: 0..1 mouth level from the voice, <0 = silent
+  if(t>gaze.next){const m=FK.pupil_max;gaze.tx=rnd(-.85,.85)*m[0];gaze.ty=rnd(-.7,.7)*m[1];gaze.next=t+rnd(1.2,3.2)}
+  const k=Math.min(1,dt*9);gaze.x+=(gaze.tx-gaze.x)*k;gaze.y+=(gaze.ty-gaze.y)*k;
+  let f=face==='pic'?'pic':face==='sleep'?(st.mode==='sleep'?'asleep':'sleepy'):face==='happy'?(now<faceUntil?'happy':'neutral'):FMAP[face]||'neutral';
+  if((f==='neutral'||f==='happy')&&lvl>=0)f=lvl<.12?f:lvl>.6?'talk_1':lvl>.33?'talk_3':'talk_2';
+  if(t>kNextBlink){kBlinkT=t;kNextBlink=t+rnd(2.2,5)}
+  const bi=Math.floor((t-kBlinkT)/.045);if(bi<4&&(f==='neutral'||f==='happy'||f[0]==='t'))f=['blink_half','blink','blink','blink_half'][bi];
+  compose(f,Math.round(gaze.x/3)*3,Math.round(gaze.y/3)*3)}
+
+// ----- motion: clips, the procedural dance (4 styles, feet planted, knees forward) and pose offsets on the Mixamo bones -----
+let react=null,reactEnd=0;
+function ggClip(n,secs=9){const a=ACT[n];if(!a)return;react=a;a.reset().setLoop(THREE.LoopOnce,1).play();a.clampWhenFinished=true; // a short reaction, faded in and out over the idle clip
+  reactEnd=performance.now()+Math.min(secs,a.getClip().duration)*1000}
+const _q=new THREE.Quaternion(),_q2=new THREE.Quaternion(),_p=new THREE.Quaternion(),_t=new THREE.Quaternion(),_e=new THREE.Euler(),_a=V3(),_b=V3(),_X=new THREE.Vector3(1,0,0);
+function rotQ(b,q){const P0=b.parent.userData.w0;_t.copy(P0).invert().multiply(q).multiply(P0);b.quaternion.premultiply(_t)} // q in rest-aligned model axes
+function rot(n,x,y,z){const b=B[n];if(b)rotQ(b,_q.setFromEuler(_e.set(x,y,z)))}
+function aim(b,c,dir){mP(b,_a);mP(c,_b).sub(_a).normalize();_q.setFromUnitVectors(_b,dir);mQ(b.parent,_p);
+  _q2.copy(_p).invert().multiply(_q).multiply(_p);b.quaternion.premultiply(_q2)}
+const _iA=V3(),_iK=V3(),_iE=V3(),_iD=V3(),_iN=V3(),_iT=V3();
+function ik(a,b,c,T,pole,clamp){mP(a,_iA);mP(b,_iK);mP(c,_iE);const la=_iK.distanceTo(_iA),lb=_iE.distanceTo(_iK);
+  _iD.subVectors(T,_iA);const L=Math.min(Math.max(_iD.length(),Math.abs(la-lb)+1e-4),la+lb-1e-4);_iD.normalize();
+  const ca=(la*la+L*L-lb*lb)/(2*la*L),sa=Math.sqrt(Math.max(0,1-ca*ca));
+  _iN.copy(pole).addScaledVector(_iD,-pole.dot(_iD)).normalize();
+  _iK.copy(_iD).multiplyScalar(ca).addScaledVector(_iN,sa);if(clamp)clamp(_iK);aim(a,b,_iK);
+  mP(b,_iK);aim(b,c,_iT.subVectors(T,_iK).normalize())}
+const _rx=new THREE.Quaternion(),_lq=new THREE.Quaternion(),_lp=V3(),_lv=V3(),_KP=V3();
+function legs(F){for(const s of SIDES){const f=F[s],L=LEGP[s];_rx.setFromAxisAngle(_X,f[3]); // f = [dx, lift, dz, heel roll]; feet stay on their rest spot
+  _lv.copy(L.A0).sub(L.T0).applyQuaternion(_rx).add(L.T0).add(_lp.set(f[0],f[1],f[2]));
+  ik(B[s+'UpLeg'],B[s+'Leg'],B[s+'Foot'],_lv,_KP.set(SG[s]*.35,0,1).normalize()); // knees over the toes, never inward
+  B[s+'Foot'].quaternion.copy(mQ(B[s+'Leg'],_lq).invert().multiply(_q2.copy(_rx).multiply(L.QF0)))}}
+const cD=new THREE.Quaternion(),_ciq=new THREE.Quaternion();
+function chestD(){return mQ(B.Spine2,cD).multiply(_t.copy(B.Spine2.userData.w0).invert())} // chest turn since rest
+function arm(s,T,pole){const sg=SG[s];_ciq.copy(cD).invert();
+  ik(B[s+'Arm'],B[s+'ForeArm'],B[s+'Hand'],T,pole,u=>{u.applyQuaternion(_ciq); // keep the shoulder cap out of the head and the chest (chest space)
+    if(u.y>.4){const k=Math.sqrt(.84/(u.x*u.x+u.z*u.z||1));u.x*=k;u.z*=k;u.y=.4}
+    const lo=.3-.9*Math.max(0,u.z);if(u.x*sg<lo){const k=Math.sqrt((1-lo*lo)/(u.y*u.y+u.z*u.z||1));u.y*=k;u.z*=k;u.x=lo*sg}
+    u.applyQuaternion(cD)})}
+let SP={};
+function sp(k,x,dt,w,z){const s=SP[k]||(SP[k]={x,v:0}),n=Math.ceil(dt/.008),h=dt/n;
+  for(let i=0;i<n;i++){s.v+=(w*w*(x-s.x)-2*z*w*s.v)*h;s.x+=s.v*h}return s.x}
+const sv=(k,a,dt,w,z)=>a.map((x,i)=>sp(k+i,x,dt,w,z));
+const TAU=Math.PI*2,cl=(x,a=0,b=1)=>Math.min(b,Math.max(a,x)),ss=x=>(x=cl(x),x*x*(3-2*x)),
+  dip=b=>Math.pow(.5+.5*Math.cos(TAU*b),2),mix=(a,b,k)=>a.map((v,i)=>v+(b[i]-v)*k);
+const ROBOT=[[[.12,.12,.02],[.12,-.11,.02],[1,-1,0],[1,1,0],.22,-.3,0],[[.07,-.12,.14],[.07,-.12,.14],[.4,-1,-.3],[.4,-1,-.3],0,0,.16],
+  [[.12,-.11,.02],[.12,.12,.02],[1,1,0],[1,-1,0],-.22,.3,0],[[.03,-.02,.23],[.07,-.12,.14],[.3,-1,0],[.4,-1,-.3],.15,-.15,-.16]];
+let dStyle=0,danceT0=0,spinY=0,procT=0;
+function targets(t){ // the 4 dance styles (Bounce & clap, Side-step wave, Robot pop, Twirl), verbatim from proto/tripo.html
+  const P={hip:[0,0,0],hipR:[0,0,0],spine:[0,0,0],chest:[Math.sin(t*2.2)*.025,0,0],neck:[0,0,0],head:[0,0,0],
+    hand:{Left:[.07,-.22,.03],Right:[.07,-.22,.03]},pole:{Left:[.3,0,-1],Right:[.3,0,-1]},
+    flex:{Left:0,Right:0},curl:{Left:.15,Right:.15},foot:{Left:[0,0,0,0],Right:[0,0,0,0]},snap:1};
+  spinY=0;const b=(t-danceT0-.22)/.44,d=dip(b);
+  if(dStyle===0){const sw=Math.sin(TAU*b/4),c=ss(1.7*(.5+.5*Math.cos(Math.PI*b))-.45),hb=dip(b-.12);
+    P.hip=[.012*sw,-.008-.022*d,-.012*d];P.hipR=[.04*d,.1*sw,.04*sw];P.spine=[.05*d,0,-.03*sw];P.chest[0]+=.04*d;P.chest[1]=-.12*sw;
+    P.neck[0]+=.06*hb;P.head[0]+=.1*hb;P.head[2]-=.06*sw;
+    for(const s of SIDES){P.hand[s]=mix([.11,-.05,.12],[-.055,-.03,.17],c);P.pole[s]=[1,-.4,-.3];P.flex[s]=.9*c;P.curl[s]=.05}
+    P.foot.Left[3]=.25*cl(-sw*1.5);P.foot.Right[3]=.25*cl(sw*1.5)}
+  else if(dStyle===1){const sh=Math.sin(TAU*b/4),wl=ss(.5+.5*sh*1.3),tap=.5-.5*Math.cos(TAU*b);
+    P.hip=[.03*sh,-.01-.016*d,-.006*d];P.hipR=[0,.08*sh,.07*sh];P.spine[2]=-.05*sh;P.chest[2]=-.07*sh;P.chest[1]=.1*Math.sin(TAU*b/4-.8);
+    P.neck[2]=-.04*sh;P.head[2]=.07*Math.sin(TAU*b/4-1.2);P.head[0]+=.08*dip(b-.15);
+    P.foot.Left=[.012*cl(-sh),.025*cl(-sh*1.5-.3)*tap,0,.3*cl(-sh*1.5)];P.foot.Right=[-.012*cl(sh),.025*cl(sh*1.5-.3)*tap,0,.3*cl(sh*1.5)];
+    for(const s of SIDES){const k=s==='Left'?wl:1-wl,h=mix([.03,-.18,.15],[.17,.13,.05],k);h[0]+=.07*Math.sin(Math.PI*k);
+      P.hand[s]=h;P.pole[s]=mix([.6,-.5,-.6],[1,-1,-.2],k);P.flex[s]=.45*Math.sin(TAU*b/4-1.3)*SG[s]}}
+  else if(dStyle===2){const R=ROBOT[Math.floor(b)&3],pop=Math.pow(1-(b-Math.floor(b)),6);P.snap=2.6;
+    P.hip=[0,-.012-.014*pop,-.006*pop];P.hipR=[0,R[4]*.4,0];P.chest[1]=R[4];P.head[1]=R[5];P.head[2]=R[6];P.head[0]+=.06*pop;
+    SIDES.forEach((s,i)=>{P.hand[s]=R[i].slice();P.pole[s]=R[2+i];P.curl[s]=.9})}
+  else{const q=((b%8)+8)%8,e=ss((q-4.6)/.5)*ss((7.4-q)/.4),sw=Math.sin(TAU*b/2)*(1-e);spinY=ss((q-5)/2)*TAU;
+    P.hip=[.02*sw,-.01-.014*d,0];P.hipR=[0,.12*sw,.05*sw];P.chest[1]=-.1*sw;P.head[2]=.06*sw;P.head[0]+=.08*dip(b-.12)*(1-e);
+    const drag=.07*Math.sin(Math.PI*cl((q-5)/2));
+    for(const s of SIDES){P.hand[s]=mix([.1,.05+.05*d,.07],[.22,-.02,drag*SG[s]],e);P.pole[s]=mix([1,-1,0],[.6,-.4,-.7],e);P.curl[s]=.5*(1-e)}
+    P.foot.Left[1]=.02*Math.max(0,Math.sin(TAU*q*2))*e;P.foot.Right[1]=.02*Math.max(0,-Math.sin(TAU*q*2))*e}
+  return P}
+const _HT=V3(),_PL=V3(),_cp=V3(),_fq=new THREE.Quaternion();
+function animate(t,dt){toRest();
+  const P=targets(t),k=P.snap,hip=sv('hp',P.hip,dt,16*k,.75);
+  B.Hips.position.x+=hip[0];B.Hips.position.y+=Math.min(hip[1],0);B.Hips.position.z+=hip[2];
+  rot('Hips',...sv('hr',P.hipR,dt,14*k,.65));
+  legs({Left:sv('fL',P.foot.Left,dt,22*k,.85),Right:sv('fR',P.foot.Right,dt,22*k,.85)});
+  const s_=sv('sp',P.spine,dt,12*k,.6);rot('Spine',s_[0]-Math.min(hip[1],0)*1.6,s_[1],s_[2]); // lean over the feet as the hips drop
+  rot('Spine2',...sv('ch',P.chest,dt,11*k,.55));rot('Neck',...sv('nk',P.neck,dt,9*k,.45));rot('Head',...sv('hd',P.head,dt,7*k,.4));
+  chestD();mP(B.Spine2,_cp);
+  for(const s of SIDES){const o=P.hand[s],sg=SG[s],pl=sv('pl'+s,P.pole[s],dt,9*k,.8);
+    _HT.set(o[0]*sg,o[1],o[2]).add(SH0[s]).applyQuaternion(cD).add(_cp);
+    _HT.set(sp('hx'+s,_HT.x,dt,10*k,.5),sp('hy'+s,_HT.y,dt,10*k,.5),sp('hz'+s,_HT.z,dt,10*k,.5));
+    arm(s,_HT,_PL.set(pl[0]*sg,pl[1],pl[2]).applyQuaternion(cD));
+    rotQ(B[s+'Hand'],_fq.setFromAxisAngle(FLX[s],sp('fl'+s,P.flex[s],dt,9*k,.5)));
+    const cu=sp('cu'+s,P.curl[s],dt,14*k,.7);
+    for(const f of FING[s])f.quaternion.multiply(_q.setFromAxisAngle(_X,-sg*cu*(/1$/.test(f.name)?1.3:1.05)))}} // Mixamo fingers curl about local x (mirrored)
+let lastArm=null,wDance=0,wArm=0,wWalk=0,walkPh=0,danceOn=false,tickleUntil=0;const QS={},PS=V3(),AQ={},_hc=V3(),_ho=V3(),_hd=new THREE.Quaternion();
+// o: what the game loop wants this frame (bob, armWave/armFwd as for the old arms, headYaw, walk speed, peekDip)
+function ggUpdate(dt,t,now,o){
+  const busy=react&&now<reactEnd,base=st.mode==='listen'&&!talk.playing?'listen':'wait';
+  for(const n in ACT){const a=ACT[n],tg=busy?(a===react?1:0):(n===base?1:0);CW[n]=(CW[n]||0)+(tg-(CW[n]||0))*Math.min(1,dt*6);
+    if(tg&&a!==react&&!a.isRunning())a.reset().setLoop(THREE.LoopRepeat).play();
+    if(!tg&&CW[n]<.01&&a.isRunning())a.stop();a.setEffectiveWeight(CW[n])}
+  toRest();mixer.timeScale=st.mode==='sleep'?.35:1;mixer.update(dt);
+  // dance (💃, songs, disco, moves game): procedural, blended over the clip so it starts and stops smoothly
+  const dz=st.mode==='dance'||pose.name==='dance'&&now<pose.until;
+  if(dz&&!danceOn){SP={};danceT0=procT;dStyle=Math.max(0,danceStyle)%4}danceOn=dz;
+  wDance+=((dz?1:0)-wDance)*Math.min(1,dt*5);
+  if(wDance>.005){procT+=dt;for(const n in B)(QS[n]||(QS[n]=new THREE.Quaternion())).copy(B[n].quaternion);PS.copy(B.Hips.position);
+    animate(procT,dt);if(wDance<.995){for(const n in B)B[n].quaternion.copy(QS[n].slerp(B[n].quaternion,wDance));B.Hips.position.lerpVectors(PS,B.Hips.position,wDance)}}
+  const sleep=st.mode==='sleep',pk=o.peekDip,sq=Math.max(o.sit,sleep?.45:0)*(1-wDance);
+  // squat (sit / down / asleep), steps while he drives about, foot tickle: legs by IK with the feet on the floor
+  wWalk+=((o.walk>.4&&!dz?1:0)-wWalk)*Math.min(1,dt*6);if(wWalk>.01)walkPh+=dt*(4+o.walk*2.5);
+  const tk=now<tickleUntil?Math.sin(now/45):0,lift=s=>Math.max(0,(s?1:-1)*Math.sin(walkPh))*.035*wWalk+Math.max(0,(s?1:-1)*tk)*.04;
+  if(sq>.01||wWalk>.01||tk){B.Hips.position.y-=sq*.12;legs({Left:[0,lift(1),0,0],Right:[0,lift(0),0,0]});rot('Spine',sq*.35,0,0)}
+  // head and chest: breathing, look-around, dizzy wobble, peekaboo bow, sleepy nod, zap shake
+  const dzz=face==='dizzy'?Math.min(1,(faceUntil-now)/700):0;
+  rot('Spine2',(Math.sin(t*2.2)*.015+pk*.18+(sleep?.12:0))*(1-wDance),0,.05*Math.cos(t*9)*dzz);
+  rot('Head',pk*.32+(sleep?.35+Math.sin(t*1.2)*.04:0)+.08*Math.sin(t*9)*dzz,o.headYaw*.8,st.head*.12+.12*Math.cos(t*9)*dzz+antAng*.025);
+  // arms: the old arm angles become hand targets for IK (wave / up / out; peekaboo = hands to the face screen), kept out of the head
+  const armOn=(o.armWave||o.armFwd)&&!dz;if(armOn)lastArm={w:o.armWave,f:o.armFwd};wArm+=((armOn?1:0)-wArm)*Math.min(1,dt*8);
+  if(wArm>.01){chestD();mP(B.Spine2,_cp);mQ(B.Head,_hd).multiply(_t.copy(B.Head.userData.w0).invert());_hc.set(0,.15,0).applyQuaternion(_hd).add(mP(B.Head,_ho));
+    for(const s of SIDES){const sg=SG[s],i=s==='Left'?1:0,T=_HT;let pole;
+      if(lastArm.f){T.set(sg*.06,.13,.23).applyQuaternion(_hd).add(mP(B.Head,_ho));pole=_PL.set(sg,-1,0)}
+      else{const a=Math.abs(lastArm.w[i]);T.set(sg*Math.sin(a),-Math.cos(a),.25).normalize().multiplyScalar(REACH[s]*.97).add(_a.copy(SH0[s]).applyQuaternion(cD).add(_cp));pole=_PL.set(sg,-.4,-.4)}
+      _b.subVectors(T,_hc);if(_b.length()<.24)T.copy(_hc).addScaledVector(_b.normalize(),.24); // simple head sphere: hands never go inside
+      T.set(sp('ax'+s,T.x,dt,11,.7),sp('ay'+s,T.y,dt,11,.7),sp('az'+s,T.z,dt,11,.7));
+      const bs=[B[s+'Arm'],B[s+'ForeArm'],B[s+'Hand']];bs.forEach((b,j)=>(AQ[s+j]||(AQ[s+j]=new THREE.Quaternion())).copy(b.quaternion));
+      arm(s,T,pole.applyQuaternion(cD));if(wArm<.995)bs.forEach((b,j)=>b.quaternion.copy(AQ[s+j].slerp(b.quaternion,wArm)))}}
+  else for(const s of SIDES)for(const c of 'xyz')delete SP['a'+c+s];
+  // every pose (Tripo clips too): a wrist inside the head sphere is moved out to its surface by IK, the elbow keeps its plane
+  chestD();mQ(B.Head,_hd).multiply(_t.copy(B.Head.userData.w0).invert());_hc.set(0,.15,0).applyQuaternion(_hd).add(mP(B.Head,_ho));
+  for(const s of SIDES){mP(B[s+'Hand'],_HT);_b.subVectors(_HT,_hc);const d=_b.length();
+    if(d<.24&&d>1e-4){_HT.copy(_hc).addScaledVector(_b,.24/d);ik(B[s+'Arm'],B[s+'ForeArm'],B[s+'Hand'],_HT,_PL.subVectors(mP(B[s+'ForeArm'],_lv),mP(B[s+'Arm'],_lp)).normalize().add(_KP.set(SG[s]*.15,-.15,-.15)))}} // (small bias: a straight arm still has a bend plane)
+  // whole body: squash and stretch, lean, little hops when talking back, twirl
+  const sqz=st.squash*.04;gg.scale.set(1+sqz,1-sqz,1+sqz);gg.position.y=Math.max(0,o.bob)*.6;gg.rotation.set(0,spinY*wDance,st.lean*.05);
+  // ear propellers + glow
+  const fly=st.mode==='fly',glow=fly||talk.rec||dz;
+  for(const e of EARS){const fx=e.userData.fx;fx.bl.visible=fly;if(fly)fx.bl.rotation.x+=dt*35;fx.gl.visible=glow;
+    if(glow){fx.gl.material.color.copy(bulbMat.emissive);fx.gl.material.opacity=.55+.45*Math.abs(Math.sin(t*(dz?9:4)))}}}
+
 // ---------- Particles (stars, puffs, sparks, zzz, food) ----------
 const parts=[];
 function spriteTex(draw){const c=document.createElement('canvas');c.width=c.height=128;draw(c.getContext('2d'));const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;return t}
@@ -516,7 +729,7 @@ function goHome(){
 let pokeTimes=[];
 function poke(part,point){
   if(game.awaiting&&game.awaiting.kind==='body'&&BODY_OF_PART[part]){let b=BODY_OF_PART[part];
-    if(b==='face')b=(point&&screen.worldToLocal(point.clone()).y>-.05)?'eye':'mouth';
+    if(b==='face')b=(point&&(GG?FACEP:screen).worldToLocal(point.clone()).y>(GG?0:-.05))?'eye':'mouth';
     if(b==='face')b='mouth';answer('body',b);return}
   const nowP=performance.now();pokeTimes=pokeTimes.filter(t=>nowP-t<2500);pokeTimes.push(nowP);
   if(pokeTimes.length>=6&&!game.type&&st.mode!=='sleep'){pokeTimes=[];say(Math.random()<.5?'x_yavash':'x_yavash_tar');setFace('shock',1200);kick('lean',4);speak();return}
@@ -526,20 +739,20 @@ function poke(part,point){
     emit('star',new THREE.Vector3(0,3.6,0),5,{size:.32,life:2.2,orbit:true,g:0})}
   else if(part==='belly'){
     const now=performance.now();tummyHits=tummyHits.filter(t=>now-t<2500);tummyHits.push(now);
-    const p=new THREE.Vector3();pipe.getWorldPosition(p);
+    const p=new THREE.Vector3();if(GG)B.Hips.getWorldPosition(p).add(new THREE.Vector3(0,0,-.45).applyQuaternion(robot.quaternion));else pipe.getWorldPosition(p);
     if(tummyHits.length>=3){tummyHits=[];fart(1.1);setTimeout(()=>say('rocket'),900);setFace('shock',2000);jump(12,true);setTimeout(()=>{if(HAS.has('x_oftadam')&&st.mode!=='sleep')say('x_oftadam')},3000);
       emit('puff',p,22,{size:.8,life:1.6,grow:1.5,g:.2,vel:()=>new THREE.Vector3((Math.random()-.5)*2,-1-Math.random(),(Math.random()-.5)*2)});
       setTimeout(()=>setFace('laugh',1400),1500)}
-    else{SFX.toot();setTimeout(()=>say('belly'),850);setFace('shock',1200);kick('squash',7);kick('lean',3);
+    else{SFX.toot();setTimeout(()=>say('belly'),850);setFace('shock',1200);kick('squash',7);kick('lean',3);if(GG)setTimeout(()=>jump(5),120);
       emit('puff',p,10,{size:.6,life:1.4,grow:1.5,g:.4,vel:()=>new THREE.Vector3((Math.random()-.5)*.8,.4+Math.random()*.4,-1-Math.random())});
-      setTimeout(()=>setFace('laugh',1200),900)}}
-  else if(part==='face'){SFX.giggle();say('face');setFace('laugh',1600);kick('lean',-4);kick('squash',3);
+      setTimeout(()=>setFace(GG?'cheeky':'laugh',1200),900)}}
+  else if(part==='face'){SFX.giggle();say('face');setFace(GG&&Math.random()<.5?'wink':'laugh',1600);ggClip('clap',2.2);kick('lean',-4);kick('squash',3);
     emit('heart',point,4,{size:.25,life:1.2,g:.5})}
   else if(part==='antenna'){SFX.zap();say('antenna');setFace('shock',900);kick('squash',-6);antVel+=14;
-    const p=new THREE.Vector3();bulb.getWorldPosition(p);emit('spark',p,14,{size:.35,life:.6,g:-1,vel:()=>new THREE.Vector3((Math.random()-.5)*5,Math.random()*4,(Math.random()-.5)*5)})}
-  else if(part==='arm'){SFX.boing();say('arm');setFace('happy',800);arms.forEach(a=>a.vel+=a.s*12);kick('squash',3)}
+    const p=new THREE.Vector3();if(GG)ANT[Math.random()*2|0].getWorldPosition(p).y+=.2;else bulb.getWorldPosition(p);emit('spark',p,14,{size:.35,life:.6,g:-1,vel:()=>new THREE.Vector3((Math.random()-.5)*5,Math.random()*4,(Math.random()-.5)*5)})}
+  else if(part==='arm'){SFX.boing();say('arm');setFace('happy',800);ggClip('greet_04');arms.forEach(a=>a.vel+=a.s*12);kick('squash',3)}
   else if(part==='ear'){setMode('fly');say('fly');setFace('laugh',2600);for(let i=0;i<14;i++)tone(220+i*12,240+i*12,.09,'sawtooth',.05,i*.12)}
-  else if(part==='feet'){SFX.giggle();say('feet');setFace('laugh',1200);jump(6);setTimeout(()=>jump(5),450)}
+  else if(part==='feet'){SFX.giggle();say('feet');setFace('laugh',1200);tickleUntil=performance.now()+1400;jump(6);setTimeout(()=>jump(5),450)}
   const pw=PART_WORD[part];if(pw&&HAS.has(pw)&&!(part==='belly'&&!tummyHits.length))setTimeout(()=>{if(st.mode!=='sleep'&&!game.type)say(pw)},2800); // then the Farsi word
   speak();
 }
@@ -728,7 +941,7 @@ async function cardAsk(tok,items,ok,key,statId,cls){let res;const done=new Promi
 async function finale(tok){cheer(true);await sayAsync('yay');if(alive(tok)&&HAS.has('x_dobare'))await sayAsync('x_dobare');if(alive(tok)){endGame();doneAct()}}
 function startGame(type){endGame();game.type=type;game.score=0;setMode('game');return game.token}
 const alive=tok=>tok===game.token;
-function cheer(big){SFX.giggle();setFace('laugh',1400);kick('squash',7);arms.forEach(a=>a.vel+=a.s*10);jump(big?9:6,big);
+function cheer(big){SFX.giggle();setFace('laugh',1400);kick('squash',7);ggClip('cheer',2.4);arms.forEach(a=>a.vel+=a.s*10);jump(big?9:6,big);
   emit('star',new THREE.Vector3(0,3,.6),10,{size:.28,life:1.2,g:-4,vel:()=>new THREE.Vector3((Math.random()-.5)*5,3+Math.random()*3,(Math.random()-.5)*2)})}
 // Wait for the right answer; re-ask with a hint if nothing happens for a while
 function ask(tok,kind,target,whereKey){
@@ -959,11 +1172,11 @@ function makeFurniture(){
 }
 makeFurniture();
 // Tripo GLB props (models/, real size: Googoo = 1) loaded lazily after start; each replaces its primitive group only once it has loaded, so a failed load keeps the old piece
-// id: [file, k, ry, x, z, lamp y]; scale = RB.h * tweak (cow: new big toy, play room)
+// id: [file, k, ry, x, z, lamp y]; scale = RB0.h (the primitive robot's height) * tweak (cow: new big toy, play room)
 const PROPS={bed:['bedroom_bed',.3,-.2,-.2,2.6],lamp:['bedroom_lamp',.7,0,2.4,-4.6,.62],teddy:['toy_teddy_bear',.7,.3],cow:['farm_cow',.38,-.5,2.0,-1.3]};
 function loadProps(){if(!THREE.GLTFLoader)return;const ld=new THREE.GLTFLoader();
   for(const id in PROPS){const[f,k,ry,cx,cz,y]=PROPS[id];ld.load('models/'+f+'.glb',gl=>{try{
-    const m=gl.scene,old=furnById(id);m.scale.setScalar(RB.h*k);m.updateMatrixWorld(true);
+    const m=gl.scene,old=furnById(id);m.scale.setScalar(RB0.h*k);m.updateMatrixWorld(true);
     const g=new THREE.Group();g.add(m);
     if(old)furnGroup.remove(old);addF(id,g,cx??old.userData.x0,cz??old.position.z,ry,old?old.userData.room:'play');if(y)g.position.y=y;
     g.visible=g.userData.room===curRoom;
@@ -1017,7 +1230,7 @@ async function playMoves(){
   for(const m of list){
     if(!alive(tok))break;
     await sayAsync(m.k);if(!alive(tok))break;
-    if(m.pose)pose={name:m.pose,until:performance.now()+1800};
+    if(m.pose)pose={name:m.pose,until:performance.now()+1800};if(m.pose==='clap')ggClip('clap',2);
     if(m.do)m.do();setFace('laugh',1800);
     if(m.after&&HAS.has(m.after)){await wait(500);if(alive(tok))await sayAsync(m.after)}
     await wait(m.pose?1500:1300);if(m.end)m.end();
@@ -1201,6 +1414,9 @@ onBtn('bDisco',()=>disco(!discoOn));onBtn('bDark',()=>playFindCards(true));onBtn
 onBtn('bNStory',async()=>{const s=STORIES.find(s=>s.id==='bedtime')||STORIES[0];if(!s)return;await sayIf('night_story');if(scr==='bed'&&!game.type)storyPage(s,0)});
 onBtn('bSleep',()=>{setMode('sleep');say(HAS.has('x_khabam_miad')&&Math.random()<.5?'x_khabam_miad':'sleep');setFace('sleep',1e9);music(false)});
 document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false);await Promise.race([MANIFEST.then(()=>loadVoices(['name','hi'])),wait(2500)]);loadCore();loadProps();document.getElementById('start').hidden=true;document.getElementById('hint').hidden=true;say(HAS.has('name')?'name':'hi');SFX.beep();kick('squash',8);speak()};
+// the start button waits until Googoo (model + face kit) has loaded, at most 25 s; without them the old robot plays (and Googoo swaps in if he arrives later)
+{const b=document.getElementById('go'),txt=b.textContent;b.disabled=true;b.textContent='…';
+  Promise.race([Promise.all([ggLoad,ggFace]),wait(25000)]).then(()=>{b.disabled=false;b.textContent=txt;window.__ggReady=1})}
 
 // ---------- Bedtime invite (after 3 finished games or ~6 min away from the bedroom) + hidden surprises ----------
 let doneN=0,awayT=0,bedInvite=false,surp=null,surpAt=Infinity;
@@ -1247,9 +1463,9 @@ document.querySelectorAll('#nav .rb').forEach(b=>b.onclick=()=>{st.lastPoke=perf
 // ---------- Layout ----------
 const acts=document.getElementById('acts');
 // Rest-pose size of the robot, measured once (animations move parts); call measureRobot() again when the model is swapped (Tripo GLB)
-let RB={h:3.6,w:2.4,y0:0};
+let RB={h:3.6,w:2.4,y0:0},RB0=null; // RB0 = the first (primitive) robot: props keep their size from it whatever model Googoo is
 const SIZE=.9; // Googoo's size knob: 1 = fills top..bot (or the rail gap), centred in that band
-function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(robot);RB={h:b.max.y-b.min.y,w:b.max.x-b.min.x,y0:b.min.y-robot.position.y};resize()}
+function measureRobot(){robot.updateMatrixWorld(true);const b=new THREE.Box3();if(GG)GG.traverse(o=>{if(o.isSkinnedMesh)b.expandByObject(o)});else b.setFromObject(robot);RB={h:b.max.y-b.min.y,w:b.max.x-b.min.x,y0:b.min.y-robot.position.y};RB0=RB0||RB;resize()}
 function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidden,toys=itemsGroup.children.length>0;portrait=w<h;
   renderer.setPixelRatio(Math.min(devicePixelRatio,SMALL?1.5:2));renderer.setSize(w,h);camera.aspect=w/h;
   camera.fov=portrait?50:40;
@@ -1264,7 +1480,7 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
   const hn=(P(0,RB.y0+RB.h).y-P(0,RB.y0).y)/2*h, y0=(1-P(0,RB.y0+RB.h).y)/2*h; // his current height and top edge in pixels
   if(portrait){ // upright: Googoo stands between the two rails, drops below the cards, or steps back for the toys
     const el=scr==='say'?document.getElementById('card'):deck,
-      [p,y]=cards?[new THREE.Vector3(0,2.85,0),el.getBoundingClientRect().bottom+8]:toys?[new THREE.Vector3(0,0,1.9),h*.6-40]:[null,(top+bot)/2*h-hn/2];
+      [p,y]=cards?[new THREE.Vector3(0,GG?RB.y0+RB.h*.93:2.85,0),el.getBoundingClientRect().bottom+8]:toys?[new THREE.Vector3(0,0,1.9),h*.6-40]:[null,(top+bot)/2*h-hn/2];
     if(p){p.project(camera);camera.setViewOffset(w,h,0,(1-p.y)/2*h-y,w,h)}else camera.setViewOffset(w,h,0,y0-y,w,h)}
   else camera.setViewOffset(w,h,cards?-w*.2:0,y0-((top+bot)/2*h-hn/2),w,h); // landscape; Say it / cards: robot moves aside for the card
   camera.updateProjectionMatrix()}
@@ -1284,13 +1500,14 @@ function loop(){
   spr('squash',140,9,dt);spr('lean',60,6,dt);spr('head',50,4,dt);
   st.spin+=st.spinVel*dt;st.spinVel*=Math.pow(.25,dt);
   antVel+=(-antAng*120-antVel*5)*dt;antAng+=antVel*dt;
-  let bob=Math.sin(t*2.2)*.03,yaw=0,armWave=null,armFwd=null,headYaw=Math.sin(t*.7)*.15,x=robot.position.x,z=robot.position.z;
+  let bob=Math.sin(t*2.2)*.03,yaw=0,armWave=null,armFwd=null,headYaw=Math.sin(t*.7)*.15,x=robot.position.x,z=robot.position.z,ox=x,oz=z;
   if(st.mode==='dance'){const b=t*4.5,beat=Math.floor(b/Math.PI);
     if(danceStyle===0){bob=Math.abs(Math.sin(b))*.25;yaw=Math.sin(b/2)*.5;headYaw=Math.sin(b)*.4;armWave=[Math.sin(b)*1.4+1.6,-Math.sin(b+1)*1.4-1.6]}
     else if(danceStyle===1){yaw=b*.7;armWave=[2.4,2.4];bob=Math.sin(b*2)*.08+.05;headYaw=0}
     else if(danceStyle===2){const k=Math.floor(b/1.6);armWave=ROBOT_POSES[k%4];headYaw=k%2?.5:-.5;yaw=(k%3-1)*.4;bob=0;
       if(k!==lastBeat){lastBeat=k;tone(1200,1200,.05,'square',.06);kick('squash',2)}}
-    else{yaw=Math.sin(b/2)*.7;armWave=[3,3];headYaw=Math.sin(b)*.3;if(beat!==lastBeat){lastBeat=beat;jump(4.5)}}
+    else{yaw=Math.sin(b/2)*.7;armWave=[3,3];headYaw=Math.sin(b)*.3;if(beat!==lastBeat){lastBeat=beat;if(!GG)jump(4.5)}}
+    if(GG){bob=0;yaw=0;armWave=null;headYaw=0}
     if(face==='happy'&&Math.sin(b*.5)>.9)setFace('laugh',400);
     if(st.modeT>9&&!discoOn){setMode('idle');setFace('laugh',1200);say('hi')}}
   else if(st.mode==='sleep'){bob=Math.sin(t*1.2)*.04-.05;headYaw=0;st.head=.25+Math.sin(t*1.2)*.03;st.sleepT+=dt;
@@ -1309,13 +1526,13 @@ function loop(){
     if(st.modeT>2.8)setMode('idle')}
   else if(st.mode==='game'&&pose.name&&now<pose.until){const k=t*10;headYaw=0;
     if(pose.name==='up')armWave=[2.9,2.9];
-    else if(pose.name==='clap'){armWave=[.2+Math.abs(Math.sin(k))*1.4,.2+Math.abs(Math.sin(k))*1.4];armFwd=[-1.4,-1.4]}
+    else if(pose.name==='clap'&&!GG){armWave=[.2+Math.abs(Math.sin(k))*1.4,.2+Math.abs(Math.sin(k))*1.4];armFwd=[-1.4,-1.4]}
     else if(pose.name==='sit'||pose.name==='down'){sitDip=1;armWave=pose.name==='down'?[.1,.1]:null}
-    else if(pose.name==='dance'){bob=Math.abs(Math.sin(t*9))*.22;yaw=Math.sin(t*4.5)*.6;armWave=[Math.sin(t*9)*1.3+1.5,-Math.sin(t*9+1)*1.3+1.5]}}
+    else if(pose.name==='dance'&&!GG){bob=Math.abs(Math.sin(t*9))*.22;yaw=Math.sin(t*4.5)*.6;armWave=[Math.sin(t*9)*1.3+1.5,-Math.sin(t*9+1)*1.3+1.5]}}
   else if(st.mode==='game'){headYaw=Math.sin(t*.8)*.12;if(talk.playing){bob=Math.abs(Math.sin(t*12))*.05+talk.level*.4;armWave=[1+talk.level*8,1+talk.level*8]}}
   else if(st.mode==='listen'){
     if(talk.playing){const lv=talk.level;bob=Math.abs(Math.sin(t*12))*.05+lv*.4;headYaw=Math.sin(t*9)*.25;armWave=[1+lv*8,1+lv*8]}
-    else{headYaw=-.25;st.head=-.6;armWave=[.25,2.35];if(now>faceUntil)face='listen';
+    else{headYaw=-.25;st.head=-.6;armWave=GG?null:[.25,2.35];if(now>faceUntil)face='listen';
       if(talk.rec){bulbMat.emissive.setHex(0xff3355)}else bulbMat.emissive.setHex(0xffa000)}}
   else if(st.mode==='fly'){headYaw=Math.sin(t*2)*.3;armWave=[1.4+Math.sin(t*8)*.3,1.4+Math.sin(t*8+1)*.3];
     jumpY+=(1.6+Math.sin(t*3)*.15-jumpY)*dt*3;jumpV=0;ears.forEach(e=>{e.blade.visible=true;e.g.rotation.x+=dt*35});
@@ -1324,9 +1541,10 @@ function loop(){
     if(now-st.lastPoke>7000){st.nextIdle-=dt;
       if(st.nextIdle<0&&!st.idleAct){st.idleAct=['wave','look','yawn','hum'][Math.floor(Math.random()*4)];st.idleT=0;st.nextIdle=5+Math.random()*4;
         if(st.idleAct==='yawn'){setFace('sleep',1300);tone(300,150,1,'sine',.08);say('bored')}
-        if(st.idleAct==='hum'){[523,587,659,523].forEach((f,i)=>tone(f,f,.25,'triangle',.06,i*.3))}}
+        if(st.idleAct==='hum'){[523,587,659,523].forEach((f,i)=>tone(f,f,.25,'triangle',.06,i*.3));ggClip('sing_01',3)}
+        if(st.idleAct==='wave')ggClip('wave_goodbye_02',2.6)}
       if(st.idleAct){st.idleT+=dt;const k=st.idleT;
-        if(st.idleAct==='wave'){armWave=[.25,2+Math.sin(k*10)*.4]}
+        if(st.idleAct==='wave'&&!GG){armWave=[.25,2+Math.sin(k*10)*.4]}
         if(st.idleAct==='look'){headYaw=Math.sin(k*2)*.9}
         if(st.idleAct==='hum'){bob=Math.abs(Math.sin(k*5))*.08;headYaw=Math.sin(k*5)*.2}
         if(k>2.2)st.idleAct=null}}}
@@ -1338,7 +1556,7 @@ function loop(){
   if(flipping){flip+=dt*6.5;if(flip>=Math.PI*2){flip=0;flipping=false}}
   sitNow+=((sitDip||0)-sitNow)*Math.min(1,dt*8);sitDip=0;
   const sc=pose.name==='big'&&now<pose.until?1.45:pose.name==='small'&&now<pose.until?.6:1;robotScale+=(sc-robotScale)*Math.min(1,dt*6);robot.scale.setScalar(robotScale);
-  robot.position.set(x,jumpY+1.2-1.2*Math.cos(flip)-sitNow*.35,z-1.2*Math.sin(flip));robot.rotation.x=flip;
+  const fp=GG?1.8:1.2;robot.position.set(x,jumpY+fp-fp*Math.cos(flip)-(GG?0:sitNow*.35),z-fp*Math.sin(flip));robot.rotation.x=flip;
   robot.rotation.y+=((yaw+st.spin)-robot.rotation.y)*Math.min(1,dt*8);
   const sq=st.squash*.04;hips.scale.set(1+sq,1-sq,1+sq);hips.position.y=bob;hips.rotation.z=st.lean*.05;
   head.rotation.z=st.head*.08;head.rotation.y=headYaw;neck.position.y=1.85+st.squash*.02;
@@ -1347,6 +1565,7 @@ function loop(){
     a.vel+=(-(a.ang-tgt)*80-a.vel*7)*dt;a.ang+=a.vel*dt;a.sh.rotation.z=a.ang;
     const fx=armFwd?armFwd[i]:0;a.rxv+=(-(a.rx-fx)*70-a.rxv*8)*dt;a.rx+=a.rxv*dt;a.sh.rotation.x=a.rx;a.sh.position.z+=((armFwd?.6:0)-a.sh.position.z)*Math.min(1,dt*10)});
   peekDip+=((armFwd?1:0)-peekDip)*Math.min(1,dt*8);neck.position.y-=peekDip*.3;head.rotation.x=peekDip*.08;
+  if(GG)ggUpdate(dt,t,now,{bob,armWave,armFwd,headYaw,peekDip,sit:sitNow,walk:Math.hypot(x-ox,z-oz)/dt});
   if(ball.visible){bv.y-=9.8*dt;ball.position.addScaledVector(bv,dt);
     if(ball.position.y<.3){ball.position.y=.3;bv.y*=-.6;bv.x*=.85;bv.z*=.85;if(Math.abs(bv.y)>1)tone(300,200,.05,'sine',.1)}
     const bx=portrait?1.4:4.5,bz=portrait?1:3; // upright: keep the ball on screen and above the buttons
@@ -1357,17 +1576,18 @@ function loop(){
   for(const b of [...bubbleGroup.children]){const u=b.userData;b.position.y+=u.sp*dt;b.position.x+=Math.sin(t*1.5+u.ph)*dt*.3;
     b.scale.setScalar(1+Math.sin(t*4+u.ph)*.04);if(b.position.y>6)bubbleGroup.remove(b)}
   for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life+=dt;
-    if(p.orbit){const a=t*3+p.i/p.n*Math.PI*2;const c=new THREE.Vector3();head.getWorldPosition(c);
+    if(p.orbit){const a=t*3+p.i/p.n*Math.PI*2;const c=new THREE.Vector3();headObj().getWorldPosition(c);
       p.s.position.set(c.x+Math.cos(a)*.9,c.y+1.5+Math.sin(t*6+p.i)*.05,c.z+Math.sin(a)*.9)}
     else{p.v.y+=p.g*dt;p.s.position.addScaledVector(p.v,dt)}
     p.s.scale.multiplyScalar(1+p.grow*dt);p.s.material.opacity=1-Math.pow(p.life/p.max,3);
     if(p.life>p.max){scene.remove(p.s);p.s.material.dispose();parts.splice(i,1)}}
   if(pbub.classList.contains('show')&&st.mode!=='sleep'&&st.mode!=='peek'&&face!=='hidden')pbub.classList.remove('show'); // he woke up: bubble goes
   if(now>faceUntil&&face!=='happy'&&st.mode!=='sleep'&&st.mode!=='listen'&&!(st.mode==='peek'&&face==='hidden'))face='happy';
+  if(GG&&FK)faceGG(t,dt,now,talk.playing?Math.min(1,talk.level*7):voiceLevel()>=0?voiceLevel():now<mouthT?.5+.5*Math.sin(now/70):-1);else{ // Googoo: face kit; fallback robot: the drawn face
   nextBlink-=dt;if(nextBlink<0){blink=.12;nextBlink=2+Math.random()*3}blink-=dt;
   if(talk.an){const b=talk.buf||(talk.buf=new Float32Array(talk.an.fftSize));talk.an.getFloatTimeDomainData(b);let q=0;for(const v of b)q+=v*v;talk.level=Math.sqrt(q/b.length)}
   mouthOpen=talk.playing?Math.min(1,talk.level*7):now<mouthT?Math.abs(Math.sin(now/70)):0;
-  const fk=face+(face==='pic'?facePic:'')+(blink>0)+(mouthOpen>.05?Math.round(mouthOpen*8):0);if(fk!==faceKey||face==='dizzy'){faceKey=fk;drawFace(t)} // redraw the face only when it changes
+  const fk=face+(face==='pic'?facePic:'')+(blink>0)+(mouthOpen>.05?Math.round(mouthOpen*8):0);if(fk!==faceKey||face==='dizzy'){faceKey=fk;drawFace(t)}} // redraw the face only when it changes
   renderer.render(scene,camera);
 }
 loop();
