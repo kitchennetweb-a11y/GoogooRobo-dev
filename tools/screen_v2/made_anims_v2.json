@@ -1,0 +1,42 @@
+{
+ "rig_rest_diff": 0.0,
+ "body_vert_diff": 0.0,
+ "lip_ring_points": 557,
+ "lip_rows": 8,
+ "lip_rows_kept": [
+  0,
+  2,
+  4,
+  6,
+  7
+ ],
+ "lip_kept": 342,
+ "lip_tris_old": 7798,
+ "lip_tris_new": 2951,
+ "body_tris_v2": 42037,
+ "body_tris_new": 37190,
+ "lip_seams": 55,
+ "lip_fwd": false,
+ "weights_body": {
+  "verts": 41845,
+  "sum_off": 0,
+  "worst": 1.0402873158454895e-06,
+  "not_full_head": 0
+ },
+ "weights_lcd": {
+  "verts": 3381,
+  "sum_off": 0,
+  "worst": 0.0,
+  "not_full_head": 0
+ },
+ "rim_verts": 7171,
+ "tris_total_old": 34139,
+ "lcd_tris": 6528,
+ "tris_total_new": 43718,
+ "sizes": {
+  "googoo_anims_v2.blend": 16384930,
+  "googoo_anims_v2.glb": 5834328,
+  "googoo_v2_unity.fbx": 2122172,
+  "googoo_v2_unity_basecolor.png": 6558461
+ }
+}

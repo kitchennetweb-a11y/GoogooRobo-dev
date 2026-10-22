@@ -1,0 +1,48 @@
+{
+ "tris_removed_inside": 529,
+ "tris_clipped": 191,
+ "piece_tris": 2564,
+ "lip_slope_range": [
+  -1.1999999999999997,
+  0.6275989792563699
+ ],
+ "lcd_Rc": 0.32,
+ "lcd_tilt": 0.07,
+ "lcd_q": 0.05,
+ "lcd_c0": -0.15021763807550773,
+ "recess_min": 0.0030000000000000304,
+ "recess_max": 0.020718101314692927,
+ "recess_mean": 0.011094701627526238,
+ "lcd_sag_h": 0.038946624286417764,
+ "lcd_sag_v": 0.00059405,
+ "head_sag_h": 0.0566859245300293,
+ "inner_tris_removed": 208,
+ "bevel_leg_mm": 1.5,
+ "lip_quads": 3899,
+ "ring_weld": [
+  406,
+  557,
+  0.005801725666970015
+ ],
+ "tris_old": 32603,
+ "tris_new": 42037,
+ "verts_old": 35662,
+ "verts_new": 44376,
+ "texels_changed": 115709,
+ "cream_ring_sRGB_mean": [
+  230.0,
+  208.0,
+  179.0
+ ],
+ "lcd_tris": 6528,
+ "lcd_size": [
+  0.308,
+  0.22,
+  0.079
+ ],
+ "rays_blocked_in_opening": [
+  0,
+  8800
+ ],
+ "inner_surface_hits": 12
+}

@@ -495,12 +495,12 @@ function drawFace(t){
 function setFace(f,ms=1500){face=f;faceUntil=performance.now()+ms}
 
 // ---------- Googoo: the Tripo-rigged model (Mixamo skeleton "mixamorig:*", from proto/tripo.html) ----------
-// assets/googoo/ is built by assets/googoo/build_web.py: googoo.glb (mesh, small texture, wave_hello + idle_happy: both unused, the waves are procedural), googoo_anims_web.glb
-// (the other 17 cleaned Mixamo clips, no mesh; loaded after the start, bound to googoo.glb by bone name), face.webp + face.json (the face kit atlas).
+// assets/googoo/ is built by assets/googoo/build_web.py: googoo.glb (body with the v2 cut-in screen opening + the curved LCD "Googoo_face_screen", small texture, no clips),
+// googoo_anims_web.glb (the 13 cleaned Mixamo clips the game uses, no mesh; loaded after the start, bound to googoo.glb by bone name), face.webp + face.json (the face kit atlas).
 // The primitive robot above is the fallback: it stays until the GLB has loaded and keeps driving the springs (squash, lean, head, jump).
 // Once loaded, GG is set, the primitive parts are hidden and ggUpdate() poses the bones every frame:
 // still STAND pose (= rest) or a looping base clip (walk / run / the still sit), plus one short reaction crossfaded over it -> procedural dance blended on top -> squat, arm IK, head and spine offsets.
-const GOO_V='2',GOO_H=3.7; // file version (bump when the files change: the service worker keeps .glb for good) and his height in the room
+const GOO_V='3',GOO_H=3.7; // file version (bump when the files change: the service worker keeps .glb for good) and his height in the room
 // still poses as bone rotations on the bind pose (rad, rest-aligned model axes as rot(): +x = top of the bone forward), checked front + side:
 // STAND = idle: straight, head level, arms relaxed beside the thighs (elbows a little bent), feet at the bind stance, flat
 // SIT = stories: on the floor, legs forward and a little bent, hands on the knees, head level; SIT_HIP = hips drop (rig units, ~his height)
@@ -564,15 +564,16 @@ function ggSetup(g){const model=g.scene;
     pv.quaternion.copy(robot.quaternion);B.Head.attach(pv);e.userData.fx={bl,gl}}
   robot.children.forEach(o=>{if(o!==gg)o.visible=false});GG=model;measureRobot()}
 
-// ----- face screen: the approved face kit, composed on a canvas (layers pre-warped for the screen UVs; full canvas = screen UV 0..1, flipY off) -----
-const kc=document.createElement('canvas');kc.width=1024;kc.height=688;const kx=kc.getContext('2d');
+// ----- face screen: the approved face kit, composed on a canvas (front-view layers: the LCD's UVs are planar from the front; full canvas = LCD UV 0..1, top row = top, flipY off;
+// size from face.json: 1024 x 731 = the LCD's 308 x 220 mm, the face centred in the opening, the margin = screen background) -----
+const kc=document.createElement('canvas');kc.width=1024;kc.height=731;const kx=kc.getContext('2d');
 const kt=document.createElement('canvas');kt.width=kc.width;kt.height=kc.height;const ktx=kt.getContext('2d');
 const km=document.createElement('canvas');km.width=kc.width;km.height=kc.height; // pupil mask, drawn once
 const kitTex=new THREE.CanvasTexture(kc);kitTex.encoding=THREE.sRGBEncoding;kitTex.flipY=false;kitTex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
 let FK=null,FKI=null,FBG=null,kitKey='';
 const loadImg=src=>new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=no;im.src=src});
 const ggFace=Promise.all([fetch('assets/googoo/face.json?v='+GOO_V).then(r=>r.json()),loadImg('assets/googoo/face.webp?v='+GOO_V),loadImg('assets/googoo/face_bg.jpg?v='+GOO_V)])
-  .then(([k,a,bg])=>{FKI=a;FBG=bg;FK=k;const E=(...l)=>l.map(n=>[n,0,0,'']);
+  .then(([k,a,bg])=>{FKI=a;FBG=bg;FK=k;const E=(...l)=>l.map(n=>[n,0,0,'']);for(const c of [kc,kt,km]){c.width=k.w;c.height=k.h}
     k.exp.hidden=E('eyes_closed','brows_happy','mouth_big_smile');k.exp.asleep=E('eyes_closed','brows_neutral','mouth_sleepy'); // peekaboo, asleep
     kLayer(km.getContext('2d'),'eyes_open_mask',0,0)}).catch(e=>console.warn('face kit',e));
 function kLayer(cx,name,dx,dy){for(const [x,y,w,h,ox,oy] of FK.rects[name]||[])cx.drawImage(FKI,x,y,w,h,ox+dx,oy+dy,w,h)}
@@ -715,7 +716,7 @@ const ggBase=()=>ggLoco&&ACT[ggLoco]?ggLoco:game.type==='story'?'sit':null;
 // the clips' head stays near level (they tipped it back up to 64 deg): its turn since the still pose, in model axes, is clamped to a small nod
 // (pitch -1..+7 deg), tilt +-7 and turn +-9 deg, whatever the neck and spine do. Not while on the floor (story sit, fall / get up).
 const _hq=new THREE.Quaternion(),_he=new THREE.Euler(0,0,0,'YXZ'),HLIM=[[-.02,.12],[-.15,.15],[-.12,.12]];
-const _hi=new THREE.Quaternion(),FBOX=[.18,-.06,.33,-.07,.1]; // the face screen as the hand guard sees it: x half width, y from, to, z from, soft edge (model units, head frame; screen: x +-.15, y .03..24, z .12..18)
+const _hi=new THREE.Quaternion(),FBOX=[.18,-.06,.33,-.07,.1]; // the face screen as the hand guard sees it: x half width, y from, to, z from, soft edge (model units, head frame; screen: x +-.15, y .03..24, z .12..18; the v2 opening is the same within 4 mm)
 let hLvl=1; // eased on / off (fall, get up), so the head never pops
 function headLevel(k){const H=B.Head;mQ(H,_hq).multiply(_t.copy(H.userData.w0).invert());_he.setFromQuaternion(_hq,'YXZ');
   const x=cl(_he.x,...HLIM[0]),y=cl(_he.y,...HLIM[1]),z=cl(_he.z,...HLIM[2]);if(x===_he.x&&y===_he.y&&z===_he.z)return;
