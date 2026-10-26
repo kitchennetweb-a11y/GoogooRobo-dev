@@ -1508,7 +1508,7 @@ function roomLayout(s){const W=WALLS[s]||{},hx=n=>'#'+n.toString(16).padStart(6,
 // goo [u,v,h] (his feet, his height as a part of the picture's height): with the horizon this sets the camera (height, tilt, distance) so the 3D floor lies on the painted one;
 // rug [u,v,ru,rv] (ellipse: the ball stays on it and in view), shelf [u0,v0,u1,v1] (library: the painted shelf, the ‹ › keep off it), cells [[u0,v0,u1,v1]] (library: EMPTY shelf compartments, a book fills each), place {id:[u,v]} (3D props on the painted floor),
 // light {sun:[colour,strength],dir:[x,y,z] from Googoo,hemi:[sky,ground,strength],fill:[colour,strength],shadow,exp}, beam [u,v,angle°,width,length,strength] (soft sunbeam),
-// dust [u0,v0,u1,v1] (sparkles), fg {crop:[u0,v0,u1,v1],at:'tl'|'tr'|'bl'|'br',h} (that crop, blurred, at a screen corner), lamps [[u,v,r]] (night glows), taps [{r:[u0,v0,u1,v1],w:'w_car'}]
+// dust [u0,v0,u1,v1] (sparkles), fg {crop:[u0,v0,u1,v1],at:'tl'|'tr'|'bl'|'br',h} (that crop, blurred, at a screen corner), lamps [[u,v,r]] (night glows, at most 4), taps [{r:[u0,v0,u1,v1],w:'w_car'} says the word | f:'bed' does tapFurniture('bed')]
 const PAINT={
   library:{keep:[],portrait:{img:'assets/rooms/library_portrait.webp',size:[1056,1440],focus:[.519,.6],shelf:[.3,.364,.729,.735],fov:50,horizon:.545,wall:.733,goo:[.5,.893,.24],rug:[.483,.838,.402,.078],
       cells:[[.456,.436,.573,.494],[.587,.436,.701,.494],[.336,.503,.443,.568],[.456,.503,.573,.568],[.336,.576,.443,.644],[.456,.576,.573,.644],[.587,.576,.701,.644]],
@@ -1525,7 +1525,20 @@ const PAINT={
     landscape:{img:'assets/rooms/play_landscape.webp',size:[1440,1056],focus:[.5,.62],fov:50,horizon:.495,wall:.585,goo:[.507,.79,.3],rug:[.507,.766,.372,.124],
       place:{teddy:[.3,.75],cow:[.7,.76]},light:{sun:['#fff3e0',1.15],dir:[6,8,-1],hemi:['#e8f4ff','#b08a5e',.75],fill:['#fff0dd',.45],shadow:.32,exp:.95},
       beam:[.92,.18,158,.07,.75,.08],dust:[.25,.15,.85,.6],fg:{crop:[.86,0,.93,.6],at:'tr',h:.85},lamps:[],
-      taps:[{r:[.427,.573,.479,.616],w:'w_car'},{r:[.91,.03,1,.45],w:'w_window'},{r:[.076,.464,.128,.55],w:'w_teddy'}]}}};
+      taps:[{r:[.427,.573,.479,.616],w:'w_car'},{r:[.91,.03,1,.45],w:'w_window'},{r:[.076,.464,.128,.55],w:'w_teddy'}]}},
+  // living room (Persian sunset) and bedroom (space explorer), 2026-10-25: taps with f = that furniture's action (tapFurniture: bed = sleep, lamp = lights)
+  home:{keep:[],portrait:{img:'assets/rooms/home_portrait.webp',size:[810,1440],focus:[.5,.5],fov:50,horizon:.3,wall:.475,goo:[.5,.82,.25],rug:[.5,.75,.42,.15],
+      light:{sun:['#ffcf9a',1.3],dir:[-2,8,-6],hemi:['#ffe6cc','#9a5a35',.7],fill:['#ffd9b0',.5],shadow:.38,exp:.95},beam:[.5,.3,90,.08,.7,.08],dust:[.2,.15,.8,.6],lamps:[[.895,.1,.06]],
+      taps:[{r:[.84,.03,.95,.16],f:'lamp'},{r:[.33,.07,.68,.37],w:'w_window'},{r:[0,.36,.27,.49],w:'w_chair'},{r:[.88,.28,1,.38],w:'w_tea'}]},
+    landscape:{img:'assets/rooms/home_landscape.webp',size:[1440,810],focus:[.5,.55],fov:50,horizon:.42,wall:.665,goo:[.5,.82,.3],rug:[.5,.84,.36,.12],
+      light:{sun:['#ffcf9a',1.3],dir:[-2,8,-6],hemi:['#ffe6cc','#9a5a35',.7],fill:['#ffd9b0',.5],shadow:.38,exp:.95},beam:[.5,.35,90,.07,.65,.08],dust:[.2,.15,.8,.6],lamps:[[.78,.15,.05]],
+      taps:[{r:[.74,.05,.82,.23],f:'lamp'},{r:[.38,.09,.62,.5],w:'w_window'},{r:[.14,.47,.3,.66],w:'w_chair'},{r:[.8,.37,.87,.5],w:'w_tea'}]}},
+  bed:{keep:[],portrait:{img:'assets/rooms/bed_portrait.webp',size:[810,1440],focus:[.5,.55],fov:50,horizon:.26,wall:.42,goo:[.5,.8,.26],rug:[.5,.78,.38,.12],
+      light:{sun:['#fff0dc',1.15],dir:[5,8,-2],hemi:['#e2e9ff','#8a5a3a',.75],fill:['#ffe6c8',.45],shadow:.32,exp:.95},beam:[.2,.2,60,.05,.8,.07],dust:[.15,.1,.85,.55],lamps:[[.84,.31,.06]],
+      taps:[{r:[.27,.22,.8,.44],f:'bed'},{r:[.77,.27,.9,.42],f:'lamp'},{r:[.1,.1,.32,.27],w:'w_window'},{r:[.86,.06,.94,.17],w:'w_rocket'},{r:[.11,.04,.21,.11],w:'w_moon'}]},
+    landscape:{img:'assets/rooms/bed_landscape.webp',size:[1440,810],focus:[.5,.62],fov:50,horizon:.5,wall:.6,goo:[.5,.86,.27],rug:[.5,.8,.32,.1],
+      light:{sun:['#fff0dc',1.15],dir:[5,8,-2],hemi:['#e2e9ff','#8a5a3a',.75],fill:['#ffe6c8',.45],shadow:.32,exp:.95},beam:[.32,.25,60,.05,.7,.07],dust:[.15,.1,.85,.55],lamps:[[.695,.42,.05]],
+      taps:[{r:[.34,.3,.65,.62],f:'bed'},{r:[.66,.38,.74,.56],f:'lamp'},{r:[.24,.12,.41,.32],w:'w_window'},{r:[.78,.07,.82,.21],w:'w_rocket'},{r:[.23,.03,.29,.13],w:'w_moon'}]}}};
 const PAINT0=JSON.parse(JSON.stringify(PAINT)); // the built-in pictures (Design mode: "painted room" on again)
 let PNT=null,PK='',PW=null,libPage=0,libPages=[[]],libStoryP=0,libSlide=null,libSel=-1,libIdx={};const POSE=[],_pv=V3(),_pq=new THREE.Quaternion();
 const pOf=r=>{const B=PAINT[r];return B?B[portrait?'portrait':'landscape']||B.portrait||B.landscape||null:null}; // no picture for this orientation: the other one (cover fit, still no bars)
@@ -1639,9 +1652,9 @@ function paintUI(){const on=paintLib()&&scr==='library'&&deck.hidden&&libPages.l
   const tp=document.getElementById('top').getBoundingClientRect(),dw=pgDots.offsetWidth;pgDots.style.left=Math.max(W/2,tp.right+10+dw/2)+'px';pgDots.style.top=(tp.top+tp.height/2-pgDots.offsetHeight/2)+'px';
   [...pgDots.children].forEach((d,i)=>d.classList.toggle('on',i===libPage))}
 pgPrev.onclick=()=>{st.lastPoke=performance.now();paintPage(libPage-1)};pgNext.onclick=()=>{st.lastPoke=performance.now();paintPage(libPage+1)};
-// a tap on the painting: a painted toy says its word (play room), if there is a clip for it
+// a tap on the painting: a painted toy says its word (w, if there is a clip for it), or a painted bed / lamp does what the 3D one did (f = tapFurniture id)
 function paintTap(x,y){if(!PNT||!PW||!PW.taps.length)return false;const z=pU.uZ.value,T=pU.uT.value,M=pU.uM.value,u=(T.x+(x-T.z)/z-M.x)/M.z,v=(T.y+(y-T.w)/z-M.y)/M.w;
-  const t=PW.taps.find(t=>u>=t.r[0]&&u<=t.r[2]&&v>=t.r[1]&&v<=t.r[3]);if(!t||!HAS.has(t.w)||game.type)return false;st.lastPoke=performance.now();setFace('shock',400);kick('squash',3);sayAsync(t.w).then(()=>setFace('laugh',700));return true}
+  const t=PW.taps.find(t=>u>=t.r[0]&&u<=t.r[2]&&v>=t.r[1]&&v<=t.r[3]);if(!t||game.type||!t.f&&!HAS.has(t.w))return false;if(t.f){tapFurniture(t.f);return true}st.lastPoke=performance.now();setFace('shock',400);kick('squash',3);sayAsync(t.w).then(()=>setFace('laugh',700));return true}
 // every frame in a painted room: the picture follows the camera (card pan, face close-up), the blob follows his feet, the selected book glows, pages slide
 function paintTick(dt,t){if(!PNT||!PW)return;pU.uTime.value=t;
   _pv.copy(PW.anc).project(camera);const px=(_pv.x+1)/2*innerWidth,py=(1-_pv.y)/2*innerHeight,Z=camera.zoom*PW.dist/Math.max(.01,PW.anc.distanceTo(camera.position));

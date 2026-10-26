@@ -567,7 +567,7 @@ function renderLeft() {
     el.innerHTML = {
       walls: `<h2>Walls & floor</h2><p class="hint">Click the back, left or right wall in the picture, then drag it in or out to make the room smaller or bigger. Moving a wall never moves the floor.</p><p class="hint">Click the floor and drag near one of its edges to make the floor bigger or smaller. Numbers and colours are on the right.</p><p class="hint">Pieces standing against a wall move with it.</p>`,
       buttons: `<h2>Buttons</h2><p class="hint">Drag a round button in the picture to change the order: up and down on the sides (or across to the other side), left and right in the top bar and the room tabs.</p><p class="hint">Click a button to change its colour, or to hide it. Size and shape are on the right.</p><p class="hint">Each screen has its own side buttons: pick the screen on the right. The top bar and the room tabs are the same everywhere.</p>`,
-      paint: `<h2>Painting</h2><p class="hint">A painted room shows a painting instead of 3D walls and furniture; only Googoo and the toys he plays with stay 3D.</p><p class="hint">Drag the marks on the picture: <b>✛</b> the spot that stays in view when a phone cuts the picture, <b>pink line</b> eye level (where the floor would disappear), <b>blue line</b> where the back wall meets the floor, <b>yellow</b> Googoo's feet (top dot = his height), <b>red box</b> the rug (the ball stays on it), <b>green boxes</b> empty shelf compartments (library: one book in each), <b>green dots</b> the 3D toys.</p><p class="hint">Upright phones and sideways screens each have their own picture and marks: change the screen size at the top for the other one.</p>`,
+      paint: `<h2>Painting</h2><p class="hint">A painted room shows a painting instead of 3D walls and furniture; only Googoo and the toys he plays with stay 3D.</p><p class="hint">Drag the marks on the picture: <b>✛</b> the spot that stays in view when a phone cuts the picture, <b>pink line</b> eye level (where the floor would disappear), <b>blue line</b> where the back wall meets the floor, <b>yellow</b> Googoo's feet (top dot = his height), <b>red box</b> the rug (the ball stays on it), <b>green boxes</b> empty shelf compartments (library: one book in each), <b>green dots</b> the 3D toys, <b>purple boxes</b> tap zones (a painted thing says its word, or the painted bed / lamp does what the real one did).</p><p class="hint">Upright phones and sideways screens each have their own picture and marks: change the screen size at the top for the other one.</p>`,
       camera: `<h2>Camera</h2><p class="hint">Each room can have its own view: one for upright phones and one for everything else (sideways phones, iPads). Change the screen size at the top to set the other one.</p><p class="hint">Rooms without their own view are "automatic": the camera fits Googoo by itself. Card games and stories always use the automatic view.</p>` }[mode];
     return;
   }
@@ -799,6 +799,7 @@ function renderPaint() {
   line('horizon', P.horizon, '#e11d9b', 'eye level'); if (P.wall != null) line('wall', P.wall, '#0ea5e9', 'wall meets floor');
   if (P.rug) { const [u, v, a, b] = P.rug; box('rug', [u - a, v - b, u + a, v + b], '#ef4444'); }
   (P.cells || []).forEach((c, i) => box('cell' + i, c, '#22c55e', i === pSel));
+  (P.taps || []).forEach((t, i) => box('tap' + i, t.r, '#a855f7')); // tap zones: a painted thing says its word (w) or does the bed / lamp action (f)
   for (const [id, pl] of Object.entries(P.place || {})) dot('place:' + id, pl[0], pl[1], '#22c55e', id);
   const g = P.goo; dot('goo', g[0], g[1], '#facc15', 'Googoo'); dot('gooh', g[0], g[1] - g[2], '#facc15', 'height');
   el('focus', `left:${X0(P.focus[0]) - 13}px;top:${Y0(P.focus[1]) - 13}px;width:26px;height:26px;cursor:move;font:900 26px/26px system-ui;color:#fff;text-align:center;text-shadow:0 0 3px #000`, '✛');
@@ -818,9 +819,9 @@ function pMove(e) {
     else if (k === 'goo') P.goo = [cl01(u), cl01(v), P0.goo[2]];
     else if (k === 'gooh') P.goo = [P0.goo[0], P0.goo[1], Math.max(.05, Math.min(.9, r2(P0.goo[2] - dv)))];
     else if (k0 === 'place') P.place[part] = [cl01(u), cl01(v)];
-    else { const a = k0 === 'rug' ? [P0.rug[0] - P0.rug[2], P0.rug[1] - P0.rug[3], P0.rug[0] + P0.rug[2], P0.rug[1] + P0.rug[3]] : P0.cells[+k0.slice(4)].slice(), b = a.slice();
+    else { const tp = /^tap\d+$/.test(k0), a = k0 === 'rug' ? [P0.rug[0] - P0.rug[2], P0.rug[1] - P0.rug[3], P0.rug[0] + P0.rug[2], P0.rug[1] + P0.rug[3]] : tp ? P0.taps[+k0.slice(3)].r.slice() : P0.cells[+k0.slice(4)].slice(), b = a.slice();
       if (!part) { b[0] += du; b[2] += du; b[1] += dv; b[3] += dv; } else if (part === 'br') { b[2] = Math.max(a[0] + .02, a[2] + du); b[3] = Math.max(a[1] + .02, a[3] + dv); } else { b[0] = Math.min(a[2] - .02, a[0] + du); b[1] = Math.min(a[3] - .02, a[1] + dv); }
-      const n = b.map(cl01); if (k0 === 'rug') P.rug = [r2((n[0] + n[2]) / 2), r2((n[1] + n[3]) / 2), r2((n[2] - n[0]) / 2), r2((n[3] - n[1]) / 2)]; else P.cells[+k0.slice(4)] = n; }
+      const n = b.map(cl01); if (k0 === 'rug') P.rug = [r2((n[0] + n[2]) / 2), r2((n[1] + n[3]) / 2), r2((n[2] - n[0]) / 2), r2((n[3] - n[1]) / 2)]; else if (tp) P.taps[+k0.slice(3)].r = n; else P.cells[+k0.slice(4)] = n; }
   }, pDrag.key, 'paint');
 }
 // right panel: painted on/off, the picture for this kind of screen, a few numbers, compartments
