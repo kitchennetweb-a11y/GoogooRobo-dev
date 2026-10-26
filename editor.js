@@ -94,7 +94,7 @@ ed.innerHTML = `
  <button class="eb pub" id="publish" title="Put the saved layout on the test site">🚀 Publish to test site</button>
 </header>
 <aside class="l">
- <div class="tabs"><button class="eb on" data-mode="props">🪑 Props</button><button class="eb" data-mode="walls">🧱 Walls & floor</button><button class="eb" data-mode="buttons">🔘 Buttons</button><button class="eb" data-mode="camera">📷 Camera</button></div>
+ <div class="tabs"><button class="eb on" data-mode="props">🪑 Props</button><button class="eb" data-mode="walls">🧱 Walls & floor</button><button class="eb" data-mode="buttons">🔘 Buttons</button><button class="eb" data-mode="camera">📷 Camera</button><button class="eb" data-mode="paint">🖼️ Painting</button></div>
  <div id="left"></div>
 </aside>
 <main id="main"><div id="fbox"><iframe id="frame" title="Game preview"></iframe></div></main>
@@ -151,10 +151,12 @@ function apply(kind) {
   const r = room(); promoteVirt(); resetVirt();
   if (kind === 'all' || kind === 'ui') W.applyLayout(L);
   else if (kind === 'walls') { X.WALLS[r] = walls(r); W.applyWalls(r); }
+  else if (kind === 'paint') { W.eval('PAINT')[r] = L.rooms[r].backdrop ?? null; W.showScreen(W.eval('scr')); }
   else if (kind === 'goo' || kind === 'cam') { X.GOO[r] = L.rooms[r].googoo || {}; X.CAMS[r] = L.rooms[r].camera || {}; }
   syncProps();
   if (kind === 'all' || kind === 'goo' || kind === 'cam') { W.resize(); if (kind !== 'cam') W.eval('robot.position.x=HOME.x;robot.position.z=HOME.z'); }
   if (kind !== 'props' && kind !== 'goo' || !sel) renderLeft();
+  if (mode === 'paint') renderPaint();
   if (kind === 'all') renderRight(); // panels rebuild only on big changes, so a slider being dragged keeps working
   dirtyStatus(); $('undo').disabled = !undo.length; $('redo').disabled = !redo.length;
 }
@@ -197,6 +199,7 @@ frame.addEventListener('load', async () => {
   if (!L.ui.buttons.bRead) L.ui.buttons.bRead = { color: '#ff8fab' };
   // the book and the star mobile are built in code: give them a layout entry (their place today) so they can be moved
   for (const id in PRIMS) { const g = W.eval(`furnById('${id}')`); if (g) VIRT0[id] = { id, builtin: true, x: r2(g.userData.x0), z: r2(g.position.z), y: r2(g.position.y), ...(g.userData.spin ? {} : { ry: r2(g.rotation.y) }), hidden: false }; }
+  for (const r of ROOMS) if (!('backdrop' in L.rooms[r]) && W.eval('PAINT0')[r]) L.rooms[r].backdrop = clone(W.eval('PAINT0')[r]); // painted rooms: the built-in pictures (Save writes them)
   resetVirt();
   saved = JSON.stringify(L);
   // start the game without the start screen (no sound in Design mode); the room's props load
@@ -249,7 +252,7 @@ const objPos = id => id === 'googoo' ? X.robot.position : grp(id).position;
 
 let drag = null;
 function onDown(e) {
-  if (mode === 'buttons') return;
+  if (mode === 'buttons' || mode === 'paint') return;
   const T = X.THREE;
   if (mode === 'camera') return; // the camera tab works with its sliders (free camera still orbits)
   if (mode === 'walls') {
@@ -264,6 +267,7 @@ function onDown(e) {
   }
   const id = pick(e);
   if (!id) { if (!free) select(null); return; }
+  if (bd() && W.eval('PNT') && (id === 'googoo' || (ori() || {}).place?.[id])) { status('This is a painted room: move Googoo and the 3D toys in the 🖼️ Painting tab (their place is a spot on the picture).', 'dirty'); return; }
   if (id !== sel) select(id); e.stopImmediatePropagation();
   const o = objPos(id), y = id === 'googoo' ? 0 : o.y;
   if (e.shiftKey && id !== 'googoo') { // Shift+drag: height
@@ -529,6 +533,7 @@ document.querySelector('#ed .tabs').onclick = e => { const m = e.target.dataset.
 function setMode(m) {
   mode = m; document.querySelectorAll('#ed .tabs .eb').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
   if (W) W.document.body.classList.toggle('edBtns', m === 'buttons');
+  renderPaint();
   if (m === 'camera' && free) setFree(false);
   sel = null; selWall = null; selBtn = null; bscr = null; showBox(); markBtn(); renderLeft(); renderRight();
 }
@@ -562,6 +567,7 @@ function renderLeft() {
     el.innerHTML = {
       walls: `<h2>Walls & floor</h2><p class="hint">Click the back, left or right wall in the picture, then drag it in or out to make the room smaller or bigger. Moving a wall never moves the floor.</p><p class="hint">Click the floor and drag near one of its edges to make the floor bigger or smaller. Numbers and colours are on the right.</p><p class="hint">Pieces standing against a wall move with it.</p>`,
       buttons: `<h2>Buttons</h2><p class="hint">Drag a round button in the picture to change the order: up and down on the sides (or across to the other side), left and right in the top bar and the room tabs.</p><p class="hint">Click a button to change its colour, or to hide it. Size and shape are on the right.</p><p class="hint">Each screen has its own side buttons: pick the screen on the right. The top bar and the room tabs are the same everywhere.</p>`,
+      paint: `<h2>Painting</h2><p class="hint">A painted room shows a painting instead of 3D walls and furniture; only Googoo and the toys he plays with stay 3D.</p><p class="hint">Drag the marks on the picture: <b>✛</b> the spot that stays in view when a phone cuts the picture, <b>pink line</b> eye level (where the floor would disappear), <b>blue line</b> where the back wall meets the floor, <b>yellow</b> Googoo's feet (top dot = his height), <b>red box</b> the rug (the ball stays on it), <b>green boxes</b> empty shelf compartments (library: one book in each), <b>green dots</b> the 3D toys.</p><p class="hint">Upright phones and sideways screens each have their own picture and marks: change the screen size at the top for the other one.</p>`,
       camera: `<h2>Camera</h2><p class="hint">Each room can have its own view: one for upright phones and one for everything else (sideways phones, iPads). Change the screen size at the top to set the other one.</p><p class="hint">Rooms without their own view are "automatic": the camera fits Googoo by itself. Card games and stories always use the automatic view.</p>` }[mode];
     return;
   }
@@ -605,6 +611,7 @@ function renderRight() {
   if (mode === 'walls') return renderWalls(el);
   if (mode === 'buttons') return renderButtons(el);
   if (mode === 'camera') return renderCamera(el);
+  if (mode === 'paint') return renderPaintPanel(el);
   if (sel === 'googoo') return renderGoo(el);
   const p = sel && propOf(sel);
   if (!p) { el.innerHTML = `<h2>Nothing selected</h2><p class="hint">Click a piece of furniture, a toy or Googoo in the picture, or pick one in the list on the left.</p>`; return; }
@@ -768,6 +775,78 @@ function renderButtons(el) {
     if (t.dataset.rm) { change(() => { const s = L.ui.screens[k]; s.left = s.left.filter(x => x !== t.dataset.rm); s.right = s.right.filter(x => x !== t.dataset.rm); }, '', 'ui'); renderButtons(el); } };
   const ab = el.querySelector('#addb'); if (ab) ab.onchange = e => { const id = e.target.value; if (id) { change(() => { (L.ui.screens[k] = L.ui.screens[k] || { left: [], right: [] }).left.push(id); }, '', 'ui'); renderButtons(el); } };
   markBtn();
+}
+
+// ---------- painted rooms (🖼️ Painting tab): the picture per orientation, calibration marks dragged on the picture ----------
+let roomPics = [], pSel = -1, pDrag = null, pLayer = null;
+fetch('rooms').then(r => r.json()).then(l => { roomPics = l; }).catch(() => {});
+const bd = (r = room()) => L && L.rooms[r] && L.rooms[r].backdrop || null;
+const oKey = () => isPortrait() ? 'portrait' : 'landscape';
+const ori = () => { const b = bd(); return b && b[oKey()]; };
+const pmap = () => { const m = W.eval('pU.uM.value'); return { ox: m.x, oy: m.y, pw: m.z, ph: m.w }; };
+const cl01 = v => Math.max(0, Math.min(1, r2(v)));
+function renderPaint() {
+  if (!W) return; const d = W.document;
+  if (!pLayer) { pLayer = d.createElement('div'); pLayer.id = 'edPaint'; pLayer.style.cssText = 'position:fixed;inset:0;z-index:70;pointer-events:none'; d.body.appendChild(pLayer);
+    pLayer.addEventListener('pointerdown', pDown); W.addEventListener('pointermove', pMove); W.addEventListener('pointerup', () => { if (pDrag) { pDrag = null; renderRight(); } }); }
+  const P = mode === 'paint' && ori(); pLayer.innerHTML = ''; if (!P || !W.eval('PNT')) return;
+  const m = pmap(), X0 = u => m.ox + u * m.pw, Y0 = v => m.oy + v * m.ph, Wd = W.innerWidth, h = [];
+  const el = (k, css, txt = '') => h.push(`<div data-k="${k}" style="position:absolute;pointer-events:auto;box-sizing:border-box;${css}">${txt}</div>`);
+  const line = (k, v, c, t) => el(k, `left:0;width:${Wd}px;top:${Y0(v) - 6}px;height:12px;cursor:ns-resize;background:linear-gradient(transparent 5px,${c} 5px,${c} 7px,transparent 7px)`, `<span style="position:absolute;right:6px;top:-16px;font:700 11px system-ui;color:${c};background:#fffd;padding:0 4px;border-radius:4px">${t}</span>`);
+  const box = (k, a, c, sel) => { el(k, `left:${X0(a[0])}px;top:${Y0(a[1])}px;width:${X0(a[2]) - X0(a[0])}px;height:${Y0(a[3]) - Y0(a[1])}px;border:${sel ? 3 : 2}px solid ${c};cursor:move;background:${sel ? c + '40' : 'transparent'}`);
+    for (const [cn, u, v] of [['br', a[2], a[3]], ['tl', a[0], a[1]]]) el(k + ':' + cn, `left:${X0(u) - 7}px;top:${Y0(v) - 7}px;width:14px;height:14px;background:${c};border-radius:3px;cursor:nwse-resize`); };
+  const dot = (k, u, v, c, t) => el(k, `left:${X0(u) - 9}px;top:${Y0(v) - 9}px;width:18px;height:18px;border-radius:50%;background:${c};border:2px solid #fff;cursor:move;box-shadow:0 1px 4px #0006`, `<span style="position:absolute;left:20px;top:-2px;font:700 11px system-ui;white-space:nowrap;color:#fff;text-shadow:0 1px 2px #000">${t}</span>`);
+  line('horizon', P.horizon, '#e11d9b', 'eye level'); if (P.wall != null) line('wall', P.wall, '#0ea5e9', 'wall meets floor');
+  if (P.rug) { const [u, v, a, b] = P.rug; box('rug', [u - a, v - b, u + a, v + b], '#ef4444'); }
+  (P.cells || []).forEach((c, i) => box('cell' + i, c, '#22c55e', i === pSel));
+  for (const [id, pl] of Object.entries(P.place || {})) dot('place:' + id, pl[0], pl[1], '#22c55e', id);
+  const g = P.goo; dot('goo', g[0], g[1], '#facc15', 'Googoo'); dot('gooh', g[0], g[1] - g[2], '#facc15', 'height');
+  el('focus', `left:${X0(P.focus[0]) - 13}px;top:${Y0(P.focus[1]) - 13}px;width:26px;height:26px;cursor:move;font:900 26px/26px system-ui;color:#fff;text-align:center;text-shadow:0 0 3px #000`, '✛');
+  pLayer.innerHTML = h.join('');
+}
+function pDown(e) {
+  const t = e.target.closest('[data-k]'); if (!t) return; e.stopPropagation(); e.preventDefault();
+  const k = t.dataset.k, k0 = k.split(':')[0]; if (/^cell\d+$/.test(k0)) pSel = +k0.slice(4);
+  pDrag = { k, x: e.clientX, y: e.clientY, m: pmap(), P0: clone(ori()), key: 'p' + Date.now() }; renderPaint();
+}
+function pMove(e) {
+  if (!pDrag) return; const { k, m, P0 } = pDrag, du = (e.clientX - pDrag.x) / m.pw, dv = (e.clientY - pDrag.y) / m.ph, u = (e.clientX - m.ox) / m.pw, v = (e.clientY - m.oy) / m.ph;
+  change(() => { const P = ori(), [k0, part] = k.split(':');
+    if (k === 'horizon') P.horizon = Math.max(-1, Math.min(2, r2(P0.horizon + dv)));
+    else if (k === 'wall') P.wall = cl01(P0.wall + dv);
+    else if (k === 'focus') P.focus = [cl01(P0.focus[0] + du), cl01(P0.focus[1] + dv)];
+    else if (k === 'goo') P.goo = [cl01(u), cl01(v), P0.goo[2]];
+    else if (k === 'gooh') P.goo = [P0.goo[0], P0.goo[1], Math.max(.05, Math.min(.9, r2(P0.goo[2] - dv)))];
+    else if (k0 === 'place') P.place[part] = [cl01(u), cl01(v)];
+    else { const a = k0 === 'rug' ? [P0.rug[0] - P0.rug[2], P0.rug[1] - P0.rug[3], P0.rug[0] + P0.rug[2], P0.rug[1] + P0.rug[3]] : P0.cells[+k0.slice(4)].slice(), b = a.slice();
+      if (!part) { b[0] += du; b[2] += du; b[1] += dv; b[3] += dv; } else if (part === 'br') { b[2] = Math.max(a[0] + .02, a[2] + du); b[3] = Math.max(a[1] + .02, a[3] + dv); } else { b[0] = Math.min(a[2] - .02, a[0] + du); b[1] = Math.min(a[3] - .02, a[1] + dv); }
+      const n = b.map(cl01); if (k0 === 'rug') P.rug = [r2((n[0] + n[2]) / 2), r2((n[1] + n[3]) / 2), r2((n[2] - n[0]) / 2), r2((n[3] - n[1]) / 2)]; else P.cells[+k0.slice(4)] = n; }
+  }, pDrag.key, 'paint');
+}
+// right panel: painted on/off, the picture for this kind of screen, a few numbers, compartments
+function renderPaintPanel(el) {
+  const r = room(), B = bd(), P = ori(), def = W.eval('PAINT0')[r], kname = isPortrait() ? 'upright phones' : 'sideways phones and iPads', base = f => f.replace(/^assets\/rooms\//, '');
+  const pics = [...new Set([...roomPics, ...(P ? [base(P.img)] : [])])];
+  let html = `<h2>${ROOM_NAME[r]}: painting</h2><label class="check"><input type="checkbox" id="pOn" ${B ? 'checked' : ''}><span>Painted room<br><small class="hint">Off = the normal 3D room with its walls and furniture.</small></span></label>`;
+  if (B) {
+    html += `<div class="field"><label>Picture for ${kname}</label><select class="eb" id="pImg">${P ? '' : '<option value="">Choose…</option>'}${pics.map(f => `<option value="${f}">${f}</option>`).join('')}</select><span></span></div>
+      <p class="hint">Pictures are the files in assets/rooms (WebP, at most 1440 px on the long side).</p>`;
+    if (P) html += field('Googoo height (% of the picture)', 'gh', 5, 80, 1, Math.round(P.goo[2] * 100)) + field('Field of view (°)', 'fov', 20, 90, 1, P.fov || 50) + field('Shadow strength', 'sh', 0, 1, .05, (P.light || {}).shadow ?? .35) + field('Sunbeam', 'beam', 0, .3, .01, (P.beam || [])[5] ?? 0) +
+      (r === 'library' ? `<div class="row"><button class="eb" id="pAdd">➕ Add a compartment</button><button class="eb warn" id="pDel" ${pSel >= 0 && (P.cells || [])[pSel] ? '' : 'disabled'}>🗑 Remove the selected one</button></div><p class="hint">${(P.cells || []).length} compartments = ${(P.cells || []).length} books per page. Only mark empty ones (no painted books in them). Click a green box to select it.</p>` : '') +
+      `<p class="hint">3D pieces that stay in this room: ${(B.keep || []).join(', ') || 'none (only Googoo)'}.</p>` + (def && def[oKey()] ? `<div class="row"><button class="eb" id="pDef">↩ Back to the built-in marks</button></div>` : '');
+    else html += '<p class="hint">No picture for this kind of screen yet: the other one is used (cut to fit). Pick one above to give it its own.</p>';
+  }
+  el.innerHTML = html; const q = s => el.querySelector(s);
+  q('#pOn').onchange = e => { change(() => { L.rooms[r].backdrop = e.target.checked ? clone(def || { keep: [] }) : null; }, '', 'paint'); renderRight(); };
+  if (q('#pImg')) { q('#pImg').value = P ? base(P.img) : ''; q('#pImg').onchange = e => { const f = e.target.value; if (!f) return; const im = new Image();
+    im.onload = () => { change(() => { const k = oKey(), o = B[k] || clone((def || {})[k] || { focus: [.5, .6], fov: 50, horizon: .5, wall: .65, goo: [.5, .85, .25], rug: [.5, .85, .3, .07] });
+      o.img = 'assets/rooms/' + f; o.size = [im.naturalWidth, im.naturalHeight]; B[k] = o; }, '', 'paint'); renderRight(); status(`Picture ${f}: now drag the marks so the floor and the shelf match.`); }; im.src = 'assets/rooms/' + f; }; }
+  el.oninput = e => { const k = e.target.dataset.k, v = parseFloat(e.target.value); if (!k || isNaN(v) || !P) return;
+    change(() => { if (k === 'gh') P.goo = [P.goo[0], P.goo[1], r2(v / 100)]; if (k === 'fov') P.fov = v; if (k === 'sh') P.light = { ...(P.light || {}), shadow: v }; if (k === 'beam') { P.beam = (P.beam || [.1, .2, 45, .05, .8, 0]).slice(); P.beam[5] = v; } }, 'pf' + k, 'paint');
+    el.querySelectorAll(`[data-k="${k}"]`).forEach(i => { if (i !== e.target) i.value = e.target.value; }); };
+  if (q('#pAdd')) q('#pAdd').onclick = () => { change(() => { (P.cells = P.cells || []).push([.45, .45, .55, .52]); }, '', 'paint'); pSel = P.cells.length - 1; renderRight(); };
+  if (q('#pDel')) q('#pDel').onclick = () => { change(() => { P.cells.splice(pSel, 1); }, '', 'paint'); pSel = -1; renderRight(); };
+  if (q('#pDef')) q('#pDef').onclick = () => { change(() => { B[oKey()] = clone(def[oKey()]); }, '', 'paint'); renderRight(); };
 }
 
 // ---------- budget meter (docs/gpu-budget.md): one whole frame incl. the shadow pass ----------

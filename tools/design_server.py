@@ -3,6 +3,7 @@
   python tools/design_server.py [--port 8770] [--no-browser]      (or double-click tools/design_mode.bat)
 
   GET  /props             the optimized prop GLBs: name, size class (S/M/L), triangles, KB
+  GET  /rooms             the room paintings in assets/rooms (painted rooms)
   GET  /models/<f>.glb    from models/, else from the optimized folder (props not published yet)
   POST /save              validates and writes data/layout.json; the old one -> data/layout.backup-<time>.json (last 20 kept)
   POST /publish[?dry=1]   build, commit layout.json + index.html (+ sw.js, + newly used models), pull --rebase, push the
@@ -20,6 +21,8 @@ OPTIONAL = {'library'}  # a layout saved before the library existed has none: th
 BOOK = re.compile(r'^(cat|story):[a-z0-9_]{1,40}$')
 MSG = 'Layout: published from Design mode\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
 NAME = re.compile(r'^[a-z0-9_]{1,60}$')
+PIC = re.compile(r'^assets/rooms/[a-z0-9_]{1,60}\.(webp|jpg|png)$')
+ROOMPICS = os.path.join(ROOT, 'assets', 'rooms')
 COLOR = re.compile(r'^#[0-9a-f]{6}$')
 
 
@@ -60,6 +63,81 @@ def num(v, lo, hi, what):
         raise ValueError(f'{what}: {v!r} is not a number between {lo} and {hi}')
 
 
+def room_pics():
+    return sorted(f for f in os.listdir(ROOMPICS) if PIC.match('assets/rooms/' + f)) if os.path.isdir(ROOMPICS) else []
+
+
+def validate_backdrop(r, B):
+    """painted room (optional; null = a 3D room). Numbers are 0..1 of the picture unless noted. Unity ignores this."""
+    if B is None:
+        return
+    if not isinstance(B, dict) or set(B) - {'keep', 'portrait', 'landscape'}:
+        raise ValueError(f'{r} painting: only keep, portrait, landscape')
+    if not all(isinstance(x, str) and NAME.match(x) for x in B.get('keep', [])):
+        raise ValueError(f'{r} painting: 3D pieces to keep')
+    if not (B.get('portrait') or B.get('landscape')):
+        raise ValueError(f'{r} painting: no picture')
+    def nums(v, n, lo, hi, what):
+        if not isinstance(v, list) or len(v) != n:
+            raise ValueError(f'{r} painting {what}: needs {n} numbers')
+        for x in v:
+            num(x, lo, hi, f'{r} painting {what}')
+    for k in ('portrait', 'landscape'):
+        P = B.get(k)
+        if P is None:
+            continue
+        if not isinstance(P, dict) or not PIC.match(str(P.get('img', ''))) or not os.path.exists(os.path.join(ROOT, P['img'])):
+            raise ValueError(f'{r} {k} picture {P.get("img") if isinstance(P, dict) else P!r}: not a file in assets/rooms')
+        nums(P.get('size'), 2, 16, 4096, 'size'); nums(P.get('focus'), 2, 0, 1, 'focus'); nums(P.get('goo'), 3, 0, 1, 'Googoo')
+        num(P.get('horizon'), -1, 2, f'{r} {k} eye level')
+        for f, lo, hi in (('wall', 0, 1), ('fov', 10, 120), ('zoom', 1, 3)):
+            if f in P:
+                num(P[f], lo, hi, f'{r} {k} {f}')
+        if 'rug' in P:
+            nums(P['rug'], 4, 0, 1, 'rug')
+        for f, n in (('dust', 4), ('dots', 2)):
+            if f in P:
+                nums(P[f], n, 0, 1, f)
+        if 'beam' in P:
+            nums(P['beam'], 6, -360, 360, 'sunbeam')
+        cells = P.get('cells', [])
+        if not isinstance(cells, list) or len(cells) > 30:
+            raise ValueError(f'{r} {k}: shelf compartments')
+        for c in cells:
+            nums(c, 4, 0, 1, 'compartment')
+            if c[2] <= c[0] or c[3] <= c[1]:
+                raise ValueError(f'{r} {k}: a compartment has no size')
+        for pid, pt in (P.get('place') or {}).items():
+            if not NAME.match(pid):
+                raise ValueError(f'{r} {k}: place of {pid!r}')
+            nums(pt, 2, 0, 1, f'place of {pid}')
+        for l in P.get('lamps', []):
+            nums(l, 3, 0, 1, 'lamp')
+        for t in P.get('taps', []):
+            if not isinstance(t, dict) or not re.match(r'^w_[a-z0-9_]{1,40}$', str(t.get('w', ''))):
+                raise ValueError(f'{r} {k}: tap zone word')
+            nums(t.get('r'), 4, 0, 1, 'tap zone')
+        fg = P.get('fg')
+        if fg is not None:
+            if not isinstance(fg, dict) or fg.get('at') not in ('tl', 'tr', 'bl', 'br'):
+                raise ValueError(f'{r} {k}: foreground corner')
+            nums(fg.get('crop'), 4, 0, 1, 'foreground crop'); num(fg.get('h'), 0.05, 1.5, f'{r} {k} foreground size')
+        L = P.get('light')
+        if L is not None:
+            if not isinstance(L, dict):
+                raise ValueError(f'{r} {k}: light')
+            for f in ('shadow', 'exp'):
+                if f in L:
+                    num(L[f], 0, 3, f'{r} {k} light {f}')
+            for f, n in (('sun', 2), ('fill', 2), ('hemi', 3)):
+                if f in L and (not isinstance(L[f], list) or len(L[f]) != n or not all(COLOR.match(str(c)) for c in L[f][:n - 1])):
+                    raise ValueError(f'{r} {k} light {f}')
+                if f in L:
+                    num(L[f][-1], 0, 5, f'{r} {k} light {f}')
+            if 'dir' in L:
+                nums(L['dir'], 3, -50, 50, 'light direction')
+
+
 def validate(L):
     """raises ValueError with a plain message if the layout is not one the game can use."""
     if not isinstance(L, dict) or not isinstance(L.get('rooms'), dict) or not isinstance(L.get('ui'), dict):
@@ -81,6 +159,7 @@ def validate(L):
                 if seen & set(v) or len(set(v)) != len(v):
                     raise ValueError(f'{r}: a book is on a shelf twice')
                 seen |= set(v)
+        validate_backdrop(r, R.get('backdrop'))
         W = R.get('walls', {})
         for k in ('left', 'right', 'back'):
             num(W.get(k), -30, 30, f'{r} wall {k}')
@@ -241,6 +320,8 @@ class H(http.server.SimpleHTTPRequestHandler):
         path = self.path.split('?')[0]
         if path == '/props':
             return self.reply(200, props_list())
+        if path == '/rooms':
+            return self.reply(200, room_pics())
         if path == '/data/layout.json' and os.path.abspath(LAYOUT) != os.path.join(ROOT, 'data', 'layout.json'):  # --layout (tests)
             b = open(LAYOUT, 'rb').read()
             self.send_response(200); self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(b)))
@@ -285,6 +366,17 @@ def selftest():
         except ValueError:
             pass
     y = copy.deepcopy(L); y['rooms'].pop('library', None); validate(y)  # no library room: still valid
+    good = {'keep': ['teddy'], 'portrait': {'img': 'assets/rooms/play_portrait.webp', 'size': [1056, 1440], 'focus': [.5, .6], 'horizon': .44, 'wall': .62, 'goo': [.5, .7, .25],
+            'rug': [.5, .7, .3, .07], 'cells': [[.1, .1, .2, .2]], 'place': {'teddy': [.3, .7]}, 'taps': [{'r': [0, 0, .1, .1], 'w': 'w_car'}]}}
+    y = copy.deepcopy(L); y['rooms']['play']['backdrop'] = good; validate(y); y['rooms']['play']['backdrop'] = None; validate(y)
+    for bad in (lambda b: b['portrait'].update(img='../x.webp'), lambda b: b['portrait'].update(img='assets/rooms/nope.webp'), lambda b: b['portrait'].update(goo=[.5, 2, .2]),
+                lambda b: b['portrait'].update(cells=[[.3, .3, .2, .4]]), lambda b: b.update(extra=1), lambda b: b['portrait'].update(taps=[{'r': [0, 0, 1, 1], 'w': 'x;y'}])):
+        y = copy.deepcopy(L); b = copy.deepcopy(good); bad(b); y['rooms']['play']['backdrop'] = b
+        try:
+            validate(y); raise AssertionError('bad painting passed')
+        except ValueError:
+            pass
+    assert 'library_portrait.webp' in room_pics()
     for bad in ({'big': ['cat:animals'], 'small': ['cat:animals']}, {'big': ['x']}, {'top': []}):
         y = copy.deepcopy(L); y['rooms'].setdefault('library', copy.deepcopy(L['rooms']['home']))['books'] = bad
         try:

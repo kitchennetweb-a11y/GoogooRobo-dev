@@ -137,6 +137,14 @@ body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:jtap .35s cubic-bezier(.3,
 @keyframes jidle{0%,100%{transform:rotate(0) scale(1)}33%{transform:rotate(1.2deg) scale(1.025,.975)}66%{transform:rotate(-1deg) scale(.98,1.02)}}
 @keyframes jtap{0%{transform:scale(1)}22%{transform:scale(.88,.84)}48%{transform:scale(1.1,1.05)}68%{transform:scale(.96,1.02)}85%{transform:scale(1.02,.99)}100%{transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){body.jelly .rb,body.jelly .ec.nav,body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:none}}
+/* painted rooms: shelf pages (jelly prev/next + dots beside the painted shelf), a blurred foreground crop of the painting at a screen corner */
+.pg{position:fixed;z-index:3;width:calc(var(--b)*.92);height:calc(var(--b)*.92)}.pg svg{width:55%;height:55%;filter:drop-shadow(0 2px 0 #0003)}
+#pgPrev{background:#ffae1f}#pgNext{background:#22c995}
+#pgDots{position:fixed;z-index:3;display:flex;gap:7px;padding:5px 9px;border-radius:20px;background:#ffffffa6;box-shadow:0 3px 8px #0002;transform:translateX(-50%);pointer-events:none}
+#pgDots i{width:9px;height:9px;border-radius:50%;background:#c9b49b;transition:width .3s,background .3s}#pgDots i.st{background:#cdb8ec}#pgDots i.on{width:22px;border-radius:6px;background:#22c995}#pgDots i.st.on{background:#a66cff}
+#pFg{position:fixed;z-index:1;pointer-events:none;background-repeat:no-repeat;filter:blur(6px) saturate(1.05) brightness(.92);transition:opacity .4s,filter .6s;will-change:transform;
+  -webkit-mask-image:radial-gradient(closest-side,#000 50%,transparent 100%);mask-image:radial-gradient(closest-side,#000 50%,transparent 100%)}
+#pFg.off{opacity:0}#pFg.dark{filter:blur(6px) brightness(.42) saturate(.7)}
 </style>
 
 <div id="stage"></div>
@@ -149,6 +157,9 @@ body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:jtap .35s cubic-bezier(.3,
   <button class="rb" data-r="library" aria-label="Library">📖</button></div>
 <!-- picture-book pages on his face screen: arrows beside his ears (placed every frame by placeEars), the Farsi word under his face only with "Show words" -->
 <button id="earL" class="rb ear" hidden aria-label="Previous page">⬅️</button><button id="earR" class="rb ear" hidden aria-label="Next page">➡️</button><div id="faceWord"></div>
+<div id="pFg" class="off"></div>
+<button id="pgPrev" class="rb pg" hidden aria-label="Previous books"><svg viewBox="0 0 24 24"><path d="M15 4 L7 12 L15 20" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+<button id="pgNext" class="rb pg" hidden aria-label="Next books"><svg viewBox="0 0 24 24"><path d="M9 4 L17 12 L9 20" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div id="pgDots" hidden></div>
 <div id="deck" hidden></div>
 <div id="card" hidden><div class="em" id="cardEm"></div><div class="fa" id="cardFa"></div></div>
 <div id="fade"></div>
@@ -882,7 +893,7 @@ const ball=new THREE.Mesh(new THREE.SphereGeometry(BR,28,20),new THREE.MeshStand
   map:spriteTex(x=>{x.fillStyle='#fff';x.fillRect(0,0,128,128);x.fillStyle='#ff7a59';for(let i=0;i<4;i++)x.fillRect(i*32,0,16,128)})}));
 ball.castShadow=true;ball.visible=false;scene.add(ball);const BALLMAT=ball.material;
 const bv=new THREE.Vector3();
-function throwBall(){ball.visible=true;ball.position.set((Math.random()<.5?-1:1)*3.5,2.5,1.5);bv.set(-Math.sign(ball.position.x)*2,2,-.4);
+function throwBall(){ball.visible=true;const R=PNT&&PW&&PW.rug,sd=Math.random()<.5?-1:1;if(R){ball.position.set(R.x+sd*R.rx*.85,2.5,R.z+R.rz*.2);bv.set(-sd*Math.min(2,R.rx*.8),2,-.3)}else{ball.position.set(sd*3.5,2.5,1.5);bv.set(-Math.sign(ball.position.x)*2,2,-.4)}
   say('ball');SFX.beep();setMode('chase')}
 
 // ---------- Food ----------
@@ -1309,9 +1320,9 @@ const PROPS={
   lib_beanbag:{f:'library_beanbag',k:.928,x:-3.6,z:-2.6,ry:.5,room:'library',nosq:1}, lib_garland:{f:'library_letter_garland',k:.651,x:0,y:4.75,back:1,room:'library'}};
 const TEXK=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'],FLAT=['carpet','rug','lib_rug']; // floor mats: no tap box, rays pass through (taps on the floor still go home)
 function roomProps(s){winParts.forEach(o=>o.visible=!(GOT.has('window')&&s==='home')&&s!=='library'); // the library has no window (shelf and garland on that wall)
-  newRug.visible=!(GOT.has('carpet')&&s==='home'||GOT.has('rug')&&s==='bed'||GOT.has('lib_rug')&&s==='library')}
+  newRug.visible=!(GOT.has('carpet')&&s==='home'||GOT.has('rug')&&s==='bed'||GOT.has('lib_rug')&&s==='library');furnGroup.children.forEach(g=>{if(g.visible&&paintHid(g))g.visible=false})} // painted room: what the painting shows is not drawn
 function loadProps(room){if(!THREE.GLTFLoader||ASKED.has(room))return;ASKED.add(room);const ld=new THREE.GLTFLoader();
-  for(const id in PROPS)if(PROPS[id].room===room)loadProp(id,ld);
+  for(const id in PROPS)if(PROPS[id].room===room&&!(pOf(room)&&!((PAINT[room]||{}).keep||[]).includes(id)))loadProp(id,ld); // painted room: only the 3D pieces that stay
   if(room==='play')ld.load(MODELS+'toy_ball.glb',gl=>{try{ // the ball keeps its sphere for physics and taps; its look is the GLB (a child, so it rolls with it)
     const m=gl.scene;m.scale.setScalar(2*BR/.97);m.position.y=-BR;m.traverse(o=>{if(o.isMesh){o.raycast=()=>{};o.castShadow=false}});
     ball.material=ball.material.clone();ball.material.visible=false;ball.add(m);GOT.add('ball')}catch(e){console.warn('ball',e)}},0,e=>console.warn('ball',e))}
@@ -1327,7 +1338,7 @@ function loadProp(id,ld=new THREE.GLTFLoader()){const P=PROPS[id],room=P.room;ld
       else if(mt&&mt.name==='Neon')NEO.n=mt});neonSet(1)}
     if(FLAT.includes(id)||id==='bed'||id.startsWith('lib_'))g.remove(g.children[g.children.length-1]); // no padded tap box: the big bed's would cover the lamp and nightstand, rugs would swallow floor taps, library pieces would cover the books (their own meshes still take taps)
     if(P.y)g.position.y=P.y;Object.assign(g.userData,{m,base:m.scale.clone(),z0:z,y0:P.y||0,ry0:P.ry||0,top:bb.max.y,pt:P.pt,on:P.on});if(P.nosq)g.userData.nosq=1;if(P.off)g.userData.off=1;
-    g.visible=g.userData.room===curRoom&&!g.userData.off;
+    g.visible=g.userData.room===curRoom&&!g.userData.off&&!paintHid(g);
     if(id==='lamp'){const mt=g.userData.shade=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0xffc94d);mt.emissiveMap=mt.map;mt.emissiveIntensity=lightsOn?.15:.6;if(lampLight.parent)g.add(lampLight)}
     if(id==='tv'){const mt=tvMat=gl.scene.getObjectByProperty('isMesh',true).material;mt.emissive=new THREE.Color(0);mt.emissiveMap=mt.map;mt.emissiveIntensity=.4;mt.userData.on=0xffffff}
     if(id==='toybox'){const sh=furnById('shelf');if(sh)furnGroup.remove(sh)} // the primitive toy shelf makes way for the toy box
@@ -1353,7 +1364,7 @@ function applyFree(){const box=document.getElementById('free'),F=FREE[camKey()]|
 const LAYOUT=fetch('data/layout.json',{cache:'no-cache'}).then(r=>r.json()).then(applyLayout).catch(e=>console.warn('layout: built-in values',e));
 function applyLayout(L){for(const s in L.rooms){const R=L.rooms[s];WALLS[s]=R.walls||{};if(WALLS[s].color)WALL[s]=parseInt(WALLS[s].color.slice(1),16);
     for(const id in PROPS)if(PROPS[id].room===s)delete PROPS[id];
-    GOO[s]=R.googoo||{};CAMS[s]=R.camera||{};if(s==='library')LIBORDER=R.books||null;
+    GOO[s]=R.googoo||{};CAMS[s]=R.camera||{};if(s==='library')LIBORDER=R.books||null;if('backdrop' in R)PAINT[s]=R.backdrop; // painted room (null = 3D)
     for(const p of R.props||[])if(p.builtin)BUILT[p.id]=p;else PROPS[p.id]={f:p.file,k:p.k,x:p.x,y:p.y,z:p.z,ry:p.ry,room:s,on:p.on!==undefined?p.on:SITS[p.id],back:p.wall==='back',side:p.wall==='left',sy:p.flatten,nosq:p.noSqueeze,off:p.hidden,cast:p.castShadow,pt:p.portrait}}
   const U=L.ui||{},S=U.size||1;document.body.classList.toggle('jelly',(U.style||'jelly')==='jelly');FREE=U.free||{};NAVORDER=(U.nav||{}).order||NAVORDER;TOPORDER=(U.top||{}).order||TOPORDER;for(const k in U.screens||{})SCREENS[k]=[U.screens[k].left,U.screens[k].right];
   for(const id in U.buttons||{}){const b=document.getElementById(id);if(b&&U.buttons[id].color)b.style.background=U.buttons[id].color}
@@ -1413,7 +1424,8 @@ function shelfLevels(g,inv,bb){const m=g.userData.m;if(m.userData.lv)return m.us
   lv=lv.filter((y,i)=>!(lv[i+1]-y<.09)); // a board and its front lip: keep the higher one
   if(!lv.length){const N=Math.max(1,Math.min(5,Math.round(S.y/(S.x*.3))));lv=[...Array(N).keys()].map(i=>.07+i*.86/N)}
   return m.userData.lv=lv}
-function layoutBooks(){if(!libMesh||!RB0)return;const A=libAssign(),idx={},Z=new THREE.Matrix4().makeScale(0,0,0),mt=new THREE.Matrix4(),q=new THREE.Quaternion(),inv=new THREE.Matrix4();libPose=[];
+function layoutBooks(){if(!libMesh||!RB0)return;if(PNT&&curRoom==='library')return paintBooks(); // painted library: the books stand in the painted compartments (paintBooks)
+  const A=libAssign(),idx={},Z=new THREE.Matrix4().makeScale(0,0,0),mt=new THREE.Matrix4(),q=new THREE.Quaternion(),inv=new THREE.Matrix4();libPose=[];
   libItems.forEach((it,i)=>{idx[it.key]=i;libMesh.setMatrixAt(i,Z);libHit.setMatrixAt(i,Z)});
   const shelf=k=>{const g=furnById(LIBSH[k]);return g&&g.userData.m&&!g.userData.off?g:null};let big=A.big,small=A.small;
   if(!shelf('small')){big=[...big,...small];small=[]}else if(!shelf('big')){small=[...big,...small];big=[]} // one shelf missing or hidden: all books on the other
@@ -1442,7 +1454,7 @@ function garlandLetters(){const g=furnById('lib_garland');if(!g||!g.userData.m)r
 const libFly=(()=>{const G=new THREE.Group(),pages=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),M(0xfffaf0,.9,0)),piv=new THREE.Group(),g=libGeo.clone();
   g.setAttribute('aCell',new THREE.InstancedBufferAttribute(new Float32Array(2),2));const cover=new THREE.InstancedMesh(g,libMat,1);cover.setMatrixAt(0,new THREE.Matrix4());cover.frustumCulled=false;
   piv.add(cover);G.add(pages,piv);G.visible=false;G.traverse(o=>o.raycast=()=>{});libGroup.add(G);return {G,pages,piv,cover,t:1}})();
-function openBook(i){const it=libItems[i],P=libPose[i];if(!it||!P||libFly.t<1||curRoom!=='library'||scr!=='library')return;
+function openBook(i){paintShow(i);const it=libItems[i],P=libPose[i];if(!it||!P||libFly.t<1||curRoom!=='library'||scr!=='library')return;
   endGame();goHome();st.lastPoke=performance.now();const tok=game.token,F=libFly,a=F.cover.geometry.attributes.aCell;a.setXY(0,i%LIBN,LIBN-1-(i/LIBN|0));a.needsUpdate=true;
   F.pages.scale.set(P.bw*.94,P.bh*.94,P.bt*.7);F.pages.position.z=-P.bt*.12;F.piv.position.set(-P.bw/2,0,P.bt*.25);F.cover.position.set(P.bw/2,0,0);F.cover.scale.set(P.bw,P.bh,P.bt*.3);F.piv.rotation.y=0;
   Object.assign(F,{t:0,i,P,done:()=>{if(game.token!==tok||curRoom!=='library')return;showScreen('book');if(it.kind==='cat')bookCat(it.id);else storyPage(it.s,0)}});
@@ -1475,7 +1487,157 @@ function roomLayout(s){const W=WALLS[s]||{},hx=n=>'#'+n.toString(16).padStart(6,
   return {walls:{left:W.left??-RW/2,right:W.right??RW/2,back:W.back??BACK,color:W.color||hx(WALL[s]),floor:W.floor||'#ffffff'},
     props:Object.entries(PROPS).filter(([,P])=>P.room===s).map(([id,P])=>{const p={id,file:P.f,k:P.k};for(const [a,b] of [['x','x'],['y','y'],['z','z'],['ry','ry'],['sy','flatten']])if(P[a]!=null)p[b]=P[a];
       if(P.back)p.wall='back';if(P.side)p.wall='left';if(P.nosq)p.noSqueeze=true;p.castShadow=!!P.cast;p.hidden=!!P.off;if(P.pt)p.portrait={...P.pt};return p}),
-    googoo:{...(GOO[s]||{})},camera:JSON.parse(JSON.stringify(CAMS[s]||{})),...(s==='library'?{books:libAssign()}:{})}}
+    googoo:{...(GOO[s]||{})},camera:JSON.parse(JSON.stringify(CAMS[s]||{})),...(s==='library'?{books:libAssign()}:{}),...(PAINT[s]!==undefined?{backdrop:JSON.parse(JSON.stringify(PAINT[s]))}:{})}}
+// ---------- Painted rooms (2.5D): a painting fills the screen; only Googoo and what he plays with stay 3D ----------
+// layout.json rooms.<room>.backdrop (missing = the built-in one below, null = a normal 3D room): {keep:[3D prop ids that stay], portrait:{...}, landscape:{...}}.
+// Per picture, u,v = 0..1 of the picture from its top left: img, size [w,h] px, focus [u,v] (kept in view when the screen crops it: COVER fit, never bars),
+// fov (the painting's vertical field of view, degrees), horizon v (eye level: where the floor vanishes), wall v (where the back wall meets the floor: the shelf's depth),
+// goo [u,v,h] (his feet, his height as a part of the picture's height): with the horizon this sets the camera (height, tilt, distance) so the 3D floor lies on the painted one;
+// rug [u,v,ru,rv] (ellipse: the ball stays on it and in view), cells [[u0,v0,u1,v1]] (library: EMPTY shelf compartments, a book fills each), place {id:[u,v]} (3D props on the painted floor),
+// light {sun:[colour,strength],dir:[x,y,z] from Googoo,hemi:[sky,ground,strength],fill:[colour,strength],shadow,exp}, beam [u,v,angle°,width,length,strength] (soft sunbeam),
+// dust [u0,v0,u1,v1] (sparkles), fg {crop:[u0,v0,u1,v1],at:'tl'|'tr'|'bl'|'br',h} (that crop, blurred, at a screen corner), lamps [[u,v,r]] (night glows), taps [{r:[u0,v0,u1,v1],w:'w_car'}]
+const PAINT={
+  library:{keep:[],portrait:{img:'assets/rooms/library_portrait.webp',size:[1056,1440],focus:[.519,.6],dots:[.519,.362],fov:50,horizon:.545,wall:.733,goo:[.5,.893,.24],rug:[.483,.838,.402,.078],
+      cells:[[.456,.436,.573,.494],[.587,.436,.701,.494],[.336,.503,.443,.568],[.456,.503,.573,.568],[.336,.576,.443,.644],[.456,.576,.573,.644],[.587,.576,.701,.644]],
+      light:{sun:['#ffd49a',1.35],dir:[-4,9,-3],hemi:['#fff1dc','#9a6a45',.7],fill:['#ffe6c8',.55],shadow:.38,exp:.95},beam:[.03,.27,52,.05,.95,.1],dust:[.18,.25,.85,.78],
+      fg:{crop:[0,.06,.17,.44],at:'tl',h:.4},lamps:[[.22,.036,.06],[.79,.036,.06],[.27,.122,.05],[.739,.122,.05]]},
+    landscape:{img:'assets/rooms/library_landscape.webp',size:[1440,1056],focus:[.515,.6],fov:50,horizon:.62,wall:.762,goo:[.512,.8,.27],dots:[.515,.303],rug:[.531,.839,.309,.08],
+      cells:[[.406,.434,.472,.526],[.406,.642,.472,.734],[.559,.642,.625,.734],[.635,.642,.701,.734]],
+      light:{sun:['#ffd49a',1.35],dir:[-4,9,-3],hemi:['#fff1dc','#9a6a45',.7],fill:['#ffe6c8',.55],shadow:.38,exp:.95},beam:[.07,.18,40,.05,.9,.09],dust:[.2,.2,.8,.75],
+      fg:{crop:[0,.42,.12,.92],at:'bl',h:.75},lamps:[]}},
+  play:{keep:['teddy','cow'],portrait:{img:'assets/rooms/play_portrait.webp',size:[1056,1440],focus:[.545,.6],fov:50,horizon:.44,wall:.62,goo:[.53,.73,.25],rug:[.545,.717,.388,.072],
+      place:{teddy:[.33,.75],cow:[.75,.755]},light:{sun:['#fff3e0',1.15],dir:[6,8,-1],hemi:['#e8f4ff','#b08a5e',.75],fill:['#fff0dd',.45],shadow:.32,exp:.95},
+      beam:[.8,.2,160,.07,.75,.08],dust:[.3,.22,.85,.62],fg:{crop:[.71,.07,.81,.56],at:'tr',h:.62},lamps:[],
+      taps:[{r:[.237,.583,.35,.653],w:'w_car'},{r:[.19,.535,.25,.565],w:'w_car'},{r:[.79,.11,.94,.48],w:'w_window'},{r:[.7,.585,.79,.645],w:'w_ball'},{r:[.96,.42,1,.49],w:'w_teddy'},{r:[0,.53,.19,.72],w:'w_chair'}]},
+    landscape:{img:'assets/rooms/play_landscape.webp',size:[1440,1056],focus:[.5,.62],fov:50,horizon:.495,wall:.585,goo:[.507,.79,.3],rug:[.507,.766,.372,.124],
+      place:{teddy:[.3,.75],cow:[.7,.76]},light:{sun:['#fff3e0',1.15],dir:[6,8,-1],hemi:['#e8f4ff','#b08a5e',.75],fill:['#fff0dd',.45],shadow:.32,exp:.95},
+      beam:[.92,.18,158,.07,.75,.08],dust:[.25,.15,.85,.6],fg:{crop:[.86,0,.93,.6],at:'tr',h:.85},lamps:[],
+      taps:[{r:[.427,.573,.479,.616],w:'w_car'},{r:[.91,.03,1,.45],w:'w_window'},{r:[.076,.464,.128,.55],w:'w_teddy'}]}}};
+const PAINT0=JSON.parse(JSON.stringify(PAINT)); // the built-in pictures (Design mode: "painted room" on again)
+let PNT=null,PK='',PW=null,libPage=0,libPages=[[]],libStoryP=0,libSlide=null,libSel=-1,libIdx={};const POSE=[],_pv=V3(),_pq=new THREE.Quaternion();
+const pOf=r=>{const B=PAINT[r];return B?B[portrait?'portrait':'landscape']||B.portrait||B.landscape||null:null}; // no picture for this orientation: the other one (cover fit, still no bars)
+const paintHid=g=>{const B=PAINT[g.userData.room];return !!(B&&pOf(g.userData.room)&&!(B.keep||[]).includes(g.userData.furn))}; // painted room: pieces that are in the painting are not drawn
+const paintLib=()=>!!(PNT&&PW&&PW.cells&&curRoom==='library');
+// one full-screen triangle pair drawn first (no depth), and the sparkles: both map the screen to the picture with the same numbers (uM = the cover fit, uT/uZ = the camera's pan/zoom since then)
+const pU={uMap:{value:null},uHas:{value:0},uFill:{value:new THREE.Color(0xe9dccb)},uRes:{value:new THREE.Vector2(1,1)},uM:{value:new THREE.Vector4(0,0,1,1)},uT:{value:new THREE.Vector4()},uZ:{value:1},
+  uAsp:{value:1},uMul:{value:new THREE.Color(1,1,1)},uNight:{value:0},uTime:{value:0},uBeam:{value:new THREE.Vector4()},uBeam2:{value:new THREE.Vector2()},uLamp:{value:[0,1,2,3].map(()=>new THREE.Vector4())},
+  uDust:{value:new THREE.Vector4()},uDustA:{value:1},uDpr:{value:1}};
+const pBg=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:pU,depthTest:false,depthWrite:false,
+  vertexShader:'uniform vec2 uRes;varying vec2 vS;void main(){vS=vec2((position.x*.5+.5)*uRes.x,(.5-position.y*.5)*uRes.y);gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader:`uniform sampler2D uMap;uniform float uHas,uZ,uAsp,uNight,uTime;uniform vec3 uFill,uMul;uniform vec4 uM,uT,uBeam,uLamp[4];uniform vec2 uBeam2;varying vec2 vS;
+void main(){vec2 q=uT.xy+(vS-uT.zw)/uZ,uv=(q-uM.xy)/uM.zw;vec3 c=uHas>.5?texture2D(uMap,vec2(uv.x,1.-uv.y)).rgb:uFill;
+ vec2 d=(uv-uBeam.xy)*vec2(uAsp,1.),r=vec2(cos(uBeam.z),sin(uBeam.z));float a=dot(d,r),b=abs(dot(d,vec2(-r.y,r.x))),wd=uBeam.w*(.5+a);
+ c+=vec3(1.,.87,.62)*uBeam2.y*(1.-uNight)*smoothstep(wd,wd*.15,b)*smoothstep(0.,.08,a)*(1.-smoothstep(uBeam2.x*.35,uBeam2.x,a))*(.82+.18*sin(uTime*.5+b*28.));
+ c*=uMul;for(int i=0;i<4;i++){vec4 l=uLamp[i];float g=1.-smoothstep(0.,l.z+.001,length((uv-l.xy)*vec2(uAsp,1.)));c+=vec3(1.,.74,.4)*g*g*l.w*uNight;}
+ gl_FragColor=vec4(c,1.);}`}));
+pBg.frustumCulled=false;pBg.renderOrder=-10;pBg.visible=false;pBg.raycast=()=>{};scene.add(pBg);
+const pDust=(()=>{const n=70,g=new THREE.BufferGeometry(),s=new Float32Array(n*3);for(let i=0;i<n*3;i++)s[i]=Math.random();g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(n*3),3));g.setAttribute('seed',new THREE.BufferAttribute(s,3));
+  const p=new THREE.Points(g,new THREE.ShaderMaterial({uniforms:pU,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+    vertexShader:`attribute vec3 seed;uniform vec4 uM,uT,uDust;uniform vec2 uRes;uniform float uZ,uTime,uDpr;varying float vA;
+void main(){float t=uTime;vec2 uv=vec2(mix(uDust.x,uDust.z,fract(seed.x+.03*sin(t*.23+seed.z*6.28))),mix(uDust.w,uDust.y,fract(seed.y+t*.008*(.4+seed.z))));
+ vec2 q=uM.xy+uv*uM.zw,p=uT.zw+(q-uT.xy)*uZ;gl_Position=vec4(p.x/uRes.x*2.-1.,1.-p.y/uRes.y*2.,.999,1.);
+ gl_PointSize=(1.6+2.6*seed.z)*uDpr*min(uZ,2.);vA=(.3+.7*seed.z)*(.55+.45*sin(t*(.5+seed.z)+seed.x*20.));}`,
+    fragmentShader:'uniform float uDustA;varying float vA;void main(){float r=length(gl_PointCoord-.5);gl_FragColor=vec4(vec3(1.,.9,.68)*smoothstep(.5,0.,r)*vA*uDustA,1.);}'}));
+  p.frustumCulled=false;p.visible=false;p.raycast=()=>{};scene.add(p);return p})();
+// Googoo's shadow on the painted floor: an invisible floor that only shows shadows, plus a soft dark blob under his feet
+const pFloor=new THREE.Mesh(new THREE.PlaneGeometry(400,400),new THREE.ShadowMaterial({opacity:.35,color:0x3a2410,depthWrite:false}));pFloor.rotation.x=-Math.PI/2;pFloor.position.y=.003;pFloor.receiveShadow=true;pFloor.visible=false;pFloor.raycast=()=>{};scene.add(pFloor);
+const pBlob=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:canvasTex(64,64,x=>{const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(45,25,10,.8)');g.addColorStop(.5,'rgba(45,25,10,.4)');g.addColorStop(1,'rgba(45,25,10,0)');x.fillStyle=g;x.fillRect(0,0,64,64)}),
+  transparent:true,depthWrite:false,toneMapped:false}));pBlob.rotation.x=-Math.PI/2;pBlob.visible=false;pBlob.raycast=()=>{};scene.add(pBlob);
+// the selected book glows cyan; books of the other page slide out past the shelf's sides (clipped there)
+const pGlow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:canvasTex(128,128,(x,w,h)=>{x.strokeStyle='#5ff4ff';x.shadowColor='#22e0ff';x.lineJoin='round';for(const [lw,b] of [[12,22],[6,10],[3,3]]){x.lineWidth=lw;x.shadowBlur=b;x.strokeRect(20,20,w-40,h-40)}}),
+  transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));pGlow.visible=false;pGlow.raycast=()=>{};libGroup.add(pGlow);
+const clipL=new THREE.Plane(new THREE.Vector3(1,0,0),1e6),clipR=new THREE.Plane(new THREE.Vector3(-1,0,0),1e6);libMat.clippingPlanes=[clipL,clipR];renderer.localClippingEnabled=true;
+libMat.emissive=new THREE.Color(0xffffff);libMat.emissiveMap=libTex;libMat.emissiveIntensity=0; // painted library: the covers glow a little, like the painting's own light
+const pFg=document.getElementById('pFg'),pgPrev=document.getElementById('pgPrev'),pgNext=document.getElementById('pgNext'),pgDots=document.getElementById('pgDots');
+function paintLoad(P){const t0=pU.uMap.value;if(t0){t0.dispose();pU.uMap.value=null}pU.uHas.value=0;pFg.style.backgroundImage='';if(!P)return;const k=PK;
+  new THREE.TextureLoader().load(P.img,t=>{if(PK!==k){t.dispose();return}const w2=renderer.capabilities.isWebGL2;t.generateMipmaps=w2;t.minFilter=w2?THREE.LinearMipmapLinearFilter:THREE.LinearFilter;
+    pU.uMap.value=t;pU.uHas.value=1;pFg.style.backgroundImage=`url("${P.img}")`},undefined,e=>console.warn('painting',P.img,e))} // only this room's picture for this orientation is on the GPU
+function paintRestore(){sun.color.setHex(0xfff1dc);sun.position.set(-3.5,9,5.5);sun.target.position.set(0,0,0);sun.target.updateMatrixWorld();hemiL.color.setHex(0xdfeeff);hemiL.groundColor.setHex(0xb08a5e);
+  fill.color.setHex(0xffe2c4);fill.position.set(5,4,8);const L=lightsOn?ROOM_DAY:ROOM_NIGHT;sun.intensity=L.sun;hemiL.intensity=L.hemi;windowGlow.intensity=L.win;fill.intensity=L.fill;renderer.toneMappingExposure=L.exp} // the 3D rooms' light, as set up above
+function paintLights(){const P=PNT;if(!P)return;const Lt=P.light||{},n=!lightsOn,c=(a,d)=>a||d,sn=c(Lt.sun,['#fff1dc',1.1]),hm=c(Lt.hemi,['#fff1dc','#9a6a45',.7]),fl=c(Lt.fill,['#ffe6c8',.5]),dr=c(Lt.dir,[-4,9,-3]);
+  sun.color.set(sn[0]);sun.intensity=n?.1:sn[1];sun.position.set(HOME.x+dr[0],dr[1],HOME.z+dr[2]);sun.target.position.set(HOME.x,0,HOME.z);sun.target.updateMatrixWorld();
+  hemiL.color.set(n?'#8fa0d8':hm[0]);hemiL.groundColor.set(hm[1]);hemiL.intensity=n?.28:hm[2];fill.color.set(n?'#ffb870':fl[0]);fill.intensity=n?.38:fl[1];fill.position.set(HOME.x+3,4,HOME.z+8);
+  windowGlow.intensity=0;renderer.toneMappingExposure=Lt.exp||.95;pFloor.material.opacity=(Lt.shadow??.35)*(n?.4:1);pBlob.material.opacity=n?.55:1;
+  pU.uNight.value=n?1:0;pU.uMul.value.set(n?'#5a66a8':'#ffffff');pU.uDustA.value=n?.25:1;pFg.classList.toggle('dark',n);(P.lamps||[]).forEach((l,i)=>i<4&&pU.uLamp.value[i].set(l[0],l[1],l[2],1));for(let i=(P.lamps||[]).length;i<4;i++)pU.uLamp.value[i].w=0}
+function paintVis(){const on=!!PNT;room.visible=!on;pBg.visible=pDust.visible=pFloor.visible=pBlob.visible=on;libMat.emissiveIntensity=on?.1:0;libMat.color.setScalar(on?.5:1);libMat.envMapIntensity=on?.35:1; // painted: richer covers (the warm light + room reflections washed them out under ACES)roomProps(curRoom);
+  if(on)paintLights();else{paintRestore();pFg.classList.add('off');pgPrev.hidden=pgNext.hidden=pgDots.hidden=true;pGlow.visible=false;libSlide=null;clipL.constant=clipR.constant=1e6}}
+// called at the end of resize(): the cover fit, then the camera from the painting (horizon + his feet + his height), then everything that sits on the painting
+function paintFrame(){const P=pOf(curRoom),key=P?curRoom+'|'+(portrait?'p':'l')+'|'+P.img:'';PNT=P;if(key!==PK){PK=key;paintLoad(P);paintVis()}if(!P){PW=null;return}
+  const w=innerWidth,h=innerHeight,[IW,IH]=P.size||[1056,1440],s=Math.max(w/IW,h/IH)*(P.zoom||1),pw=IW*s,ph=IH*s,cl=(v,a,b)=>Math.max(a,Math.min(b,v)),
+    ox=cl(w/2-P.focus[0]*pw,w-pw,0),oy=cl(h/2-P.focus[1]*ph,h-ph,0),S=(u,v)=>[ox+u*pw,oy+v*ph],F=IH/2/Math.tan((P.fov||50)*Math.PI/360)*s;
+  pU.uRes.value.set(w,h);pU.uM.value.set(ox,oy,pw,ph);pU.uAsp.value=IW/IH;pU.uDpr.value=renderer.getPixelRatio();pU.uFill.value.set(P.bg||'#e9dccb');
+  const B=P.beam||[0,0,0,0,0,0];pU.uBeam.value.set(B[0],B[1],B[2]*Math.PI/180,B[3]);pU.uBeam2.value.set(B[4],B[5]);const D=P.dust||[.2,.2,.8,.7];pU.uDust.value.set(D[0],D[1],D[2],D[3]);
+  // camera: tilt from the horizon line, then distance and height so his feet and head land where the picture says (u,v and h)
+  camera.clearViewOffset();camera.zoom=1;camera.fov=2*Math.atan(h/2/F)*180/Math.PI;
+  const th=Math.atan((h/2-(oy+P.horizon*ph))/F),dep=y=>th-Math.atan((h/2-y)/F),[fx,fy]=S(P.goo[0],P.goo[1]),U=(RB.y0+RB.h)*HOME.s,
+    tf=Math.tan(Math.max(.02,dep(fy))),tt=Math.tan(dep(fy-P.goo[2]*ph)),d=U/Math.max(.01,tf-tt),Hc=d*tf,Zc=d*Math.cos(th)+Hc*Math.sin(th);
+  camera.position.set(HOME.x-(fx-w/2)/F*Zc,Hc,HOME.z+d);camera.rotation.set(-th,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+  const ray=(x,y)=>V3().set(x/w*2-1,1-y/h*2,.5).unproject(camera).sub(camera.position).normalize(),
+    onFloor=(x,y)=>{const r=ray(x,y);return r.y<-1e-3?camera.position.clone().addScaledVector(r,-camera.position.y/r.y):null},
+    onZ=(x,y,z)=>{const r=ray(x,y);return camera.position.clone().addScaledVector(r,(z-camera.position.z)/r.z)};
+  const wp=onFloor(fx,oy+(P.wall??P.horizon+.1)*ph),Zw=wp&&wp.z<HOME.z-.2?wp.z:HOME.z-RB.h*2;
+  PW={S,Zw,anc:V3().set(HOME.x,U*.8,Zw),cells:null,rug:null,taps:P.taps||[]};
+  // the ball's area: the painted rug, cut to what is on screen (inside the rails, above the tabs)
+  if(P.rug){const [cu,cv,ru,rv]=P.rug,sf=safeIns(),nt=document.getElementById('nav').getBoundingClientRect().top||h,yb=S(cu,cv-rv*.3)[1],yf=Math.min(S(cu,cv+rv)[1],nt-12), // its front part (in front of the rug's middle): the ball stays big and in view
+      rl=document.getElementById('colL').getBoundingClientRect(),rr=document.getElementById('colR').getBoundingClientRect(),yc=(yb+yf)/2,xc=S(cu,cv)[0],
+      xl=Math.max(S(cu-ru*.92,cv)[0],sf.l+20,rl.bottom>yb&&rl.top<yf?rl.right+20:0),xr=Math.min(S(cu+ru*.92,cv)[0],w-sf.r-20,rr.bottom>yb&&rr.top<yf?rr.left-20:w), // not under the side buttons
+      a=onFloor(xl,yc),b=onFloor(xr,yc),k=onFloor(xc,yb),f=onFloor(xc,yf);
+    if(a&&b&&k&&f)PW.rug={x:(a.x+b.x)/2,z:(k.z+f.z)/2,rx:Math.max(.6,(b.x-a.x)/2-BR*.6),rz:Math.max(.5,(f.z-k.z)/2-BR*.6)}}
+  // 3D props that stay: on the painted floor where the picture says, and they cast a shadow there
+  const keep=(PAINT[curRoom]||{}).keep||[];for(const id of keep){const g=furnById(id);if(!g)continue;const pl=(P.place||{})[id],p=pl&&onFloor(...S(pl[0],pl[1]));if(p){g.position.x=p.x;g.position.z=p.z}
+    if(g.userData.m)g.userData.m.traverse(o=>{if(o.isMesh)o.castShadow=true})}
+  // library: the empty compartments as rectangles on the wall plane (the books stand in them)
+  if(curRoom==='library'&&P.cells){PW.cells=P.cells.map(([u0,v0,u1,v1])=>{const a=onZ(...S(u0,v1),Zw),b=onZ(...S(u1,v0),Zw);return {x:(a.x+b.x)/2,y0:a.y,w:b.x-a.x,h:b.y-a.y,z:Zw}});
+    const xs=P.cells.flatMap(c=>[c[0],c[2]]),ys=P.cells.flatMap(c=>[c[1],c[3]]),l=onZ(...S(Math.min(...xs),Math.max(...ys)),Zw),r=onZ(...S(Math.max(...xs),Math.max(...ys)),Zw);
+    PW.shelf=[l.x-(r.x-l.x)*.02,r.x+(r.x-l.x)*.02];PW.box=[S(Math.min(...xs),Math.min(...ys)),S(Math.max(...xs),Math.max(...ys))];paintPagesCalc();paintBooks()}
+  const pb=PW.anc.clone().project(camera);PW.wb=[(pb.x+1)/2*w,(1-pb.y)/2*h];PW.dist=PW.anc.distanceTo(camera.position);
+  // card screens: pan/zoom the camera AND the picture together (no bars) so Googoo is beside the cards (sideways) or under them (upright)
+  if(scr==='say'||!deck.hidden){const hd=S(P.goo[0],P.goo[1]-P.goo[2]),ax=fx,ay=(fy+hd[1])/2;let tx=ax,ty=ay;
+    if(!portrait)tx=w*.74;else{const db=deck.getBoundingClientRect().bottom+8,nt=document.getElementById('nav').getBoundingClientRect().top-8,need=db-hd[1];if(need>0)ty=Math.min(ay+need,ay+Math.max(0,nt-fy))}
+    const z=Math.min(1.8,Math.max(1,tx/Math.max(1,ax-ox),(w-tx)/Math.max(1,ox+pw-ax),ty/Math.max(1,ay-oy),(h-ty)/Math.max(1,oy+ph-ay))),dx=tx-w/2-(ax-w/2)*z,dy=ty-h/2-(ay-h/2)*z;
+    if(z>1||Math.abs(dx)>1||Math.abs(dy)>1){camera.zoom=z;camera.setViewOffset(w,h,-dx,-dy,w,h);camera.updateProjectionMatrix()}}
+  paintFg(P,w,h);paintUI();paintLights()}
+function paintFg(P,w,h){const f=P.fg;if(!f){pFg.classList.add('off');delete pFg.dataset.on;return}const [IW,IH]=P.size||[1056,1440],[u0,v0,u1,v1]=f.crop,bh=f.h*h,k=bh/((v1-v0)*IH),bw=(u1-u0)*IW*k,r=f.at[1]==='r',b=f.at[0]==='b';
+  Object.assign(pFg.style,{width:bw+'px',height:bh+'px',left:r?'auto':-bw*.22+'px',right:r?-bw*.22+'px':'auto',top:b?'auto':-bh*.1+'px',bottom:b?-bh*.12+'px':'auto',
+    backgroundSize:`${IW*k}px ${IH*k}px`,backgroundPosition:`${-u0*IW*k}px ${-v0*IH*k}px`});pFg.dataset.on=1}
+// pages of books: as many books per page as there are empty compartments; picture-book groups first, the stories start on a page of their own
+function paintPagesCalc(){const A=libAssign(),n=Math.max(1,PW.cells.length),pg=[],chunk=a=>{for(let i=0;i<a.length;i+=n)pg.push(a.slice(i,i+n))};chunk(A.big);libStoryP=pg.length;chunk(A.small);
+  libPages=pg.length?pg:[[]];libPage=Math.min(libPage,libPages.length-1);libIdx={};libItems.forEach((it,i)=>libIdx[it.key]=i);
+  pgDots.innerHTML=libPages.map((p,i)=>`<i class="${i>=libStoryP?'st':''}"></i>`).join('')}
+const _z0=new THREE.Matrix4().makeScale(0,0,0),_pm=new THREE.Matrix4(),_ps=V3();
+function paintBookSet(p,dx){(libPages[p]||[]).forEach((key,j)=>{const c=PW.cells[j],i=libIdx[key];if(!c||i===undefined)return;
+  const bh=c.h*.86,bw=Math.min(c.w*.84,bh*1.02),bt=bw*.24,P=POSE[i]||(POSE[i]={p:V3(),q:new THREE.Quaternion(),bw:0,bh:0,bt:0});P.bw=bw;P.bh=bh;P.bt=bt;P.p.set(c.x+dx,c.y0+c.h*.035+bh/2,c.z+bt/2+.02);libPose[i]=P;
+  if(!libSlide)libHit.setMatrixAt(i,_pm.compose(_ps.set(c.x,c.y0+c.h/2,c.z+bt/2),P.q,_pv.set(c.w*.98,c.h*.98,bt*1.5))); // tap box = the whole compartment
+  if(i!==libHide)libMesh.setMatrixAt(i,_pm.compose(P.p,P.q,_ps.set(bw,bh,bt)))})}
+function paintBooks(){if(!libMesh||!paintLib())return;for(let i=0;i<libItems.length;i++){libMesh.setMatrixAt(i,_z0);if(!libSlide)libHit.setMatrixAt(i,_z0)}libPose=[];
+  if(libSlide){const e=libSlide.e,W=(PW.shelf[1]-PW.shelf[0])*1.08;paintBookSet(libSlide.from,-libSlide.dir*W*e);paintBookSet(libPage,libSlide.dir*W*(1-e))}else paintBookSet(libPage,0);
+  libMesh.instanceMatrix.needsUpdate=libHit.instanceMatrix.needsUpdate=true}
+function paintPage(n,instant){if(!paintLib()||libSlide||n<0||n>=libPages.length||n===libPage)return;const from=libPage;libPage=n;
+  if(!instant){libSlide={from,dir:n>from?1:-1,t0:performance.now(),e:0};clipL.constant=-PW.shelf[0];clipR.constant=PW.shelf[1];SFX.beep()}paintBooks();paintUI()}
+function paintShow(i){const it=libItems[i];if(!it||!paintLib())return;libSel=i;const p=libPages.findIndex(pg=>pg.includes(it.key));if(p>=0&&p!==libPage){libSlide=null;libPage=p;clipL.constant=clipR.constant=1e6;paintBooks();paintUI()}}
+// jelly prev/next beside the shelf (inside the rails), dots above it; only on the shelf screen
+function paintUI(){const on=paintLib()&&scr==='library'&&deck.hidden&&libPages.length>1&&!pagePic;pgPrev.hidden=pgNext.hidden=pgDots.hidden=!on;if(!on)return;
+  const [[x0,y0],[x1,y1]]=PW.box,bs=pgPrev.offsetWidth||44,sf=safeIns(),rl=document.getElementById('colL').getBoundingClientRect(),rr=document.getElementById('colR').getBoundingClientRect(),
+    cl=(v,a,b)=>Math.max(a,Math.min(b,v)),side=x0-bs-10>(rl.right||sf.l)+6&&x1+bs+10<(rr.left||innerWidth-sf.r)-6, // room beside the shelf? else just under its sides
+    yb=side?(y0+y1)/2-bs/2:Math.max(y1+8,PW.S(0,PNT.wall||0)[1]-bs*.7);
+  pgPrev.style.left=cl(side?x0-bs-10:x0,sf.l+4,innerWidth-sf.r-bs-4)+'px';pgNext.style.left=cl(side?x1+10:x1-bs,sf.l+4,innerWidth-sf.r-bs-4)+'px';pgPrev.style.top=pgNext.style.top=yb+'px';
+  pgPrev.style.opacity=libPage>0?1:.45;pgNext.style.opacity=libPage<libPages.length-1?1:.45;
+  const dp=PNT.dots?PW.S(PNT.dots[0],PNT.dots[1]):[(x0+x1)/2,y0-30];pgDots.style.left=dp[0]+'px';pgDots.style.top=Math.max(sf.t+52,dp[1]-10)+'px';[...pgDots.children].forEach((d,i)=>d.classList.toggle('on',i===libPage))}
+pgPrev.onclick=()=>{st.lastPoke=performance.now();paintPage(libPage-1)};pgNext.onclick=()=>{st.lastPoke=performance.now();paintPage(libPage+1)};
+// a tap on the painting: a painted toy says its word (play room), if there is a clip for it
+function paintTap(x,y){if(!PNT||!PW||!PW.taps.length)return false;const z=pU.uZ.value,T=pU.uT.value,M=pU.uM.value,u=(T.x+(x-T.z)/z-M.x)/M.z,v=(T.y+(y-T.w)/z-M.y)/M.w;
+  const t=PW.taps.find(t=>u>=t.r[0]&&u<=t.r[2]&&v>=t.r[1]&&v<=t.r[3]);if(!t||!HAS.has(t.w)||game.type)return false;st.lastPoke=performance.now();setFace('shock',400);kick('squash',3);sayAsync(t.w).then(()=>setFace('laugh',700));return true}
+// every frame in a painted room: the picture follows the camera (card pan, face close-up), the blob follows his feet, the selected book glows, pages slide
+function paintTick(dt,t){if(!PNT||!PW)return;pU.uTime.value=t;
+  _pv.copy(PW.anc).project(camera);const px=(_pv.x+1)/2*innerWidth,py=(1-_pv.y)/2*innerHeight,Z=camera.zoom*PW.dist/Math.max(.01,PW.anc.distanceTo(camera.position));
+  pU.uT.value.set(PW.wb[0],PW.wb[1],px,py);pU.uZ.value=Z;
+  if(discoOn)pU.uMul.value.setHSL(t*.35%1,.55,.42);
+  const k=RB.w*HOME.s*1.15/(1+robot.position.y*.25);pBlob.position.set(robot.position.x,.004,robot.position.z+.05*k);pBlob.scale.set(k,k*.55,1);
+  const fgOn=pFg.dataset.on&&Z<1.01&&Math.abs(px-PW.wb[0])<1&&Math.abs(py-PW.wb[1])<1;if(pFg.classList.contains('off')===fgOn)pFg.classList.toggle('off',!fgOn);
+  if(fgOn&&(paintTick.n=(paintTick.n||0)+1)%2)pFg.style.transform=`translate(${Math.sin(t*.31)*-9}px,${Math.sin(t*.23)*6}px)`; // very gentle parallax
+  if(libSlide){const p=Math.min(1,(performance.now()-libSlide.t0)/450);libSlide.e=p<.5?2*p*p:1-(2-2*p)**2/2;if(p>=1){libSlide=null;clipL.constant=clipR.constant=1e6}paintBooks()}
+  const G=libSel>=0&&!libSlide&&libHide!==libSel&&paintLib()&&libPose[libSel];pGlow.visible=!!G;
+  if(G){const P=libPose[libSel],q=1+.03*Math.sin(t*4);pGlow.position.set(P.p.x,P.p.y,P.p.z+P.bt/2+.03);pGlow.scale.set(P.bw*1.45*q,P.bh*1.4*q,1);pGlow.material.opacity=.75+.25*Math.sin(t*4)}}
 const lampLight=new THREE.PointLight(0xffc77a,0,7,2);
 function neonSet(full){if(!NEO)return;const n=!lightsOn; // day: faint; night: bright, outside tone mapping, with a slow pulse (neoK, from the loop)
   if(NEO.n){NEO.n.emissiveIntensity=n?2.5*neoK:1;if(full){NEO.n.toneMapped=!n;NEO.n.needsUpdate=true}}
@@ -1484,7 +1646,7 @@ function setLights(on){lightsOn=on;neonSet(1);const L=on?ROOM_DAY:ROOM_NIGHT;sun
   windowGlow.intensity=L.win;scene.environment=on?dayEnv:null;fill.intensity=L.fill;renderer.toneMappingExposure=L.exp;scene.background.setHex(L.bg);
   skyMat.map=on?skyTex:nightTex;skyMat.color.setHex(0xffffff);skyMat.needsUpdate=true;
   const f=furnById('lamp');if(f){f.userData.shade.emissiveIntensity=on?.6:2.2;if(!lampLight.parent){f.add(lampLight);lampLight.position.set(0,1.6,0)}}
-  lampLight.intensity=on?0:1.6;if(scr==='bed')showScreen('bed')} // bedroom: night buttons while the lamp is off
+  lampLight.intensity=on?0:1.6;paintLights();if(scr==='bed')showScreen('bed')} // painted room: its own light (paintLights) // bedroom: night buttons while the lamp is off
 // Disco (🪩, play room): the existing lights cycle colours (no extra lights, cheap), Pash dances to the music until tapped again or the room changes
 let discoOn=false;const LCOL=[[sun,0xfff1dc],[hemiLight,0xdfeeff],[windowGlow,0xcfe8ff],[fill,0xffe2c4]];
 function disco(on,quiet){if(on===discoOn)return;discoOn=on;
@@ -1678,6 +1840,7 @@ addEventListener('pointerup',e=>{if(!down)return;
     else if(h&&h.object===ball){bv.set((Math.random()-.5)*3,5,(Math.random()-.5)*2);SFX.kick()}
     else if(h&&h.object.userData.bubble)popBubble(h.object);
     else if(h)poke(h.object.userData.part||'belly',h.point);
+    else if(paintTap(e.clientX,e.clientY)){} // a painted toy says its word
     else if(st.mode!=='sleep'){goHome();if(st.mode==='chase'||st.mode==='idle')setFace('shock',400)}}
   else if(Math.abs(st.spinVel)>3){setTimeout(()=>{if(st.mode!=='sleep'){setFace('dizzy',1500);SFX.dizzy()}},400)}
   down=null});
@@ -1742,7 +1905,7 @@ const SCREENS={home:[['bFeed','bDance','bSing','bLamp'],LEARN],play:[['bBall','b
 const WALL={home:0xffffff,play:0xfff27a,bed:0x6f9cff,library:0xc4aef0}; // library: soft lavender
 function showScreen(s){const old=scr;scr=s;
   if(s!==old){disco(false,1);if(!lightsOn&&(old==='home'||old==='play'||old==='library'&&s!=='book'||ROOM_HI[s]&&s!=='bed'&&!(old==='book'&&s==='library')))setLights(true)} // (a book open in the library keeps its lamp) // leaving a room: normal lights (bedroom lamp stays as it was)
-  if(ROOM_HI[s]){curRoom=s;if(propsOn)loadProps(s);furnGroup.children.forEach(g=>g.visible=g.userData.room===s&&!g.userData.off);roomProps(s);furnGroup.children.forEach(g=>{if(!g.visible)g.traverse(o=>{if(o.isMesh&&o.material)for(const k of TEXK)o.material[k]?.dispose()})}); // other rooms' props give their GPU textures back (re-uploaded when shown again): keeps a visit to every room under the memory budget
+  if(ROOM_HI[s]){curRoom=s;if(propsOn)loadProps(s);furnGroup.children.forEach(g=>g.visible=g.userData.room===s&&!g.userData.off&&!paintHid(g));roomProps(s);furnGroup.children.forEach(g=>{if(!g.visible)g.traverse(o=>{if(o.isMesh&&o.material)for(const k of TEXK)o.material[k]?.dispose()})}); // other rooms' props give their GPU textures back (re-uploaded when shown again): keeps a visit to every room under the memory budget
   libGroup.visible=s==='library';wallMat.color.setHex(WALL[s]);applyWalls(s)}
   const night=s==='bed'&&!lightsOn;document.body.classList.toggle('night',night);surpEl.hidden=!(surp&&surp.room===s);
   document.querySelectorAll('.col .rb').forEach(b=>document.getElementById('btns').appendChild(b));
@@ -1804,6 +1967,7 @@ function resize(){const w=innerWidth,h=innerHeight,cards=scr==='say'||!deck.hidd
           hd=F(new THREE.Vector3(HOME.x,(RB.y0+RB.h*(GG&&sat?SITH:1))*HOME.s,HOME.z)),ft=F(new THREE.Vector3(HOME.x,RB.y0*HOME.s,HOME.z));
         k=Math.max(1,sb/(hd-w));if(k*(ft-w)>N)k=Math.max(1,N/(ft-w));o=Math.max(c+k*w,c+k*hd-sb,c+k*ft-N)}
       camera.zoom=k;camera.view.offsetY=o;camera.updateProjectionMatrix()}}
+  paintFrame(); // painted room: the camera comes from the painting (overrides the framing above)
   CB={p:camera.position.clone(),q:camera.quaternion.clone(),z:camera.zoom,v:camera.view&&camera.view.enabled?[camera.view.offsetX,camera.view.offsetY]:null};fvApply(); // the room camera: the face close-up glides from/to it
   applyFree()}
 const camKey=()=>portrait&&innerWidth<700?'phone':'wide'; // saved camera views: upright phones, everything else
@@ -1898,9 +2062,11 @@ function loop(){
   if(GG)ggUpdate(dt,t,now,{bob,armWave,armFwd,headYaw,peekDip,sit:sitNow,walk:Math.hypot(x-ox,z-oz)/dt});
   if(ball.visible){bv.y-=9.8*dt;ball.position.addScaledVector(bv,dt);
     if(ball.position.y<BR){ball.position.y=BR;bv.y*=-.6;bv.x*=.85;bv.z*=.85;if(Math.abs(bv.y)>1)tone(300,200,.05,'sine',.1)}
+    const R=PNT&&PW&&PW.rug;if(R){const ex=(ball.position.x-R.x)/R.rx,ez=(ball.position.z-R.z)/R.rz,e=Math.hypot(ex,ez); // painted room: the ball stays on the painted rug (and on screen)
+      if(e>1){ball.position.x=R.x+ex/e*R.rx;ball.position.z=R.z+ez/e*R.rz;const nx=ex/R.rx,nz=ez/R.rz,nl=Math.hypot(nx,nz),dn=(bv.x*nx+bv.z*nz)/nl;if(dn>0){bv.x-=1.8*dn*nx/nl;bv.z-=1.8*dn*nz/nl}}}else{
     const bx=portrait?1.4:4.5,bz=portrait?1:3; // upright: keep the ball on screen and above the buttons
     ball.position.x=THREE.MathUtils.clamp(ball.position.x,-bx,bx);ball.position.z=THREE.MathUtils.clamp(ball.position.z,-3,bz);
-    if(Math.abs(ball.position.x)>=bx)bv.x*=-.8;if(ball.position.z>=bz||ball.position.z<=-3)bv.z*=-.8;
+    if(Math.abs(ball.position.x)>=bx)bv.x*=-.8;if(ball.position.z>=bz||ball.position.z<=-3)bv.z*=-.8}
     ball.rotation.x+=bv.z*dt*3;ball.rotation.z-=bv.x*dt*3}
   animateItems(t,dt);animateFurniture(t,dt);if(discoOn)discoTick(t);
   for(const b of [...bubbleGroup.children]){const u=b.userData;b.position.y+=u.sp*dt;b.position.x+=Math.sin(t*1.5+u.ph)*dt*.3;
@@ -1918,7 +2084,7 @@ function loop(){
   if(talk.an){const b=talk.buf||(talk.buf=new Float32Array(talk.an.fftSize));talk.an.getFloatTimeDomainData(b);let q=0;for(const v of b)q+=v*v;talk.level=Math.sqrt(q/b.length)}
   mouthOpen=talk.playing?Math.min(1,talk.level*7):now<mouthT?Math.abs(Math.sin(now/70)):0;
   const fk=face+(face==='pic'?facePic:'')+(blink>0)+(mouthOpen>.05?Math.round(mouthOpen*8):0);if(fk!==faceKey||face==='dizzy'){faceKey=fk;drawFace(t)}} // redraw the face only when it changes
-  if(libFly&&libFly.t<1)stepFly(dt);faceStep(dt);
+  if(libFly&&libFly.t<1)stepFly(dt);faceStep(dt);paintTick(dt,t);
   renderer.render(scene,camera);
 }
 loop();
