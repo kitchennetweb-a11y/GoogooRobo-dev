@@ -1527,19 +1527,19 @@ const PAINT={
       place:{teddy:[.3,.75],cow:[.7,.76]},light:{sun:['#fff3e0',1.15],dir:[6,8,-1],hemi:['#e8f4ff','#b08a5e',.75],fill:['#fff0dd',.45],shadow:.32,exp:.95},
       beam:[.92,.18,158,.07,.75,.08],dust:[.25,.15,.85,.6],fg:{crop:[.86,0,.93,.6],at:'tr',h:.85},lamps:[],
       taps:[{r:[.427,.573,.479,.616],w:'w_car'},{r:[.91,.03,1,.45],w:'w_window'},{r:[.076,.464,.128,.55],w:'w_teddy'}]}},
-  // living room (Persian sunset) and bedroom (space explorer), 2026-10-25: taps with f = that furniture's action (tapFurniture: bed = sleep, lamp = lights)
-  home:{keep:[],portrait:{img:'assets/rooms/home_portrait.webp',size:[810,1440],focus:[.5,.5],fov:50,horizon:.3,wall:.475,goo:[.5,.82,.25],rug:[.5,.75,.42,.15],
-      light:{sun:['#ffcf9a',1.3],dir:[-2,8,-6],hemi:['#ffe6cc','#9a5a35',.7],fill:['#ffd9b0',.5],shadow:.38,exp:.95},beam:[.5,.3,90,.08,.7,.08],dust:[.2,.15,.8,.6],lamps:[[.895,.1,.06]],
-      taps:[{r:[.84,.03,.95,.16],f:'lamp'},{r:[.33,.07,.68,.37],w:'w_window'},{r:[0,.36,.27,.49],w:'w_chair'},{r:[.88,.28,1,.38],w:'w_tea'}]},
-    landscape:{img:'assets/rooms/home_landscape.webp',size:[1440,810],focus:[.5,.55],fov:50,horizon:.42,wall:.665,goo:[.5,.82,.3],rug:[.5,.84,.36,.12],
-      light:{sun:['#ffcf9a',1.3],dir:[-2,8,-6],hemi:['#ffe6cc','#9a5a35',.7],fill:['#ffd9b0',.5],shadow:.38,exp:.95},beam:[.5,.35,90,.07,.65,.08],dust:[.2,.15,.8,.6],lamps:[[.78,.15,.05]],
-      taps:[{r:[.74,.05,.82,.23],f:'lamp'},{r:[.38,.09,.62,.5],w:'w_window'},{r:[.14,.47,.3,.66],w:'w_chair'},{r:[.8,.37,.87,.5],w:'w_tea'}]}},
-  bed:{keep:[],portrait:{img:'assets/rooms/bed_portrait.webp',size:[810,1440],focus:[.5,.55],fov:50,horizon:.26,wall:.42,goo:[.5,.8,.26],rug:[.5,.78,.38,.12],
-      light:{sun:['#fff0dc',1.15],dir:[5,8,-2],hemi:['#e2e9ff','#8a5a3a',.75],fill:['#ffe6c8',.45],shadow:.32,exp:.95},beam:[.2,.2,60,.05,.8,.07],dust:[.15,.1,.85,.55],lamps:[[.84,.31,.06]],
-      taps:[{r:[.27,.22,.8,.44],f:'bed'},{r:[.77,.27,.9,.42],f:'lamp'},{r:[.1,.1,.32,.27],w:'w_window'},{r:[.86,.06,.94,.17],w:'w_rocket'},{r:[.11,.04,.21,.11],w:'w_moon'}]},
-    landscape:{img:'assets/rooms/bed_landscape.webp',size:[1440,810],focus:[.5,.62],fov:50,horizon:.5,wall:.6,goo:[.5,.86,.27],rug:[.5,.8,.32,.1],
-      light:{sun:['#fff0dc',1.15],dir:[5,8,-2],hemi:['#e2e9ff','#8a5a3a',.75],fill:['#ffe6c8',.45],shadow:.32,exp:.95},beam:[.32,.25,60,.05,.7,.07],dust:[.15,.1,.85,.55],lamps:[[.695,.42,.05]],
-      taps:[{r:[.34,.3,.65,.62],f:'bed'},{r:[.66,.38,.74,.56],f:'lamp'},{r:[.24,.12,.41,.32],w:'w_window'},{r:[.78,.07,.82,.21],w:'w_rocket'},{r:[.23,.03,.29,.13],w:'w_moon'}]}}};
+  // living room (mid-century) and bedroom (space explorer, with a night picture), 2026-10-26: taps with f = that furniture's action (tapFurniture: bed = sleep, lamp = lights); night = the picture lights-off fades to
+  home:{keep:[],portrait:{img:'assets/rooms/home_portrait.webp',size:[810,1440],focus:[.5,.55],fov:50,horizon:.26,wall:.44,goo:[.5,.76,.25],rug:[.5,.73,.46,.11],
+      light:{sun:['#ffdcaa',1.25],dir:[-3,8,-5],hemi:['#fff0dc','#9a6a40',.72],fill:['#ffe2c0',.5],shadow:.36,exp:.95},beam:[.5,.32,95,.08,.7,.07],dust:[.2,.15,.8,.6],lamps:[],
+      taps:[{r:[.34,.12,.64,.36],w:'w_window'},{r:[.04,.32,.35,.46],w:'w_chair'}]},
+    landscape:{img:'assets/rooms/home_landscape.webp',size:[1440,810],focus:[.5,.6],fov:50,horizon:.42,wall:.533,goo:[.5,.81,.36],rug:[.5,.795,.285,.135],
+      light:{sun:['#ffdcaa',1.25],dir:[-3,8,-5],hemi:['#fff0dc','#9a6a40',.72],fill:['#ffe2c0',.5],shadow:.36,exp:.95},beam:[.5,.3,95,.07,.65,.07],dust:[.2,.15,.8,.6],lamps:[],
+      taps:[{r:[.39,.1,.61,.44],w:'w_window'},{r:[.11,.36,.28,.58],w:'w_chair'}]}},
+  bed:{keep:[],portrait:{img:'assets/rooms/bed_portrait.webp',night:'assets/rooms/bed_portrait_night.webp',size:[810,1440],focus:[.5,.55],fov:50,horizon:.26,wall:.425,goo:[.5,.76,.26],rug:[.5,.72,.46,.12],
+      light:{sun:['#fff0dc',1.15],dir:[5,8,-2],hemi:['#e2e9ff','#8a5a3a',.75],fill:['#ffe6c8',.45],shadow:.32,exp:.95},beam:[.25,.2,60,.05,.8,.07],dust:[.15,.1,.85,.55],lamps:[[.842,.316,.05]],
+      taps:[{r:[.26,.23,.79,.45],f:'bed'},{r:[.79,.29,.9,.43],f:'lamp'},{r:[.1,.1,.42,.29],w:'w_window'},{r:[.87,.1,.94,.18],w:'w_rocket'},{r:[.12,.04,.21,.09],w:'w_moon'}]},
+    landscape:{img:'assets/rooms/bed_landscape.webp',night:'assets/rooms/bed_landscape_night.webp',size:[1440,810],focus:[.5,.6],fov:50,horizon:.4,wall:.5,goo:[.5,.85,.34],rug:[.5,.833,.32,.14],
+      light:{sun:['#fff0dc',1.15],dir:[5,8,-2],hemi:['#e2e9ff','#8a5a3a',.75],fill:['#ffe6c8',.45],shadow:.32,exp:.95},beam:[.3,.2,60,.05,.7,.07],dust:[.15,.1,.85,.55],lamps:[[.699,.36,.04]],
+      taps:[{r:[.34,.22,.65,.57],f:'bed'},{r:[.66,.31,.75,.55],f:'lamp'},{r:[.19,.03,.41,.36],w:'w_window'},{r:[.76,.04,.83,.18],w:'w_rocket'}]}}};
 const PAINT0=JSON.parse(JSON.stringify(PAINT)); // the built-in pictures (Design mode: "painted room" on again)
 let PNT=null,PK='',PW=null,libPage=0,libPages=[[]],libStoryP=0,libSlide=null,libSel=-1,libIdx={};const POSE=[],_pv=V3(),_pq=new THREE.Quaternion();
 const pOf=r=>{const B=PAINT[r];return B?B[portrait?'portrait':'landscape']||B.portrait||B.landscape||null:null}; // no picture for this orientation: the other one (cover fit, still no bars)
@@ -1548,11 +1548,11 @@ const paintLib=()=>!!(PNT&&PW&&PW.cells&&curRoom==='library');
 // one full-screen triangle pair drawn first (no depth), and the sparkles: both map the screen to the picture with the same numbers (uM = the cover fit, uT/uZ = the camera's pan/zoom since then)
 const pU={uMap:{value:null},uHas:{value:0},uFill:{value:new THREE.Color(0xe9dccb)},uRes:{value:new THREE.Vector2(1,1)},uM:{value:new THREE.Vector4(0,0,1,1)},uT:{value:new THREE.Vector4()},uZ:{value:1},
   uAsp:{value:1},uMul:{value:new THREE.Color(1,1,1)},uNight:{value:0},uTime:{value:0},uBeam:{value:new THREE.Vector4()},uBeam2:{value:new THREE.Vector2()},uLamp:{value:[0,1,2,3].map(()=>new THREE.Vector4())},
-  uDust:{value:new THREE.Vector4()},uDustA:{value:1},uDpr:{value:1}};
+  uDust:{value:new THREE.Vector4()},uDustA:{value:1},uDpr:{value:1},uMapN:{value:null},uMix:{value:0}};let pMixT=0; // uMapN = the night picture (bedroom), uMix fades to it when the lights go off
 const pBg=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:pU,depthTest:false,depthWrite:false,
   vertexShader:'uniform vec2 uRes;varying vec2 vS;void main(){vS=vec2((position.x*.5+.5)*uRes.x,(.5-position.y*.5)*uRes.y);gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`uniform sampler2D uMap;uniform float uHas,uZ,uAsp,uNight,uTime;uniform vec3 uFill,uMul;uniform vec4 uM,uT,uBeam,uLamp[4];uniform vec2 uBeam2;varying vec2 vS;
-void main(){vec2 q=uT.xy+(vS-uT.zw)/uZ,uv=(q-uM.xy)/uM.zw;vec3 c=uHas>.5?texture2D(uMap,vec2(uv.x,1.-uv.y)).rgb:uFill;
+  fragmentShader:`uniform sampler2D uMap,uMapN;uniform float uMix,uHas,uZ,uAsp,uNight,uTime;uniform vec3 uFill,uMul;uniform vec4 uM,uT,uBeam,uLamp[4];uniform vec2 uBeam2;varying vec2 vS;
+void main(){vec2 q=uT.xy+(vS-uT.zw)/uZ,uv=(q-uM.xy)/uM.zw;vec3 c=uHas>.5?texture2D(uMap,vec2(uv.x,1.-uv.y)).rgb:uFill;if(uMix>0.)c=mix(c,texture2D(uMapN,vec2(uv.x,1.-uv.y)).rgb,uMix);
  vec2 d=(uv-uBeam.xy)*vec2(uAsp,1.),r=vec2(cos(uBeam.z),sin(uBeam.z));float a=dot(d,r),b=abs(dot(d,vec2(-r.y,r.x))),wd=uBeam.w*(.5+a);
  c+=vec3(1.,.87,.62)*uBeam2.y*(1.-uNight)*smoothstep(wd,wd*.15,b)*smoothstep(0.,.08,a)*(1.-smoothstep(uBeam2.x*.35,uBeam2.x,a))*(.82+.18*sin(uTime*.5+b*28.));
  c*=uMul;for(int i=0;i<4;i++){vec4 l=uLamp[i];float g=1.-smoothstep(0.,l.z+.001,length((uv-l.xy)*vec2(uAsp,1.)));c+=vec3(1.,.74,.4)*g*g*l.w*uNight;}
@@ -1577,16 +1577,18 @@ const clipL=new THREE.Plane(new THREE.Vector3(1,0,0),1e6),clipR=new THREE.Plane(
 libMat.emissive=new THREE.Color(0xffffff);libMat.emissiveMap=libTex;libMat.emissiveIntensity=.68;libMat.color.setScalar(.3);libMat.envMapIntensity=.2;libMat.roughness=.8;libMat.toneMapped=false;
 // covers at their true colour in both libraries: mostly the atlas itself (emissive), a little room light for shading, no tone mapping (ACES washed them out); night = .3 (setLights)
 const pFg=document.getElementById('pFg'),pgPrev=document.getElementById('pgPrev'),pgNext=document.getElementById('pgNext'),pgDots=document.getElementById('pgDots');
-function paintLoad(P){const t0=pU.uMap.value;if(t0){t0.dispose();pU.uMap.value=null}pU.uHas.value=0;pFg.style.backgroundImage='';if(!P)return;const k=PK;
+function paintLoad(P){const t0=pU.uMap.value,n0=pU.uMapN.value;if(t0){t0.dispose();pU.uMap.value=null}if(n0){n0.dispose();pU.uMapN.value=null}pU.uMix.value=0;pU.uHas.value=0;pFg.style.backgroundImage='';if(!P)return;const k=PK;
   new THREE.TextureLoader().load(P.img,t=>{if(PK!==k){t.dispose();return}const w2=renderer.capabilities.isWebGL2;t.generateMipmaps=w2;t.minFilter=w2?THREE.LinearMipmapLinearFilter:THREE.LinearFilter;
-    pU.uMap.value=t;pU.uHas.value=1;pFg.style.backgroundImage=`url("${P.img}")`},undefined,e=>console.warn('painting',P.img,e))} // only this room's picture for this orientation is on the GPU
+    pU.uMap.value=t;pU.uHas.value=1;pFg.style.backgroundImage=`url("${P.img}")`},undefined,e=>console.warn('painting',P.img,e));
+  if(P.night)new THREE.TextureLoader().load(P.night,t=>{if(PK!==k){t.dispose();return}t.generateMipmaps=renderer.capabilities.isWebGL2;t.minFilter=t.generateMipmaps?THREE.LinearMipmapLinearFilter:THREE.LinearFilter;pU.uMapN.value=t;pU.uMix.value=pMixT},undefined,e=>console.warn('painting',P.night,e))} // a night picture is loaded with it, so lights off is a fade, not a load // only this room's picture for this orientation is on the GPU
 function paintRestore(){sun.color.setHex(0xfff1dc);sun.position.set(-3.5,9,5.5);sun.target.position.set(0,0,0);sun.target.updateMatrixWorld();hemiL.color.setHex(0xdfeeff);hemiL.groundColor.setHex(0xb08a5e);
   fill.color.setHex(0xffe2c4);fill.position.set(5,4,8);const L=lightsOn?ROOM_DAY:ROOM_NIGHT;sun.intensity=L.sun;hemiL.intensity=L.hemi;windowGlow.intensity=L.win;fill.intensity=L.fill;renderer.toneMappingExposure=L.exp} // the 3D rooms' light, as set up above
 function paintLights(){const P=PNT;if(!P)return;const Lt=P.light||{},n=!lightsOn,c=(a,d)=>a||d,sn=c(Lt.sun,['#fff1dc',1.1]),hm=c(Lt.hemi,['#fff1dc','#9a6a45',.7]),fl=c(Lt.fill,['#ffe6c8',.5]),dr=c(Lt.dir,[-4,9,-3]);
   sun.color.set(sn[0]);sun.intensity=n?.1:sn[1];sun.position.set(HOME.x+dr[0],dr[1],HOME.z+dr[2]);sun.target.position.set(HOME.x,0,HOME.z);sun.target.updateMatrixWorld();
   hemiL.color.set(n?'#8fa0d8':hm[0]);hemiL.groundColor.set(hm[1]);hemiL.intensity=n?.28:hm[2];fill.color.set(n?'#ffb870':fl[0]);fill.intensity=n?.38:fl[1];fill.position.set(HOME.x+3,4,HOME.z+8);
   windowGlow.intensity=0;renderer.toneMappingExposure=Lt.exp||.95;pFloor.material.opacity=(Lt.shadow??.35)*(n?.4:1);pBlob.material.opacity=n?.55:1;
-  pU.uNight.value=n?1:0;pU.uMul.value.set(n?'#5a66a8':'#ffffff');pU.uDustA.value=n?.25:1;pFg.classList.toggle('dark',n);(P.lamps||[]).forEach((l,i)=>i<4&&pU.uLamp.value[i].set(l[0],l[1],l[2],1));for(let i=(P.lamps||[]).length;i<4;i++)pU.uLamp.value[i].w=0}
+  const nP=!!P.night;pMixT=n&&nP?1:0;pU.uNight.value=n?1:0;pU.uMul.value.set(n?(nP?'#e4e4f2':'#5a66a8'):'#ffffff');pU.uDustA.value=n?.25:1;pFg.classList.toggle('dark',n);(P.lamps||[]).forEach((l,i)=>i<4&&pU.uLamp.value[i].set(l[0],l[1],l[2],nP?.45:1)); // night picture: already dark, so a light tint and softer lamp glows
+  for(let i=(P.lamps||[]).length;i<4;i++)pU.uLamp.value[i].w=0}
 function paintVis(){const on=!!PNT;room.visible=!on;pBg.visible=pDust.visible=pFloor.visible=pBlob.visible=on;
   if(on)paintLights();else{paintRestore();pFg.classList.add('off');pgPrev.hidden=pgNext.hidden=pgDots.hidden=true;pGlow.visible=false;libSlide=null;clipL.constant=clipR.constant=1e6}}
 // called at the end of resize(): the cover fit, then the camera from the painting (horizon + his feet + his height), then everything that sits on the painting
@@ -1657,7 +1659,7 @@ pgPrev.onclick=()=>{st.lastPoke=performance.now();paintPage(libPage-1)};pgNext.o
 function paintTap(x,y){if(!PNT||!PW||!PW.taps.length)return false;const z=pU.uZ.value,T=pU.uT.value,M=pU.uM.value,u=(T.x+(x-T.z)/z-M.x)/M.z,v=(T.y+(y-T.w)/z-M.y)/M.w;
   const t=PW.taps.find(t=>u>=t.r[0]&&u<=t.r[2]&&v>=t.r[1]&&v<=t.r[3]);if(!t||game.type||!t.f&&!HAS.has(t.w))return false;if(t.f){tapFurniture(t.f);return true}st.lastPoke=performance.now();setFace('shock',400);kick('squash',3);sayAsync(t.w).then(()=>setFace('laugh',700));return true}
 // every frame in a painted room: the picture follows the camera (card pan, face close-up), the blob follows his feet, the selected book glows, pages slide
-function paintTick(dt,t){if(!PNT||!PW)return;pU.uTime.value=t;
+function paintTick(dt,t){if(!PNT||!PW)return;pU.uTime.value=t;if(pU.uMapN.value)pU.uMix.value+=(pMixT-pU.uMix.value)*Math.min(1,dt*4);
   _pv.copy(PW.anc).project(camera);const px=(_pv.x+1)/2*innerWidth,py=(1-_pv.y)/2*innerHeight,Z=camera.zoom*PW.dist/Math.max(.01,PW.anc.distanceTo(camera.position));
   pU.uT.value.set(PW.wb[0],PW.wb[1],px,py);pU.uZ.value=Z;
   if(discoOn)pU.uMul.value.setHSL(t*.35%1,.55,.42);
