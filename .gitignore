@@ -1,3 +1,7 @@
 data/layout.backup-*.json
 data/layout.json.tmp
 data/layout.owner-*.json
+
+# secrets (API keys) never committed
+.env
+.env.*
