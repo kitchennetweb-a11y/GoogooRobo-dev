@@ -211,7 +211,7 @@ let AC=null;
 function ac(){ if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)(); return AC; }
 let talkMuteUntil=0;
 const audioSession=t=>{try{if(navigator.audioSession)navigator.audioSession.type=t}catch(e){}}; // Safari 16.4+
-const MIC_FLOOR=.024; // mic sensitivity: raise to make Pash need a louder voice (was .02)
+const MIC_FLOOR=.026; // mic sensitivity: raise to make Pash need a louder voice (was .024)
 function hush(ms){try{talkMuteUntil=Math.max(talkMuteUntil,performance.now()+ms)}catch(e){}}
 function tone(f1,f2,dur,type='sine',vol=.25,delay=0){hush((delay+dur)*1000+250);
   const a=ac(),t=a.currentTime+delay,o=a.createOscillator(),g=a.createGain();
@@ -1774,7 +1774,7 @@ async function micOn(fromButton){
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('no mic api');
     audioSession('auto'); // back to the browser default while the mic is on (as it was before)
-    talk.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    talk.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false}}); // no auto gain: it pumps up quiet room sound (and the phone's levels) while the mic is on
   }catch(e){audioSession('playback');if(fromButton){setFace('shock',900);document.getElementById('micHelp').hidden=false}return false}
   talk.src=a.createMediaStreamSource(talk.stream);
   talk.proc=a.createScriptProcessor(2048,1,1);
