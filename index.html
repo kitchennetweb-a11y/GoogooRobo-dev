@@ -21,6 +21,7 @@ canvas{display:block}
 #bubble.show{opacity:1;transform:translateX(-50%) scale(1)}
 body:not(.words) #bubble{display:none}
 #bubble .fa{font-family:var(--fa);font-size:20px;font-weight:800;line-height:1.3;direction:rtl}
+.pimg{width:1.25em;height:1.25em;object-fit:contain;vertical-align:middle;pointer-events:none;-webkit-user-drag:none}
 #pbub{position:fixed;z-index:3;width:54px;height:54px;border-radius:50%;background:#fff;box-shadow:0 4px 0 #22314a22;display:grid;place-items:center;font-size:30px;
   transform:scale(0);transition:transform .25s cubic-bezier(.3,1.6,.5,1);pointer-events:none}#pbub.show{transform:scale(1)}
 .night #pbub{background:#2b3358e6}
@@ -322,6 +323,11 @@ Object.assign(LINES,{
   x_bozorg:['بزرگ!','bozorg! (big!)'],x_koochak:['کوچیک!','kuchik! (small!)'],x_man_bozorgam:['من بزرگم!','man bozorgam! (I\'m big!)'],
 });
 function pickVar(k){const v=VARIANTS[k];if(!v)return k;const opts=[k,...v.filter(x=>HAS.has(x))];return opts[Math.floor(Math.random()*opts.length)]}
+// drawn word pictures: replace that emoji everywhere it shows (cards, his face screen, book covers, bubbles); a word without one keeps its emoji. Add: assets/pics/<name>.webp (square, transparent) + a line here
+const PICART={'👧':'sister'},PIMG={},pKey=e=>(e||'').replace(/️/g,'');
+for(const [e,n] of Object.entries(PICART)){const im=new Image();im.onload=()=>{PIMG[pKey(e)]=im;faceKey=kitKey=''};im.src='assets/pics/'+n+'.webp'}
+const picHTML=e=>{const im=PIMG[pKey(e)];return im?`<img class="pimg" src="${im.src}" alt="" draggable="false">`:e},picSet=(el,e)=>{el.innerHTML=picHTML(e)},
+  picDraw=(x,e,cx,cy,sz)=>{const im=PIMG[pKey(e)];if(im)x.drawImage(im,cx-sz/2,cy-sz/2,sz,sz);else x.fillText(e,cx,cy)}; // sz = about the emoji's font size
 const picFor=k=>{const m=k.match(/^(?:w|where|this|say|want)_(.+)$/);return m&&SW[m[1]]?SW[m[1]].pic:''};
 const pbub=document.getElementById('pbub');let pbT,facePic='';
 function say(k){k=pickVar(k);lastSaid=k;try{statHeard(k)}catch(e){}hush(1600);const fa=(LINES[k]||[''])[0],pic=picFor(k);
@@ -330,7 +336,7 @@ function say(k){k=pickVar(k);lastSaid=k;try{statHeard(k)}catch(e){}hush(1600);co
     clearTimeout(pbT);pbub.classList.remove('show'); // never two pictures at once
     if(pic){ // the picture goes on his face screen; tiny round bubble beside his head only when the screen is hidden or he sleeps
       if(st.mode==='sleep'||st.mode==='peek'||face==='hidden'){const v=new THREE.Vector3();headObj().getWorldPosition(v);v.project(camera);
-        pbub.textContent=pic;pbub.style.left=Math.min(innerWidth-60,(v.x+1)/2*innerWidth+50)+'px';pbub.style.top=Math.max(8,(1-v.y)/2*innerHeight-40)+'px';pbub.classList.add('show');clearTimeout(pbT);pbT=setTimeout(()=>pbub.classList.remove('show'),ms)}
+        picSet(pbub,pic);pbub.style.left=Math.min(innerWidth-60,(v.x+1)/2*innerWidth+50)+'px';pbub.style.top=Math.max(8,(1-v.y)/2*innerHeight-40)+'px';pbub.classList.add('show');clearTimeout(pbT);pbT=setTimeout(()=>pbub.classList.remove('show'),ms)}
       else{facePic=pic;setFace('pic',ms)}}
     clearTimeout(bubT);bubT=setTimeout(()=>bubble.classList.remove('show'),Math.max(2200,(dur+.6)*1000))};
   if(VOICE[k]||!HAS.has(k))go();else loadVoice(k).then(()=>{if(lastSaid===k)go()})}
@@ -507,7 +513,7 @@ robot.traverse(o=>{if(o.isMesh)o.castShadow=true});
 let face='happy',blink=0,mouthOpen=0,faceUntil=0;
 function drawFace(t){
   fx.clearRect(0,0,512,300);fx.fillStyle='#0f1a2e';fx.beginPath();fx.roundRect?fx.roundRect(0,0,512,300,60):fx.rect(0,0,512,300);fx.fill();
-  if(face==='pic'){fx.font='190px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';fx.textAlign='center';fx.textBaseline='middle';fx.fillText(facePic,256,160);faceTex.needsUpdate=true;return}
+  if(face==='pic'){fx.font='190px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';fx.textAlign='center';fx.textBaseline='middle';picDraw(fx,facePic,256,160,210);faceTex.needsUpdate=true;return}
   const glow=face==='sleep'?'#7aa2ff':face==='dizzy'?'#ffd34d':'#5ff2d0';
   fx.strokeStyle=glow;fx.fillStyle=glow;fx.lineWidth=18;fx.lineCap='round';fx.shadowColor=glow;fx.shadowBlur=25;
   const eye=(x)=>{
@@ -616,7 +622,7 @@ const ggFace=Promise.all([fetch('assets/googoo/face.json?v='+GOO_V).then(r=>r.js
 function kLayer(cx,name,dx,dy){for(const [x,y,w,h,ox,oy] of FK.rects[name]||[])cx.drawImage(FKI,x,y,w,h,ox+dx,oy+dy,w,h)}
 function compose(name,gx,gy){const key=name+(name==='pic'?facePic:'')+gx+','+gy;if(key===kitKey)return;kitKey=key;
   const W=kc.width,H=kc.height;kx.clearRect(0,0,W,H);kx.drawImage(FBG,0,0,W,H);
-  if(name==='pic'){kx.font='330px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';kx.textAlign='center';kx.textBaseline='middle';kx.fillText(facePic,W/2,H*.52)}
+  if(name==='pic'){kx.font='330px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';kx.textAlign='center';kx.textBaseline='middle';picDraw(kx,facePic,W/2,H*.52,360)}
   else for(const [l,ox,oy,clip] of FK.exp[name]){
     if(clip){ktx.globalCompositeOperation='source-over';ktx.clearRect(0,0,W,H);kLayer(ktx,l,ox+gx,oy+gy); // gaze shifts the pupils, the mask keeps them inside the eye whites
       ktx.globalCompositeOperation='destination-in';ktx.drawImage(km,0,0);ktx.globalCompositeOperation='source-over';kx.drawImage(kt,0,0)}
@@ -1040,7 +1046,7 @@ function endGame(){if(game.type==='dark')setLights(true);faceOff();game.token++;
 // Cards: items [{pic (string, or array -> separate tappable spans), fa?, cls?, ...}]; onTap(item, button, spanIndex)
 function showDeck(items,onTap,cls=''){deck.className=cls;deck.textContent='';
   items.forEach(it=>{const b=document.createElement('button');b.className='ec '+(it.cls||'');
-    if(Array.isArray(it.pic))it.pic.forEach((p,j)=>{const s=document.createElement('span');s.textContent=p;s.dataset.j=j;b.appendChild(s)});else b.textContent=it.pic;
+    if(Array.isArray(it.pic))it.pic.forEach((p,j)=>{const s=document.createElement('span');picSet(s,p);s.dataset.j=j;b.appendChild(s)});else picSet(b,it.pic);
     if(it.fa){const f=document.createElement('b');f.textContent=it.fa;b.appendChild(f)}
     b.onclick=e=>{if(performance.now()-(deck.swiped||0)<400)return;const s=e.target.closest('[data-j]');onTap(it,b,s?+s.dataset.j:-1)};deck.appendChild(b)});
   deck.hidden=false;resize()}
@@ -1416,10 +1422,10 @@ function drawCovers(){const cv=libTex.image,cx=cv.getContext('2d'),C=cv.width/LI
       nm=LIBFA[it.id]||(it.s&&it.s.title_fa||'').split(' ').slice(0,2).join(' ')||it.name; // the cell's .04 rim is off the front face
     cx.save();cx.beginPath();cx.rect(x,y,C,C);cx.clip();cx.fillStyle=c;cx.fillRect(x,y,C,C);cx.fillStyle='#0004';cx.fillRect(x,y+C*.77,C,C*.23);
     cx.fillStyle=d;cx.fillRect(x,y,C*.13,C);cx.fillStyle='#fff6';cx.fillRect(x+C*.13,y,C*.012,C);
-    ex.clearRect(0,0,C,C);ex.globalCompositeOperation='source-over';ex.font=(C*.56|0)+'px '+EMO;ex.fillText(ic,C*.57,C*.43);ex.globalCompositeOperation='source-in';ex.fillStyle='#fff';ex.fillRect(0,0,C,C); // white silhouette
+    ex.clearRect(0,0,C,C);ex.globalCompositeOperation='source-over';ex.font=(C*.56|0)+'px '+EMO;picDraw(ex,ic,C*.57,C*.43,C*.6);ex.globalCompositeOperation='source-in';ex.fillStyle='#fff';ex.fillRect(0,0,C,C); // white silhouette
     cx.shadowColor='#0007';cx.shadowBlur=C*.04;cx.shadowOffsetY=C*.025;cx.drawImage(E,x,y);cx.shadowColor='#0000';
     for(let k=0;k<12;k++)cx.drawImage(E,x+Math.cos(k*Math.PI/6)*C*.022,y+Math.sin(k*Math.PI/6)*C*.022); // sticker edge
-    cx.font=(C*.56|0)+'px '+EMO;cx.fillStyle='#000';cx.fillText(ic,x+C*.57,y+C*.43); // opaque fill: a colour emoji takes the fill's alpha
+    cx.font=(C*.56|0)+'px '+EMO;cx.fillStyle='#000';picDraw(cx,ic,x+C*.57,y+C*.43,C*.6); // opaque fill: a colour emoji takes the fill's alpha
     let f=C*.13;cx.direction='rtl';do cx.font='800 '+(f|0)+'px Vazirmatn,sans-serif';while(cx.measureText(nm).width>C*.76&&(f*=.92)>8);cx.fillStyle='#fff';cx.fillText(nm,x+C*.55,y+C*.87);cx.direction='ltr';cx.restore()});
   libTex.needsUpdate=true}
 function buildBooks(){libItems=libAll();const n=libItems.length;drawCovers();document.fonts&&document.fonts.load('800 24px Vazirmatn','کتاب').then(drawCovers,()=>{}); // the names again once the font is in
@@ -1749,7 +1755,7 @@ function renderParent(){
     `<div><b>${Object.values(stats.words).filter(w=>w.heard>=3).length}/${Object.keys(all).length}</b>words heard 3+ times</div>`+
     ['heard','said','right'].map(f=>`<div><b>${Object.values(stats.words).reduce((n,w)=>n+(w[f]||0),0)}</b>${{heard:'times heard a word',said:'times he said a word',right:'right taps'}[f]}</div>`).join('');
   const W=stats.words,ids=Object.keys(W).filter(id=>SW[id]),
-    chips=(list,f)=>list.length?list.map(id=>`<span class="pc-chip">${SW[id].pic} <b>${SW[id].fa}</b> <i>${f(W[id]||{})}</i></span>`).join(''):'<i>none yet</i>',
+    chips=(list,f)=>list.length?list.map(id=>`<span class="pc-chip">${picHTML(SW[id].pic)} <b>${SW[id].fa}</b> <i>${f(W[id]||{})}</i></span>`).join(''):'<i>none yet</i>',
     said=ids.filter(id=>W[id].said).sort((a,b)=>(W[b].ts||0)-(W[a].ts||0)||W[b].said-W[a].said),
     tricky=ids.filter(id=>(W[id].miss||0)>(W[id].right||0)).sort((a,b)=>(W[b].miss-W[b].right)-(W[a].miss-W[a].right)),
     fresh=V2.filter(id=>!(W[id]&&W[id].heard));
@@ -1919,7 +1925,7 @@ function inviteBed(){if(bedInvite||curRoom==='bed')return;bedInvite=true;navB('b
     setFace('sleep',1500);tone(300,150,1,'sine',.08);ggClip(...YAWN);sayAny('invite_bed','invite_bed2')};go()}
 const SURP=['balloon','gift','dog','cat','cake','butterfly','rabbit','chick'];
 function hideSurprise(){const room=['home','play','bed'].filter(r=>r!==curRoom)[Math.random()*2|0];
-  surp={room,id:SURP[Math.random()*SURP.length|0]};surpEl.textContent=SW[surp.id].pic;navB(room).classList.add('surp');setFace('listen',2500);sayAny('surprise_hint','surprise_hint2')}
+  surp={room,id:SURP[Math.random()*SURP.length|0]};picSet(surpEl,SW[surp.id].pic);navB(room).classList.add('surp');setFace('listen',2500);sayAny('surprise_hint','surprise_hint2')}
 surpEl.onclick=async()=>{if(!surp)return;const id=surp.id;navB(surp.room).classList.remove('surp');surp=null;surpEl.hidden=true;surpAt=performance.now()+12e4+Math.random()*12e4;st.lastPoke=performance.now();
   cheer(true);emit('heart',new THREE.Vector3(0,3,.6),12,{size:.3,life:1.6,g:.3,vel:()=>new THREE.Vector3((Math.random()-.5)*4,2+Math.random()*3,(Math.random()-.5)*2)});
   await sayIf('surprise_'+id);await sayAsync('w_'+id)};
