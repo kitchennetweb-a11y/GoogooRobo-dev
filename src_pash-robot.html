@@ -512,7 +512,7 @@ robot.traverse(o=>{if(o.isMesh)o.castShadow=true});
 let face='happy',blink=0,mouthOpen=0,faceUntil=0;
 function drawFace(t){
   fx.clearRect(0,0,512,300);fx.fillStyle='#0f1a2e';fx.beginPath();fx.roundRect?fx.roundRect(0,0,512,300,60):fx.rect(0,0,512,300);fx.fill();
-  if(face==='pic'){fx.font='190px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';fx.textAlign='center';fx.textBaseline='middle';picDraw(fx,facePic,256,160,210);faceTex.needsUpdate=true;return}
+  if(face==='pic'){fx.font='250px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';fx.textAlign='center';fx.textBaseline='middle';picDraw(fx,facePic,256,150,280);faceTex.needsUpdate=true;return}
   const glow=face==='sleep'?'#7aa2ff':face==='dizzy'?'#ffd34d':'#5ff2d0';
   fx.strokeStyle=glow;fx.fillStyle=glow;fx.lineWidth=18;fx.lineCap='round';fx.shadowColor=glow;fx.shadowBlur=25;
   const eye=(x)=>{
@@ -621,7 +621,7 @@ const ggFace=Promise.all([fetch('assets/googoo/face.json?v='+GOO_V).then(r=>r.js
 function kLayer(cx,name,dx,dy){for(const [x,y,w,h,ox,oy] of FK.rects[name]||[])cx.drawImage(FKI,x,y,w,h,ox+dx,oy+dy,w,h)}
 function compose(name,gx,gy){const key=name+(name==='pic'?facePic:'')+gx+','+gy;if(key===kitKey)return;kitKey=key;
   const W=kc.width,H=kc.height;kx.clearRect(0,0,W,H);kx.drawImage(FBG,0,0,W,H);
-  if(name==='pic'){kx.font='330px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';kx.textAlign='center';kx.textBaseline='middle';picDraw(kx,facePic,W/2,H*.52,360)}
+  if(name==='pic'){kx.font=(H*.82|0)+'px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';kx.textAlign='center';kx.textBaseline='middle';picDraw(kx,facePic,W/2,H*.5,H*.92)} // the picture almost fills his screen
   else for(const [l,ox,oy,clip] of FK.exp[name]){
     if(clip){ktx.globalCompositeOperation='source-over';ktx.clearRect(0,0,W,H);kLayer(ktx,l,ox+gx,oy+gy); // gaze shifts the pupils, the mask keeps them inside the eye whites
       ktx.globalCompositeOperation='destination-in';ktx.drawImage(km,0,0);ktx.globalCompositeOperation='source-over';kx.drawImage(kt,0,0)}
