@@ -8,7 +8,9 @@ inside the picture stays), trimmed, centred on a 512x512 square -> assets/pics/<
 added to PICART in src_pash-robot.html. Then run tools/build.py.
 """
 import json, re, sys, pathlib
-from PIL import Image, ImageDraw, ImageFilter
+import numpy as np
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from scipy import ndimage
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / "src_pash-robot.html"
@@ -25,21 +27,23 @@ def sheet_ids(n):
     return [en[p.rsplit(" ", 1)[0]] for p in line.split(", ")]
 
 
-def cutout(im, tol=232):
+def cutout(im, tol=246):
     """white background (touching the edges) -> transparent; returns the trimmed RGBA picture or None if empty"""
     im = im.convert("RGBA")
     if im.getextrema()[3][0] < 250:  # already has transparency
         a = im.getchannel("A")
     else:
-        m = Image.eval(im.convert("RGB").split()[0], lambda v: 0).copy()
-        px, r = m.load(), im.load()
-        for y in range(im.height):
-            for x in range(im.width):
-                if min(r[x, y][:3]) >= tol: px[x, y] = 255
+        r, g, b = im.convert("RGB").split()
+        m = ImageChops.darker(ImageChops.darker(r, g), b).point(lambda v: 255 if v >= tol else 0); px = m.load()
         for x, y in [(0, 0), (im.width - 1, 0), (0, im.height - 1), (im.width - 1, im.height - 1)] + [(x, 0) for x in range(0, im.width, 16)] + [(x, im.height - 1) for x in range(0, im.width, 16)] + [(0, y) for y in range(0, im.height, 16)] + [(im.width - 1, y) for y in range(0, im.height, 16)]:
             if px[x, y] == 255: ImageDraw.floodfill(m, (x, y), 128)
         a = m.point(lambda v: 0 if v == 128 else 255).filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1))
-    im.putalpha(a)
+    a = np.array(a); lab, n = ndimage.label(a > 24)
+    if n > 1:  # drop small bits poking in from the neighbouring squares (they touch the edge)
+        size = ndimage.sum(np.ones_like(a), lab, range(1, n + 1)); edge = set(np.unique(np.r_[lab[0], lab[-1], lab[:, 0], lab[:, -1]])) - {0}
+        for k in edge:
+            if size[k - 1] < size.max() * .15: a[lab == k] = 0
+    a = Image.fromarray(a); im.putalpha(a)
     box = a.point(lambda v: 255 if v > 24 else 0).getbbox()
     return im.crop(box) if box else None
 

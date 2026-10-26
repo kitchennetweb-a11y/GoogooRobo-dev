@@ -31,7 +31,7 @@ Check before sending: one thing per square, nothing touching another square, no 
 
 **Sheet 06:** bee 🐝, ant 🐜, ladybug 🐞, octopus 🐙, whale 🐋, dolphin 🐬, camel 🐫, owl 🦉, squirrel 🐿️
 
-**Sheet 07:** dinosaur 🦖, orange 🍊, grapes 🍇, watermelon 🍉, melon 🍈, strawberry 🍓, cherries 🍒, peach 🍑, pear 🍐
+**Sheet 07:** orange 🍊, grapes 🍇, watermelon 🍉, melon 🍈, strawberry 🍓, cherries 🍒, peach 🍑, pear 🍐
 
 **Sheet 08:** pineapple 🍍, lemon 🍋, carrot 🥕, tomato 🍅, cucumber 🥒, potato 🥔, corn 🌽, egg 🥚, cheese 🧀
 
