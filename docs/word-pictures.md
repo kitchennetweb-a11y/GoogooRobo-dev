@@ -8,7 +8,7 @@ Done: sister (`assets/pics/sister.webp`).
 
 1. New image chat. Attach `Sister.png` as the style reference.
 2. Paste the style prompt below, then one sheet line (9 things in a 3x3 grid).
-3. Save the sheet into `Downloads\GooGoo Robo background\pictures\` named `sheet-01.png`, `sheet-02.png`... Claude cuts it into the 9 pictures and puts them in the game.
+3. Save the sheet into `DownloadsGooGoo Robo backgroundpictures` named `sheet-01.png`, `sheet-02.png`... Claude cuts it with `py -3.10 tools/cut_sheet.py <sheet> 01` (white background removed, 512px WebP in assets/pics, emoji added to PICART), then builds.
    (Single pictures are fine too: name them after the word, e.g. `brother.png`.)
 
 Check before sending: one thing per square, nothing touching another square, no writing or numbers in the picture (except the number sheet), nothing cut off at the edges.
