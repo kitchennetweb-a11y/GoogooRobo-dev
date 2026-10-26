@@ -137,8 +137,8 @@ body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:jtap .35s cubic-bezier(.3,
 @keyframes jtap{0%{transform:scale(1)}22%{transform:scale(.88,.84)}48%{transform:scale(1.1,1.05)}68%{transform:scale(.96,1.02)}85%{transform:scale(1.02,.99)}100%{transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){body.jelly .rb,body.jelly .ec.nav,body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:none}}
 /* painted rooms: shelf pages (jelly prev/next + dots beside the painted shelf), a blurred foreground crop of the painting at a screen corner */
-.pg{position:fixed;z-index:3;width:calc(var(--b)*.92);height:calc(var(--b)*.92)}.pg svg{width:55%;height:55%;filter:drop-shadow(0 2px 0 #0003)}
-#pgPrev{background:#ffae1f}#pgNext{background:#22c995}
+.pg{position:fixed;z-index:3;width:max(48px,calc(var(--b)*.92));height:max(48px,calc(var(--b)*.92))}.pg svg{width:55%;height:55%;filter:drop-shadow(0 2px 0 #0003)}
+#pgPrev,#pgNext{position:fixed}#pgPrev{background:#ffae1f}#pgNext{background:#22c995} /* fixed even as jelly blobs (body.jelly .rb is relative) */
 #pgDots{position:fixed;z-index:3;display:flex;gap:7px;padding:5px 9px;border-radius:20px;background:#ffffffa6;box-shadow:0 3px 8px #0002;transform:translateX(-50%);pointer-events:none}
 #pgDots i{width:9px;height:9px;border-radius:50%;background:#c9b49b;transition:width .3s,background .3s}#pgDots i.st{background:#cdb8ec}#pgDots i.on{width:22px;border-radius:6px;background:#22c995}#pgDots i.st.on{background:#a66cff}
 #pFg{position:fixed;z-index:1;pointer-events:none;background-repeat:no-repeat;filter:blur(6px) saturate(1.05) brightness(.92);transition:opacity .4s,filter .6s;will-change:transform;
@@ -1492,15 +1492,15 @@ function roomLayout(s){const W=WALLS[s]||{},hx=n=>'#'+n.toString(16).padStart(6,
 // Per picture, u,v = 0..1 of the picture from its top left: img, size [w,h] px, focus [u,v] (kept in view when the screen crops it: COVER fit, never bars),
 // fov (the painting's vertical field of view, degrees), horizon v (eye level: where the floor vanishes), wall v (where the back wall meets the floor: the shelf's depth),
 // goo [u,v,h] (his feet, his height as a part of the picture's height): with the horizon this sets the camera (height, tilt, distance) so the 3D floor lies on the painted one;
-// rug [u,v,ru,rv] (ellipse: the ball stays on it and in view), cells [[u0,v0,u1,v1]] (library: EMPTY shelf compartments, a book fills each), place {id:[u,v]} (3D props on the painted floor),
+// rug [u,v,ru,rv] (ellipse: the ball stays on it and in view), shelf [u0,v0,u1,v1] (library: the painted shelf, the ‹ › keep off it), cells [[u0,v0,u1,v1]] (library: EMPTY shelf compartments, a book fills each), place {id:[u,v]} (3D props on the painted floor),
 // light {sun:[colour,strength],dir:[x,y,z] from Googoo,hemi:[sky,ground,strength],fill:[colour,strength],shadow,exp}, beam [u,v,angle°,width,length,strength] (soft sunbeam),
 // dust [u0,v0,u1,v1] (sparkles), fg {crop:[u0,v0,u1,v1],at:'tl'|'tr'|'bl'|'br',h} (that crop, blurred, at a screen corner), lamps [[u,v,r]] (night glows), taps [{r:[u0,v0,u1,v1],w:'w_car'}]
 const PAINT={
-  library:{keep:[],portrait:{img:'assets/rooms/library_portrait.webp',size:[1056,1440],focus:[.519,.6],dots:[.519,.362],fov:50,horizon:.545,wall:.733,goo:[.5,.893,.24],rug:[.483,.838,.402,.078],
+  library:{keep:[],portrait:{img:'assets/rooms/library_portrait.webp',size:[1056,1440],focus:[.519,.6],shelf:[.3,.364,.729,.735],fov:50,horizon:.545,wall:.733,goo:[.5,.893,.24],rug:[.483,.838,.402,.078],
       cells:[[.456,.436,.573,.494],[.587,.436,.701,.494],[.336,.503,.443,.568],[.456,.503,.573,.568],[.336,.576,.443,.644],[.456,.576,.573,.644],[.587,.576,.701,.644]],
       light:{sun:['#ffd49a',1.35],dir:[-4,9,-3],hemi:['#fff1dc','#9a6a45',.7],fill:['#ffe6c8',.55],shadow:.38,exp:.95},beam:[.03,.27,52,.05,.95,.1],dust:[.18,.25,.85,.78],
       fg:{crop:[0,.06,.17,.44],at:'tl',h:.4},lamps:[[.22,.036,.06],[.79,.036,.06],[.27,.122,.05],[.739,.122,.05]]},
-    landscape:{img:'assets/rooms/library_landscape.webp',size:[1440,1056],focus:[.515,.6],fov:50,horizon:.62,wall:.762,goo:[.512,.8,.27],dots:[.515,.303],rug:[.531,.839,.309,.08],
+    landscape:{img:'assets/rooms/library_landscape.webp',size:[1440,1056],focus:[.515,.54],shelf:[.312,.303,.72,.758],fov:50,horizon:.62,wall:.762,goo:[.512,.766,.23],rug:[.531,.839,.309,.08],
       cells:[[.406,.434,.472,.526],[.406,.642,.472,.734],[.559,.642,.625,.734],[.635,.642,.701,.734]],
       light:{sun:['#ffd49a',1.35],dir:[-4,9,-3],hemi:['#fff1dc','#9a6a45',.7],fill:['#ffe6c8',.55],shadow:.38,exp:.95},beam:[.07,.18,40,.05,.9,.09],dust:[.2,.2,.8,.75],
       fg:{crop:[0,.42,.12,.92],at:'bl',h:.75},lamps:[]}},
@@ -1586,7 +1586,7 @@ function paintFrame(){const P=pOf(curRoom),key=P?curRoom+'|'+(portrait?'p':'l')+
   const keep=(PAINT[curRoom]||{}).keep||[];for(const id of keep){const g=furnById(id);if(!g)continue;const pl=(P.place||{})[id],p=pl&&onFloor(...S(pl[0],pl[1]));if(p){g.position.x=p.x;g.position.z=p.z}
     if(g.userData.m)g.userData.m.traverse(o=>{if(o.isMesh)o.castShadow=true})}
   // library: the empty compartments as rectangles on the wall plane (the books stand in them)
-  if(curRoom==='library'&&P.cells){PW.cells=P.cells.map(([u0,v0,u1,v1])=>{const a=onZ(...S(u0,v1),Zw),b=onZ(...S(u1,v0),Zw);return {x:(a.x+b.x)/2,y0:a.y,w:b.x-a.x,h:b.y-a.y,z:Zw}});
+  if(curRoom==='library'&&P.cells){PW.cells=P.cells.map(([u0,v0,u1,v1])=>{const a=onZ(...S(u0,v1),Zw),b=onZ(...S(u1,v0),Zw);return {x:(a.x+b.x)/2,y0:a.y,w:b.x-a.x,h:b.y-a.y,z:Zw,k:[Math.max(.98,46/((u1-u0)*pw)),Math.max(.98,46/((v1-v0)*ph))]}});
     const xs=P.cells.flatMap(c=>[c[0],c[2]]),ys=P.cells.flatMap(c=>[c[1],c[3]]),l=onZ(...S(Math.min(...xs),Math.max(...ys)),Zw),r=onZ(...S(Math.max(...xs),Math.max(...ys)),Zw);
     PW.shelf=[l.x-(r.x-l.x)*.02,r.x+(r.x-l.x)*.02];PW.box=[S(Math.min(...xs),Math.min(...ys)),S(Math.max(...xs),Math.max(...ys))];paintPagesCalc();paintBooks()}
   const pb=PW.anc.clone().project(camera);PW.wb=[(pb.x+1)/2*w,(1-pb.y)/2*h];PW.dist=PW.anc.distanceTo(camera.position);
@@ -1606,7 +1606,7 @@ function paintPagesCalc(){const A=libAssign(),n=Math.max(1,PW.cells.length),pg=[
 const _z0=new THREE.Matrix4().makeScale(0,0,0),_pm=new THREE.Matrix4(),_ps=V3();
 function paintBookSet(p,dx){(libPages[p]||[]).forEach((key,j)=>{const c=PW.cells[j],i=libIdx[key];if(!c||i===undefined)return;
   const bh=c.h*.86,bw=Math.min(c.w*.84,bh*1.02),bt=bw*.24,P=POSE[i]||(POSE[i]={p:V3(),q:new THREE.Quaternion(),bw:0,bh:0,bt:0});P.bw=bw;P.bh=bh;P.bt=bt;P.p.set(c.x+dx,c.y0+c.h*.035+bh/2,c.z+bt/2+.02);libPose[i]=P;
-  if(!libSlide)libHit.setMatrixAt(i,_pm.compose(_ps.set(c.x,c.y0+c.h/2,c.z+bt/2),P.q,_pv.set(c.w*.98,c.h*.98,bt*1.5))); // tap box = the whole compartment
+  if(!libSlide)libHit.setMatrixAt(i,_pm.compose(_ps.set(c.x,c.y0+c.h/2,c.z+bt/2),P.q,_pv.set(c.w*c.k[0],c.h*c.k[1],bt*1.5))); // tap box = the whole compartment, at least 46 px
   if(i!==libHide)libMesh.setMatrixAt(i,_pm.compose(P.p,P.q,_ps.set(bw,bh,bt)))})}
 function paintBooks(){if(!libMesh||!paintLib())return;for(let i=0;i<libItems.length;i++){libMesh.setMatrixAt(i,_z0);if(!libSlide)libHit.setMatrixAt(i,_z0)}libPose=[];
   if(libSlide){const e=libSlide.e,W=(PW.shelf[1]-PW.shelf[0])*1.08;paintBookSet(libSlide.from,-libSlide.dir*W*e);paintBookSet(libPage,libSlide.dir*W*(1-e))}else paintBookSet(libPage,0);
@@ -1614,14 +1614,15 @@ function paintBooks(){if(!libMesh||!paintLib())return;for(let i=0;i<libItems.len
 function paintPage(n,instant){if(!paintLib()||libSlide||n<0||n>=libPages.length||n===libPage)return;const from=libPage;libPage=n;
   if(!instant){libSlide={from,dir:n>from?1:-1,t0:performance.now(),e:0};clipL.constant=-PW.shelf[0];clipR.constant=PW.shelf[1];SFX.beep()}paintBooks();paintUI()}
 function paintShow(i){const it=libItems[i];if(!it||!paintLib())return;libSel=i;const p=libPages.findIndex(pg=>pg.includes(it.key));if(p>=0&&p!==libPage){libSlide=null;libPage=p;clipL.constant=clipR.constant=1e6;paintBooks();paintUI()}}
-// jelly prev/next beside the shelf (inside the rails), dots above it; only on the shelf screen
+// jelly prev/next beside the painted shelf at mid-height (room inside the rails), else low at the screen sides above the tabs; dots in the top row (score .. parent button)
 function paintUI(){const on=paintLib()&&scr==='library'&&deck.hidden&&libPages.length>1&&!pagePic;pgPrev.hidden=pgNext.hidden=pgDots.hidden=!on;if(!on)return;
-  const [[x0,y0],[x1,y1]]=PW.box,bs=pgPrev.offsetWidth||44,sf=safeIns(),rl=document.getElementById('colL').getBoundingClientRect(),rr=document.getElementById('colR').getBoundingClientRect(),
-    cl=(v,a,b)=>Math.max(a,Math.min(b,v)),side=x0-bs-10>(rl.right||sf.l)+6&&x1+bs+10<(rr.left||innerWidth-sf.r)-6, // room beside the shelf? else just under its sides
-    yb=side?(y0+y1)/2-bs/2:Math.max(y1+8,PW.S(0,PNT.wall||0)[1]-bs*.7);
-  pgPrev.style.left=cl(side?x0-bs-10:x0,sf.l+4,innerWidth-sf.r-bs-4)+'px';pgNext.style.left=cl(side?x1+10:x1-bs,sf.l+4,innerWidth-sf.r-bs-4)+'px';pgPrev.style.top=pgNext.style.top=yb+'px';
+  const [[x0,y0],[x1,y1]]=PNT.shelf?[PW.S(PNT.shelf[0],PNT.shelf[1]),PW.S(PNT.shelf[2],PNT.shelf[3])]:PW.box,bs=pgPrev.offsetWidth||48,sf=safeIns(),W=innerWidth,
+    rl=document.getElementById('colL').getBoundingClientRect(),rr=document.getElementById('colR').getBoundingClientRect(),nt=document.getElementById('nav').getBoundingClientRect().top||innerHeight,
+    side=x0-bs-12>(rl.right||sf.l)+6&&x1+bs+12<(rr.left||W-sf.r)-6;
+  pgPrev.style.left=(side?x0-bs-12:sf.l+12)+'px';pgNext.style.left=(side?x1+12:W-sf.r-12-bs)+'px';pgPrev.style.top=pgNext.style.top=(side?(y0+y1)/2-bs/2:nt-bs-14)+'px';
   pgPrev.style.opacity=libPage>0?1:.45;pgNext.style.opacity=libPage<libPages.length-1?1:.45;
-  const dp=PNT.dots?PW.S(PNT.dots[0],PNT.dots[1]):[(x0+x1)/2,y0-30];pgDots.style.left=dp[0]+'px';pgDots.style.top=Math.max(sf.t+52,dp[1]-10)+'px';[...pgDots.children].forEach((d,i)=>d.classList.toggle('on',i===libPage))}
+  const tp=document.getElementById('top').getBoundingClientRect(),dw=pgDots.offsetWidth;pgDots.style.left=Math.max(W/2,tp.right+10+dw/2)+'px';pgDots.style.top=(tp.top+tp.height/2-pgDots.offsetHeight/2)+'px';
+  [...pgDots.children].forEach((d,i)=>d.classList.toggle('on',i===libPage))}
 pgPrev.onclick=()=>{st.lastPoke=performance.now();paintPage(libPage-1)};pgNext.onclick=()=>{st.lastPoke=performance.now();paintPage(libPage+1)};
 // a tap on the painting: a painted toy says its word (play room), if there is a clip for it
 function paintTap(x,y){if(!PNT||!PW||!PW.taps.length)return false;const z=pU.uZ.value,T=pU.uT.value,M=pU.uM.value,u=(T.x+(x-T.z)/z-M.x)/M.z,v=(T.y+(y-T.w)/z-M.y)/M.w;
