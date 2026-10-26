@@ -32,6 +32,27 @@ Soft rounded premium 3D animated-film style children's game background, toy-like
 
 ---
 
+## Living room, round 2 (the first Persian sunset was too colourful)
+
+Paste one prompt for the upright picture, then in the same chat: "Now make the exact same room as a wide 16:9 landscape picture, seen a bit wider, keep everything the same and keep the middle of the floor clear."
+
+**A · Calmer Persian sunset**
+
+> Soft rounded premium 3D animated-film style children's game background, toy-like world, clean readable shapes, gentle depth, eye-level camera from the middle of the room looking at the back wall. An EMPTY room: no characters, no figures, no robots, no people, no animals, no text, no letters, no logos. Tall portrait image, 9:16. CALM, restrained colours: mostly soft warm cream and light sand, with only small touches of colour. NOT orange, NOT saturated, NOT pastel, NOT neon.
+> A calm, airy Persian-inspired family living room in soft natural daylight (late morning, no sunset, no orange glow). Warm cream plaster walls. In the centre of the back wall a big arched window with a simple carved wooden frame looking onto a green garden and pale blue sky. A thin band of muted teal and cream patterned tiles along the bottom of the wall only. On the left a cream armchair with one small cushion; on the right a low walnut sideboard with a small brass samovar and two tea glasses. Two or three potted green plants, one small brass lantern hanging high. A medium-size Persian rug in muted dusty red and soft navy, only in the middle of the floor, with plenty of light wooden floor showing around it. Keep the centre of the floor completely clear. Simple, uncluttered, lots of calm empty wall.
+
+**B · Golden afternoon**
+
+> Soft rounded premium 3D animated-film style children's game background, toy-like world, clean readable shapes, gentle depth, eye-level camera from the middle of the room looking at the back wall. An EMPTY room: no characters, no figures, no robots, no people, no animals, no text, no letters, no logos. Tall portrait image, 9:16. Colour palette mid-tone and balanced: NOT pastel, NOT neon, NOT oversaturated.
+> A cosy mid-century family living room on a sunny afternoon. Soft warm off-white walls with one muted teal accent wall behind a big window. Warm walnut wood furniture: on the left a rounded mustard-yellow armchair with a small cushion, on the right a low walnut sideboard with a record player, a vase and a few books. A big window in the middle of the back wall with light curtains and soft sunlight. A couple of potted plants, a round wall clock with no numbers, one or two framed pictures with simple shapes. A round woven rug in warm oatmeal with a thin teal and mustard border in the middle of the floor. Keep the centre of the floor completely clear. Uncluttered, calm, cosy.
+
+**C · Garden view**
+
+> Soft rounded premium 3D animated-film style children's game background, toy-like world, clean readable shapes, gentle depth, eye-level camera from the middle of the room looking at the back wall. An EMPTY room: no characters, no figures, no robots, no people, no animals, no text, no letters, no logos. Tall portrait image, 9:16. Calm, fresh colours: soft cream, olive green and dusty rose. NOT pastel, NOT neon, NOT oversaturated.
+> A bright, calm family living room opening onto a garden. Soft cream walls and light oak floor. The back wall has tall glass garden doors and windows showing a green garden with trees, flowers and blue sky, gentle morning daylight. On the left a soft olive-green armchair with a dusty rose cushion; on the right a low light-wood sideboard with a small vase of flowers and a teapot. Potted plants and a trailing plant on a shelf, a simple pendant lamp. A round soft rug in cream with a thin olive and rose pattern in the middle of the floor. Keep the centre of the floor completely clear. Airy, simple, uncluttered.
+
+---
+
 ## Bedroom · Space explorer
 
 **Upright (9:16):**
