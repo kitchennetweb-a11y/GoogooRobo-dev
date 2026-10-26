@@ -1395,7 +1395,7 @@ function libAll(){return [...libCats().map(c=>({key:'cat:'+c,kind:'cat',id:c,pic
 function libAssign(){const all=libAll(),keys=new Set(all.map(i=>i.key)),O=LIBORDER||{},seen=new Set(),out={big:[],small:[]};
   for(const k of ['big','small'])for(const x of O[k]||[])if(keys.has(x)&&!seen.has(x)){seen.add(x);out[k].push(x)}
   for(const i of all)if(!seen.has(i.key))out[i.kind==='cat'?'big':'small'].push(i.key);return out} // default: categories on the big shelf, stories in the book bin
-const libTex=new THREE.CanvasTexture(Object.assign(document.createElement('canvas'),{width:512,height:512})) // 512: covers are ~40 px on a phone; 1.3 MB on the GPU;libTex.encoding=THREE.sRGBEncoding;libTex.anisotropy=4;
+const libTex=new THREE.CanvasTexture(Object.assign(document.createElement('canvas'),{width:1024,height:1024}));libTex.encoding=THREE.sRGBEncoding;libTex.anisotropy=4; // 1024: sharp when a book flies open (~5 MB on the GPU); sRGB was commented out before = washed-out covers
 const libMat=new THREE.MeshStandardMaterial({map:libTex,roughness:.6});libMat.customProgramCacheKey=()=>'libBooks';
 libMat.onBeforeCompile=sh=>{sh.vertexShader='attribute vec2 aCell;\n'+sh.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\n\tvUv=(aCell+.04+vUv*.92)/'+LIBN+'.;')}; // each book shows its own atlas cell
 const libHitGeo=new THREE.BoxGeometry(1,1,1),libHitMat=new THREE.MeshBasicMaterial({visible:false}); // tap boxes: never drawn, only raycast
@@ -1404,10 +1404,24 @@ const libGeo=(()=>{const s=new THREE.Shape(),r=.14,x=-.5,y=-.5; // a 1x1x1 round
   const g=new THREE.ExtrudeGeometry(s,{depth:.8,bevelEnabled:true,bevelThickness:.1,bevelSize:.05,bevelSegments:2,curveSegments:3});g.computeBoundingBox();
   const b=g.boundingBox,c=b.getCenter(V3()),z=b.getSize(V3());g.translate(-c.x,-c.y,-c.z);g.scale(1/z.x,1/z.y,1/z.z);g.computeVertexNormals();
   const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;for(let i=0;i<p.count;i++)if(n.getZ(i)>.7)uv.setXY(i,p.getX(i)+.5,p.getY(i)+.5);else uv.setXY(i,.02,.02);return g})();
-function buildBooks(){libItems=libAll();const n=libItems.length,cv=libTex.image,cx=cv.getContext('2d'),C=cv.width/LIBN;cx.clearRect(0,0,cv.width,cv.height);
-  libItems.forEach((it,i)=>{const x=i%LIBN*C,y=(i/LIBN|0)*C,h=(i*360/n+10)%360,q=C*.12;cx.fillStyle=`hsl(${h},60%,56%)`;cx.fillRect(x,y,C,C);
-    cx.fillStyle=`hsl(${h},75%,86%)`;cx.beginPath();cx.moveTo(x+q*2,y+q);cx.arcTo(x+C-q,y+q,x+C-q,y+C-q,q);cx.arcTo(x+C-q,y+C-q,x+q,y+C-q,q);cx.arcTo(x+q,y+C-q,x+q,y+q,q);cx.arcTo(x+q,y+q,x+C-q,y+q,q);cx.fill();
-    cx.font=(C*.52|0)+'px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(it.pic,x+C/2,y+C*.54)});libTex.needsUpdate=true;
+// covers, "picture book" style: mid-tone colour, darker spine (left; its colour also paints the book's sides, sampled at uv .02), the icon with a white sticker edge, the Farsi name on a band
+const LIBPAL=[['#E0663F','#9c3a1e'],['#3E9E6C','#1f6443'],['#2E86B5','#17557a'],['#E9A23B','#a3661a'],['#7B5CC0','#4c3488'],['#D4506F','#8f2c45'],['#45A9A0','#226e67']],
+  LIBICO={animals:'🐶',food:'🍎',body:'🖐️',clothes:'👕',home:'🏠',vehicles:'🚌',nature:'🌳',colours:'🎨',numbers:'🔢',shapes:'🔷',people:'👨‍👩‍👦',feelings:'😀',actions:'🏃'},
+  LIBFA={animals:'حیوونا',food:'خوراکی',body:'بدن',clothes:'لباس',home:'خونه',vehicles:'ماشینا',nature:'طبیعت',colours:'رنگا',numbers:'عددا',shapes:'شکلا',people:'آدما',feelings:'احساسات',actions:'کارا',
+    farm:'مزرعه',rain:'روز بارونی',bedtime:'وقت خواب',park:'پیک‌نیک'},EMO='"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+function drawCovers(){const cv=libTex.image,cx=cv.getContext('2d'),C=cv.width/LIBN,E=drawCovers.e||(drawCovers.e=Object.assign(document.createElement('canvas'),{width:C,height:C})),ex=E.getContext('2d');
+  cx.clearRect(0,0,cv.width,cv.height);cx.textAlign=ex.textAlign='center';cx.textBaseline=ex.textBaseline='middle';
+  libItems.forEach((it,i)=>{const x=i%LIBN*C,y=(i/LIBN|0)*C,[c,d]=LIBPAL[i%LIBPAL.length],ic=it.kind==='cat'?LIBICO[it.id]||it.pic:it.pic,
+      nm=LIBFA[it.id]||(it.s&&it.s.title_fa||'').split(' ').slice(0,2).join(' ')||it.name; // the cell's .04 rim is off the front face
+    cx.save();cx.beginPath();cx.rect(x,y,C,C);cx.clip();cx.fillStyle=c;cx.fillRect(x,y,C,C);cx.fillStyle='#0004';cx.fillRect(x,y+C*.77,C,C*.23);
+    cx.fillStyle=d;cx.fillRect(x,y,C*.13,C);cx.fillStyle='#fff6';cx.fillRect(x+C*.13,y,C*.012,C);
+    ex.clearRect(0,0,C,C);ex.globalCompositeOperation='source-over';ex.font=(C*.56|0)+'px '+EMO;ex.fillText(ic,C*.57,C*.43);ex.globalCompositeOperation='source-in';ex.fillStyle='#fff';ex.fillRect(0,0,C,C); // white silhouette
+    cx.shadowColor='#0007';cx.shadowBlur=C*.04;cx.shadowOffsetY=C*.025;cx.drawImage(E,x,y);cx.shadowColor='#0000';
+    for(let k=0;k<12;k++)cx.drawImage(E,x+Math.cos(k*Math.PI/6)*C*.022,y+Math.sin(k*Math.PI/6)*C*.022); // sticker edge
+    cx.font=(C*.56|0)+'px '+EMO;cx.fillStyle='#000';cx.fillText(ic,x+C*.57,y+C*.43); // opaque fill: a colour emoji takes the fill's alpha
+    let f=C*.13;cx.direction='rtl';do cx.font='800 '+(f|0)+'px Vazirmatn,sans-serif';while(cx.measureText(nm).width>C*.76&&(f*=.92)>8);cx.fillStyle='#fff';cx.fillText(nm,x+C*.55,y+C*.87);cx.direction='ltr';cx.restore()});
+  libTex.needsUpdate=true}
+function buildBooks(){libItems=libAll();const n=libItems.length;drawCovers();document.fonts&&document.fonts.load('800 24px Vazirmatn','کتاب').then(drawCovers,()=>{}); // the names again once the font is in
   const g=libGeo.clone(),cell=new Float32Array(n*2);libItems.forEach((it,i)=>{cell[2*i]=i%LIBN;cell[2*i+1]=LIBN-1-(i/LIBN|0)});g.setAttribute('aCell',new THREE.InstancedBufferAttribute(cell,2));
   if(libMesh){libGroup.remove(libMesh);libMesh.geometry.dispose()}
   if(libHit){libGroup.remove(libHit)}
@@ -1546,7 +1560,8 @@ const pBlob=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMater
 const pGlow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:canvasTex(128,128,(x,w,h)=>{x.strokeStyle='#5ff4ff';x.shadowColor='#22e0ff';x.lineJoin='round';for(const [lw,b] of [[12,22],[6,10],[3,3]]){x.lineWidth=lw;x.shadowBlur=b;x.strokeRect(20,20,w-40,h-40)}}),
   transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));pGlow.visible=false;pGlow.raycast=()=>{};libGroup.add(pGlow);
 const clipL=new THREE.Plane(new THREE.Vector3(1,0,0),1e6),clipR=new THREE.Plane(new THREE.Vector3(-1,0,0),1e6);libMat.clippingPlanes=[clipL,clipR];renderer.localClippingEnabled=true;
-libMat.emissive=new THREE.Color(0xffffff);libMat.emissiveMap=libTex;libMat.emissiveIntensity=0; // painted library: the covers glow a little, like the painting's own light
+libMat.emissive=new THREE.Color(0xffffff);libMat.emissiveMap=libTex;libMat.emissiveIntensity=.68;libMat.color.setScalar(.3);libMat.envMapIntensity=.2;libMat.roughness=.8;libMat.toneMapped=false;
+// covers at their true colour in both libraries: mostly the atlas itself (emissive), a little room light for shading, no tone mapping (ACES washed them out); night = .3 (setLights)
 const pFg=document.getElementById('pFg'),pgPrev=document.getElementById('pgPrev'),pgNext=document.getElementById('pgNext'),pgDots=document.getElementById('pgDots');
 function paintLoad(P){const t0=pU.uMap.value;if(t0){t0.dispose();pU.uMap.value=null}pU.uHas.value=0;pFg.style.backgroundImage='';if(!P)return;const k=PK;
   new THREE.TextureLoader().load(P.img,t=>{if(PK!==k){t.dispose();return}const w2=renderer.capabilities.isWebGL2;t.generateMipmaps=w2;t.minFilter=w2?THREE.LinearMipmapLinearFilter:THREE.LinearFilter;
@@ -1558,7 +1573,7 @@ function paintLights(){const P=PNT;if(!P)return;const Lt=P.light||{},n=!lightsOn
   hemiL.color.set(n?'#8fa0d8':hm[0]);hemiL.groundColor.set(hm[1]);hemiL.intensity=n?.28:hm[2];fill.color.set(n?'#ffb870':fl[0]);fill.intensity=n?.38:fl[1];fill.position.set(HOME.x+3,4,HOME.z+8);
   windowGlow.intensity=0;renderer.toneMappingExposure=Lt.exp||.95;pFloor.material.opacity=(Lt.shadow??.35)*(n?.4:1);pBlob.material.opacity=n?.55:1;
   pU.uNight.value=n?1:0;pU.uMul.value.set(n?'#5a66a8':'#ffffff');pU.uDustA.value=n?.25:1;pFg.classList.toggle('dark',n);(P.lamps||[]).forEach((l,i)=>i<4&&pU.uLamp.value[i].set(l[0],l[1],l[2],1));for(let i=(P.lamps||[]).length;i<4;i++)pU.uLamp.value[i].w=0}
-function paintVis(){const on=!!PNT;room.visible=!on;pBg.visible=pDust.visible=pFloor.visible=pBlob.visible=on;libMat.emissiveIntensity=on?.1:0;libMat.color.setScalar(on?.5:1);libMat.envMapIntensity=on?.35:1; // painted: richer covers (the warm light + room reflections washed them out under ACES)roomProps(curRoom);
+function paintVis(){const on=!!PNT;room.visible=!on;pBg.visible=pDust.visible=pFloor.visible=pBlob.visible=on;
   if(on)paintLights();else{paintRestore();pFg.classList.add('off');pgPrev.hidden=pgNext.hidden=pgDots.hidden=true;pGlow.visible=false;libSlide=null;clipL.constant=clipR.constant=1e6}}
 // called at the end of resize(): the cover fit, then the camera from the painting (horizon + his feet + his height), then everything that sits on the painting
 function paintFrame(){const P=pOf(curRoom),key=P?curRoom+'|'+(portrait?'p':'l')+'|'+P.img:'';PNT=P;if(key!==PK){PK=key;paintLoad(P);paintVis()}if(!P){PW=null;return}
@@ -1646,7 +1661,7 @@ function setLights(on){lightsOn=on;neonSet(1);const L=on?ROOM_DAY:ROOM_NIGHT;sun
   windowGlow.intensity=L.win;scene.environment=on?dayEnv:null;fill.intensity=L.fill;renderer.toneMappingExposure=L.exp;scene.background.setHex(L.bg);
   skyMat.map=on?skyTex:nightTex;skyMat.color.setHex(0xffffff);skyMat.needsUpdate=true;
   const f=furnById('lamp');if(f){f.userData.shade.emissiveIntensity=on?.6:2.2;if(!lampLight.parent){f.add(lampLight);lampLight.position.set(0,1.6,0)}}
-  lampLight.intensity=on?0:1.6;paintLights();if(scr==='bed')showScreen('bed')} // painted room: its own light (paintLights) // bedroom: night buttons while the lamp is off
+  lampLight.intensity=on?0:1.6;libMat.emissiveIntensity=on?.68:.3;paintLights();if(scr==='bed')showScreen('bed')} // painted room: its own light (paintLights) // bedroom: night buttons while the lamp is off
 // Disco (🪩, play room): the existing lights cycle colours (no extra lights, cheap), Pash dances to the music until tapped again or the room changes
 let discoOn=false;const LCOL=[[sun,0xfff1dc],[hemiLight,0xdfeeff],[windowGlow,0xcfe8ff],[fill,0xffe2c4]];
 function disco(on,quiet){if(on===discoOn)return;discoOn=on;
