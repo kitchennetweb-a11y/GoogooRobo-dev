@@ -1750,6 +1750,8 @@ async function tapFurniture(id){
 // ----- Rocket launch (bedroom toy rocket): the rocket appears, Googoo jets into its window, counts down 5..1 in Farsi, blast-off.
 // Then the space trip (spaceTrip, below). Rocket: models/space_rocket.glb (tools/rocket_blender.py). -----
 let LAUNCH=null,ROCKET=null,rocketFlame=null;
+const _fe=new THREE.Euler(),_fq0=new THREE.Quaternion(),_fq1=new THREE.Quaternion(),_fqs=new THREE.Quaternion(),
+  _fqF=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2)); // flying pose: face down, head to +x
 const smooth=x=>x*x*(3-2*x),anim=(ms,f)=>new Promise(ok=>{const t0=performance.now(),step=()=>{const p=Math.min(1,(performance.now()-t0)/ms);if(LAUNCH)f(p);p<1&&LAUNCH?requestAnimationFrame(step):ok()};step()});
 const loadRocket=()=>ROCKET?Promise.resolve(ROCKET):new Promise(ok=>new THREE.GLTFLoader().load('models/space_rocket.glb',g=>{ROCKET=g.scene;ROCKET.traverse(o=>{if(o.isMesh)o.castShadow=true});ok(ROCKET)},undefined,()=>ok(null)));
 function cdShow(txt){const e=document.getElementById('cdNum');e.textContent=txt;e.classList.remove('pop');void e.offsetWidth;e.classList.add('pop')}
@@ -1786,9 +1788,11 @@ function launchTick(dt){const L=LAUNCH;
   if(ROCKET){ROCKET.visible=L.rs>.001;ROCKET.scale.setScalar(Math.max(.001,L.rs)*HOME.s);const j=L.shake;ROCKET.position.y=L.ry+(j?Math.random()*j:0);ROCKET.rotation.z=j?(Math.random()-.5)*j*1.5:0}
   if(rocketFlame){rocketFlame.g.visible=L.flame>.01&&!!ROCKET&&ROCKET.visible;if(rocketFlame.g.visible){rocketFlame.g.position.copy(ROCKET.position);rocketFlame.g.position.y+=.06*HOME.s;const f=L.flame*(.85+Math.random()*.3)*HOME.s;rocketFlame.g.scale.set(L.flame*HOME.s,f,L.flame*HOME.s)}}
   robot.visible=L.gvis;if(L.gp){robot.position.copy(L.gp);robot.rotation.y=HOME.ry}const tt=performance.now()/1000;if(L.hover)robot.position.y+=Math.sin(tt*2)*.15*HOME.s;if(SPACE)spaceTick(dt);robot.scale.setScalar(L.gs*HOME.s);
-  // flying between planets: flat, head first to the right, arms open, rolling and swaying a little (turned about his middle, not his feet)
+  // flying between planets: belly down, head first to the right (the way he flies), arms open, the whole body rocking gently (turned about his middle)
   L.fv=(L.fv||0)+((L.flat?1:0)-(L.fv||0))*Math.min(1,dt*3);if(L.fv>.001){const f=L.fv,hh=(RB.y0+RB.h)*.5*robot.scale.x;
-    robot.rotation.z=-Math.PI/2*f+Math.sin(tt*1.7)*.07*f;robot.rotation.x=Math.sin(tt*2.3)*.22*f;robot.position.x-=hh*Math.sin(Math.PI/2*f);robot.position.y+=hh*(1-Math.cos(Math.PI/2*f))}else robot.rotation.z=0
+    _fq0.setFromEuler(_fe.set(0,HOME.ry,0));_fq1.copy(_fqF).multiply(_fq0);robot.quaternion.copy(_fq0).slerp(_fq1,f);
+    robot.quaternion.premultiply(_fqs.setFromEuler(_fe.set(Math.sin(tt*1.6)*.14*f,Math.sin(tt*1.1)*.07*f,Math.sin(tt*1.3)*.05*f)));
+    robot.position.x-=hh*Math.sin(Math.PI/2*f);robot.position.y+=hh*(1-Math.cos(Math.PI/2*f))}else robot.rotation.z=0
   jetTick(0,L.jets&&L.gvis)}
 function launchEnd(){const L=LAUNCH;if(!L)return;LAUNCH=null;spaceOff();robot.rotation.z=0;spEl('spNext').hidden=false;try{L.boom&&L.boom.stop()}catch(e){}
   if(ROCKET)scene.remove(ROCKET);if(rocketFlame)rocketFlame.g.visible=false;robot.visible=true;robot.scale.setScalar(HOME.s);jetTick(0,false);
@@ -2216,7 +2220,7 @@ function loop(){
   st.spin+=st.spinVel*dt;st.spinVel*=Math.pow(.25,dt);
   antVel+=(-antAng*120-antVel*5)*dt;antAng+=antVel*dt;
   let bob=GG?0:Math.sin(t*2.2)*.03,yaw=HOME.ry,armWave=null,armFwd=null,headYaw=GG?0:Math.sin(t*.7)*.15,x=robot.position.x,z=robot.position.z+flipZ,ox=x,oz=z;
-  const walkClip=GG&&ACT.walk_happy&&jumpY<.05,locked=ggLocked();ggLoco=null; // Googoo walks (or runs) with the clip and moves at its treadmill speed
+  const walkClip=GG&&ACT.walk_happy&&jumpY<.05&&!(LAUNCH&&LAUNCH.gp&&LAUNCH.jets),locked=ggLocked();ggLoco=null; // Googoo walks (or runs) with the clip and moves at its treadmill speed
   const face2=a=>robot.rotation.y+Math.atan2(Math.sin(a-robot.rotation.y),Math.cos(a-robot.rotation.y)); // the same heading, the short way round (no flip-flop at +-180 degrees)
   if(st.mode==='dance'){const b=t*4.5,beat=Math.floor(b/Math.PI);
     if(danceStyle===0){bob=Math.abs(Math.sin(b))*.25;yaw=Math.sin(b/2)*.5;headYaw=Math.sin(b)*.4;armWave=[Math.sin(b)*1.4+1.6,-Math.sin(b+1)*1.4-1.6]}
