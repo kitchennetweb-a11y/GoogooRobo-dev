@@ -504,7 +504,7 @@ for(const s of[-1,1]){const g=new THREE.Group();g.position.set(s*.92,.62,0);head
 // antenna
 const antPivot=new THREE.Group();antPivot.position.set(0,1.22,0);head.add(antPivot);
 const stalk=tag(new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.45,8),DARK),'antenna');stalk.position.y=.22;antPivot.add(stalk);
-const bulbMat=new THREE.MeshStandardMaterial({color:0xffc93c,emissive:0xffa000,emissiveIntensity:.4});
+const bulbMat=new THREE.MeshStandardMaterial({color:0xffc93c,emissive:0x1ad8ff,emissiveIntensity:.4}); // emissive = his ear glow colour: neon blue (red while he records you)
 const bulb=tag(new THREE.Mesh(new THREE.SphereGeometry(.13,20,16),bulbMat),'antenna');bulb.position.y=.5;antPivot.add(bulb);
 // arms (shoulder pivot -> springy upper -> claw)
 const arms=[];
@@ -612,7 +612,7 @@ function ggSetup(g){const model=g.scene;
   // ear propellers (flying) + a glow on each ear (listening = red, dancing = pulse), spinning about the ear axis
   for(const e of EARS){const pv=new THREE.Group();pv.position.copy(e.getWorldPosition(V3()));scene.add(pv);
     const bl=new THREE.Mesh(new THREE.BoxGeometry(.04,.9,.12),YEL);bl.visible=false;pv.add(bl);
-    const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:TEX.spark,color:0xffa000,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));gl.scale.setScalar(.5);gl.visible=false;pv.add(gl);
+    const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:TEX.spark,color:0x1ad8ff,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true}));gl.scale.setScalar(.5);gl.visible=false;pv.add(gl);
     pv.quaternion.copy(robot.quaternion);B.Head.attach(pv);e.userData.fx={bl,gl}}
   robot.children.forEach(o=>{if(o!==gg)o.visible=false});GG=model;measureRobot()}
 
@@ -912,7 +912,7 @@ function speak(){mouthT=performance.now()+700}
 let mouthT=0,antAng=0,antVel=0;
 
 function setMode(m){
-  if(m!=='listen')bulbMat.emissive.setHex(0xffa000);
+  if(m!=='listen')bulbMat.emissive.setHex(0x1ad8ff);
   if(st.mode==='dance'&&m!=='dance')music(false);
   st.mode=m;st.modeT=0;
 }
@@ -2090,7 +2090,7 @@ function loop(){
   else if(st.mode==='listen'){
     if(talk.playing){const lv=talk.level;bob=Math.abs(Math.sin(t*12))*.05+lv*.4;headYaw=Math.sin(t*9)*.25;armWave=[1+lv*8,1+lv*8]}
     else{headYaw=-.25;st.head=-.6;armWave=GG?null:[.25,2.35];if(now>faceUntil)face='listen';
-      if(talk.rec){bulbMat.emissive.setHex(0xff3355)}else bulbMat.emissive.setHex(0xffa000)}}
+      if(talk.rec){bulbMat.emissive.setHex(0xff3355)}else bulbMat.emissive.setHex(0x1ad8ff)}}
   else if(st.mode==='fly'){headYaw=Math.sin(t*2)*.3;armWave=[.45+Math.sin(t*5)*.05,.45+Math.sin(t*5+1)*.05]; // Iron Man: arms down and a little out, the hand jets push him up
     jumpY+=(1.6+Math.sin(t*3)*.15-jumpY)*dt*3;jumpV=0;ears.forEach(e=>{e.blade.visible=true;e.g.rotation.x+=dt*35});
     if(st.modeT>2.8){setMode('idle');ears.forEach(e=>{e.blade.visible=false;e.g.rotation.x=0})}}
