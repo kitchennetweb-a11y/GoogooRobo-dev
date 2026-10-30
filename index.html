@@ -857,8 +857,9 @@ function mkJet(bn,tip,len,r){const g=new THREE.Group(),m=(rr,ll,op,bl)=>{const g
 function jetTick(dt,on){jetOn+=((on?1:0)-jetOn)*Math.min(1,dt*(on?10:5));
   if(!jets.length){if(!on||!B.LeftFoot)return;for(const s of SIDES){jets.push(mkJet(s+'Foot',s+'ToeBase',1.3,.2),mkJet(s+'Hand',s+'HandMiddle1',.8,.12))}} // sizes in robot units (he is about 4 tall)
   for(const j of jets){j.g.visible=jetOn>.02;if(!j.g.visible)continue;
-    B[j.bn].getWorldPosition(j.g.position);if(B[j.tip])j.g.position.lerp(B[j.tip].getWorldPosition(_jv),.4);if(j.bn.endsWith('Foot'))j.g.position.y-=.12;
-    const f=jetOn*(.8+Math.random()*.35);j.g.scale.set(jetOn,f,jetOn)}}
+    B[j.bn].getWorldPosition(j.g.position);if(B[j.tip])j.g.position.lerp(B[j.tip].getWorldPosition(_jv),.4);j.g.quaternion.copy(robot.quaternion); // flames along his body (flat when he flies flat)
+    if(j.bn.endsWith('Foot'))j.g.position.add(_jv.set(0,-.12*robot.scale.x,0).applyQuaternion(robot.quaternion));
+    const k=robot.scale.x,f=jetOn*(.8+Math.random()*.35)*k;j.g.scale.set(jetOn*k,f,jetOn*k)}}
 
 // ---------- Particles (stars, puffs, sparks, zzz, food) ----------
 const parts=[];
@@ -868,6 +869,7 @@ const TEX={
   puff:spriteTex(x=>{const g=x.createRadialGradient(64,64,4,64,64,60);g.addColorStop(0,'#b7e48aee');g.addColorStop(1,'#b7e48a00');x.fillStyle=g;x.fillRect(0,0,128,128)}),
   spark:spriteTex(x=>{const g=x.createRadialGradient(64,64,2,64,64,50);g.addColorStop(0,'#fff');g.addColorStop(.3,'#7ef');g.addColorStop(1,'#7ef0');x.fillStyle=g;x.fillRect(0,0,128,128)}),
   z:spriteTex(x=>{x.fillStyle='#fff';x.font='bold 100px sans-serif';x.textAlign='center';x.fillText('z',64,100)}),
+  glow:spriteTex(x=>{const g=x.createRadialGradient(64,64,0,64,64,64);g.addColorStop(0,'#ffffffff');g.addColorStop(.35,'#ffffff88');g.addColorStop(1,'#ffffff00');x.fillStyle=g;x.fillRect(0,0,128,128)}), // plain white halo (tinted per planet)
   smoke:spriteTex(x=>{const g=x.createRadialGradient(64,64,6,64,64,62);g.addColorStop(0,'#ffffffee');g.addColorStop(.6,'#e8e4ee99');g.addColorStop(1,'#e8e4ee00');x.fillStyle=g;x.fillRect(0,0,128,128)}),
   heart:spriteTex(x=>{x.fillStyle='#ff6b8b';x.beginPath();x.moveTo(64,110);x.bezierCurveTo(-10,60,30,0,64,40);x.bezierCurveTo(98,0,138,60,64,110);x.fill()}),
 };
@@ -1784,8 +1786,12 @@ async function launchRocket(){
 function launchTick(dt){const L=LAUNCH;
   if(ROCKET){ROCKET.visible=L.rs>.001;ROCKET.scale.setScalar(Math.max(.001,L.rs)*HOME.s);const j=L.shake;ROCKET.position.y=L.ry+(j?Math.random()*j:0);ROCKET.rotation.z=j?(Math.random()-.5)*j*1.5:0}
   if(rocketFlame){rocketFlame.g.visible=L.flame>.01&&!!ROCKET&&ROCKET.visible;if(rocketFlame.g.visible){rocketFlame.g.position.copy(ROCKET.position);rocketFlame.g.position.y+=.06*HOME.s;const f=L.flame*(.85+Math.random()*.3)*HOME.s;rocketFlame.g.scale.set(L.flame*HOME.s,f,L.flame*HOME.s)}}
-  robot.visible=L.gvis;if(L.gp)robot.position.copy(L.gp);if(L.hover)robot.position.y+=Math.sin(performance.now()/500)*.15*HOME.s;if(SPACE)spaceTick(dt);robot.scale.setScalar(L.gs*HOME.s);jetTick(0,L.jets&&L.gvis)}
-function launchEnd(){const L=LAUNCH;if(!L)return;LAUNCH=null;spaceOff();try{L.boom&&L.boom.stop()}catch(e){}
+  robot.visible=L.gvis;if(L.gp){robot.position.copy(L.gp);robot.rotation.y=HOME.ry}const tt=performance.now()/1000;if(L.hover)robot.position.y+=Math.sin(tt*2)*.15*HOME.s;if(SPACE)spaceTick(dt);robot.scale.setScalar(L.gs*HOME.s);
+  // flying between planets: flat, head first to the right, arms open, rolling and swaying a little (turned about his middle, not his feet)
+  L.fv=(L.fv||0)+((L.flat?1:0)-(L.fv||0))*Math.min(1,dt*3);if(L.fv>.001){const f=L.fv,hh=(RB.y0+RB.h)*.5*robot.scale.x;
+    robot.rotation.z=-Math.PI/2*f+Math.sin(tt*1.7)*.07*f;robot.rotation.x=Math.sin(tt*2.3)*.22*f;robot.position.x-=hh*Math.sin(Math.PI/2*f);robot.position.y+=hh*(1-Math.cos(Math.PI/2*f))}else robot.rotation.z=0
+  jetTick(0,L.jets&&L.gvis)}
+function launchEnd(){const L=LAUNCH;if(!L)return;LAUNCH=null;spaceOff();robot.rotation.z=0;spEl('spNext').hidden=false;try{L.boom&&L.boom.stop()}catch(e){}
   if(ROCKET)scene.remove(ROCKET);if(rocketFlame)rocketFlame.g.visible=false;robot.visible=true;robot.scale.setScalar(HOME.s);jetTick(0,false);
   document.getElementById('flash').style.opacity=0;document.getElementById('cdNum').classList.remove('pop')}
 function animateFurniture(t,dt){for(const g of furnGroup.children){const u=g.userData;
@@ -2007,66 +2013,95 @@ document.getElementById('go').onclick=async()=>{await ac().resume();micOn(false)
   Promise.race([Promise.all([ggLoad,ggFace,LAYOUT]),wait(25000)]).then(()=>{b.disabled=false;b.textContent=txt;window.__ggReady=1})}
 
 // ----- Space trip (after the bedroom launch; docs/space-plan.md): the bedroom painting swaps to the space painting, Googoo hovers on his jets,
-// a planet floats beside him and he says it (English name, Farsi name, Farsi colour: pl_*). The rocket button flies to the next planet;
-// stars stream past on the way: tap them and he counts. The house button flies home. Planet pictures: assets/space/*.webp -----
-const PLANETS=[['sun','#f5b81a','زرد',1.2],['mercury','#9b9690','طوسی',.62],['venus','#e9a24a','نارنجی',.85],['earth','#2f74d0','آبی',.9],['moon','#e8e6e0','سفید',.6],
-  ['mars','#cf4a2a','قرمز',.8],['jupiter','#8a5a32','قهوه‌ای',1.2],['saturn','#f0c24a','زرد',1.45],['uranus','#79cfe2','آبی روشن',.95],['neptune','#2d55c8','آبی',.95]]; // id, colour, colour word, size
+// a planet floats beside him: name (English + Farsi), "what colour is it?", a pause for the child, the colour. The rocket button flies to the next
+// planet (Googoo flat, arms open, like flying); stars stream past: tap them and he counts. After Neptune: the whole solar system on black, tap a planet.
+// The house button flies home. Planet pictures: assets/space/*.webp -----
+const PLANETS=[['sun','#f5b81a','zard','زرد',1.2],['mercury','#9b9690','tusi','طوسی',.62],['venus','#e9a24a','naranji','نارنجی',.85],['earth','#2f74d0','abi','آبی',.9],['moon','#e8e6e0','sefid','سفید',.6],
+  ['mars','#cf4a2a','ghermez','قرمز',.8],['jupiter','#8a5a32','ghahvei','قهوه‌ای',1.2],['saturn','#f0c24a','zard','زرد',1.45],['uranus','#79cfe2','abiroshan','آبی روشن',.95],['neptune','#2d55c8','abi','آبی',.95]]; // id, colour, clip, word, size
 let SPACE=null;
 const spEl=id=>document.getElementById(id);
 function ndcAt(nx,ny,d){const v=new THREE.Vector3(nx,ny,.5).unproject(camera).sub(camera.position).normalize();return camera.position.clone().addScaledVector(v,d)}
-function spaceOn(){const S=SPACE={i:-1,tex:{},sp:null,gl:null,stars:[],caught:0,speed:0,next:null,
-    D:camera.position.distanceTo(robot.position)+4};
+function spaceOn(){const S=SPACE={i:-1,tex:{},sp:null,gl:null,stars:[],caught:0,speed:0,next:null,say:0,D:camera.position.distanceTo(robot.position)+4};
   document.body.classList.add('space');pFg.classList.add('off');pFloor.visible=pBlob.visible=pDust.visible=false;
   pMixT=0;pU.uMix.value=0;pU.uNight.value=0;pU.uMul.value.set('#ffffff');pU.uBeam.value.w=0;pU.uLamp.value.forEach(l=>l.w=0);
-  const k=PK;new THREE.TextureLoader().load('assets/rooms/space_'+(portrait?'portrait':'landscape')+'.webp',t=>{t.encoding=pU.uMap.value?pU.uMap.value.encoding:t.encoding;if(SPACE&&PK===k){S.bg0=pU.uMap.value;pU.uMap.value=t;pU.uHas.value=1}else t.dispose()});
+  const k=PK;new THREE.TextureLoader().load('assets/rooms/space_'+(portrait?'portrait':'landscape')+'.webp',t=>{if(SPACE&&PK===k){S.bg0=pU.uMap.value;pU.uMap.value=t;pU.uHas.value=1}else t.dispose()});
   hemiL.color.set('#dfe6ff');hemiL.groundColor.set('#3a3060');hemiL.intensity=.85;sun.color.set('#ffffff');sun.intensity=1.1;fill.color.set('#9fb4ff');fill.intensity=.5;renderer.toneMappingExposure=1;
-  for(const [id] of PLANETS)new THREE.TextureLoader().load('assets/space/'+id+'.webp',t=>{t.encoding=THREE.sRGBEncoding;S.tex[id]=t;
-    const im=t.image;if(im){PIMG[pKey('pl_'+id)]=im}}); // the face screen can show the planet too
+  for(const [id] of PLANETS)new THREE.TextureLoader().load('assets/space/'+id+'.webp',t=>{t.encoding=THREE.sRGBEncoding;S.tex[id]=t;if(t.image)PIMG[pKey('pl_'+id)]=t.image}); // the face screen can show the planet too
   // drifting starfield in front of the painting (parallax when he flies)
-  const n=220,g=new THREE.BufferGeometry(),pos=new Float32Array(n*3);S.sf=[];
+  const n=260,g=new THREE.BufferGeometry(),pos=new Float32Array(n*3);S.sf=[];
   for(let i=0;i<n;i++){const d=6+Math.random()*(S.D+8),p=ndcAt(Math.random()*2.6-1.3,Math.random()*2.2-1.1,d);S.sf.push(d);pos.set([p.x,p.y,p.z],i*3)}
   g.setAttribute('position',new THREE.BufferAttribute(pos,3));S.pts=new THREE.Points(g,new THREE.PointsMaterial({map:TEX.spark,size:.18,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,color:0xcfe2ff}));scene.add(S.pts);
   S.right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion)}
-function spaceOff(){const S=SPACE;if(!S)return;SPACE=null;document.body.classList.remove('space');spEl('spCol').classList.remove('show');
-  for(const o of [S.sp,S.gl,S.pts,...S.stars.map(s=>s.s)])if(o){scene.remove(o);o.material&&o.material.dispose()}
-  if(S.bg0)S.bg0.dispose(); // the bedroom picture we swapped out; paintFrame loads it again
-  PK='';resize()} // the bedroom painting and its lights come back (paintFrame reloads them)
-const spPlace=(o,nx,ny,frac)=>{const S=SPACE,h=2*S.D*Math.tan(camera.fov*Math.PI/360)/camera.zoom;o.position.copy(ndcAt(nx,ny,S.D));o.scale.setScalar(frac*h)};
+function spaceOff(){const S=SPACE;if(!S)return;SPACE=null;document.body.classList.remove('space');spEl('spCol').classList.remove('show');spEl('spBtns').classList.remove('show');
+  for(const o of [S.sp,S.gl,S.pts,...S.stars.map(s=>s.s),...(S.sys||[]).flatMap(p=>[p.s,p.g]),...(S.orbits||[])])if(o){scene.remove(o);o.material&&o.material.dispose();o.geometry&&o.geometry!==undefined&&o.isLine&&o.geometry.dispose()}
+  if(S.bg0)S.bg0.dispose(); // the bedroom picture we swapped out
+  PK='';resize()} // the bedroom painting, its fill colour and lights come back (paintFrame reloads them)
+const spH=d=>2*d*Math.tan(camera.fov*Math.PI/360)/camera.zoom; // visible height at distance d
+const spPlace=(o,nx,ny,frac,d=SPACE.D)=>{o.position.copy(ndcAt(nx,ny,d));o.scale.setScalar(frac*spH(d))};
 const spSpot=()=>portrait?[0,.5,.52*camera.aspect]:[.52,.18,.42]; // where the planet floats (NDC x, y, diameter as part of the screen height)
-async function spArrive(i,tok){const S=SPACE,[id,col,word,sz]=PLANETS[i];S.i=i;
-  if(!S.sp){S.gl=new THREE.Sprite(new THREE.SpriteMaterial({map:TEX.spark,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,toneMapped:false}));
-    S.sp=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthWrite:false,toneMapped:false}));S.gl.renderOrder=-2;S.sp.renderOrder=-1;S.gl.material.opacity=.55;/* the glow under the planet, not over it */scene.add(S.gl,S.sp)}
+// a planet's line: name (English + Farsi), a small pause, "what colour is it?", a longer pause (his turn to answer), the colour
+async function spSay(i,tok){const S=SPACE,[id,col,ck,word]=PLANETS[i],my=++S.say,ok=()=>alive(tok)&&SPACE===S&&S.say===my;
+  spEl('spCol').classList.remove('show');facePic='pl_'+id;setFace('pic',9000);
+  await sayAsync('pn_'+id);if(!ok())return;await wait(450);if(!ok())return;await sayAsync('sp_whatcol');if(!ok())return;await wait(1500);if(!ok())return;
+  const c=spEl('spCol');c.querySelector('i').style.background=col;c.querySelector('b').textContent=word;c.classList.add('show');await sayAsync('col_'+ck)}
+async function spArrive(i,tok){const S=SPACE,[id,col,,,sz]=PLANETS[i];S.i=i;
+  if(!S.sp){S.gl=new THREE.Sprite(new THREE.SpriteMaterial({map:TEX.glow,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,toneMapped:false}));
+    S.sp=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthWrite:false,toneMapped:false}));S.gl.renderOrder=-2;S.sp.renderOrder=-1;S.gl.material.opacity=.55;scene.add(S.gl,S.sp)} // the glow under the planet
   for(let w=0;!S.tex[id]&&w<40;w++)await wait(100);S.sp.material.map=S.tex[id]||null;S.sp.material.needsUpdate=true;S.gl.material.color.set(col);
-  const [x,y,f]=spSpot();S.slide={from:1.9,to:x,y,f:f*sz,t:0,dur:1.1};await wait(1150);if(!alive(tok)||!SPACE)return;
-  const c=spEl('spCol');c.querySelector('i').style.background=col;c.querySelector('b').textContent=word;c.classList.add('show');
-  facePic='pl_'+id;setFace('pic',6000);await sayAsync('pl_'+id)}
-function spWhoosh(tok){const S=SPACE;spEl('spCol').classList.remove('show');setFace('laugh',3000);S.caught=0;
-  const [x,y,f]=spSpot();S.slide={from:S.slide?S.slide.to:x,to:-1.9,y,f:S.slide?S.slide.f:f,t:0,dur:.9};S.speed=1;
+  const [x,y,f]=spSpot();S.slide={from:1.9,to:x,y,f:f*sz,t:0,dur:1.1};await wait(1150);if(!alive(tok)||!SPACE)return;LAUNCH.flat=0;
+  await spSay(i,tok)}
+function spWhoosh(tok){const S=SPACE;S.say++;spEl('spCol').classList.remove('show');setFace('laugh',3000);S.caught=0;LAUNCH.flat=1;
+  const [x,y,f]=spSpot();S.slide={from:S.slide?S.slide.to:x,to:-1.9,y,f:S.slide?S.slide.f:f,t:0,dur:.9};
   for(let k=0;k<7;k++)setTimeout(()=>{if(!SPACE||!alive(tok))return;const s=new THREE.Sprite(new THREE.SpriteMaterial({map:TEX.star,depthWrite:false,transparent:true}));
     const st={s,nx:1.2,ny:Math.random()*1.3-.55,v:.55+Math.random()*.35,ok:true};spPlace(s,st.nx,st.ny,.09);scene.add(s);S.stars.push(st)},250+k*420);
   return wait(3600)}
+// the whole solar system: black sky, every planet on its orbit round the sun (the Moon round the Earth), tap one to hear it
+async function spSolar(tok){const S=SPACE;S.say++;spEl('spCol').classList.remove('show');LAUNCH.flat=1;setFace('laugh',3000);
+  S.slide={from:S.slide.to,to:-1.9,y:S.slide.y,f:S.slide.f,t:0,dur:.9};S.speed=1;
+  await anim(1400,p=>{pU.uMul.value.setScalar(1-p)});if(!alive(tok)||SPACE!==S)return;pU.uHas.value=0;pU.uFill.value.set('#000');pU.uMul.value.setScalar(1);
+  S.solar=true;S.sys=[];S.orbits=[];const C=portrait?[0,.14]:[.08,.02],R=portrait?.92:.86,ty=portrait?1.05:.42; // centre (NDC), widest orbit (NDC x), tilt (y squash)
+  S.C=C;S.R=R;S.ty=ty;
+  const orb=PLANETS.filter(p=>p[0]!=='sun'&&p[0]!=='moon');
+  PLANETS.forEach(([id,col,,,sz],k)=>{const o=orb.findIndex(p=>p[0]===id),g=new THREE.Sprite(new THREE.SpriteMaterial({map:TEX.glow,color:col,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:id==='sun'?.9:.35,toneMapped:false})),
+      s=new THREE.Sprite(new THREE.SpriteMaterial({map:S.tex[id],transparent:true,depthWrite:false,toneMapped:false}));
+    S.sys.push({i:k,id,s,g,r:o<0?0:.24+o*(1-.24)/(orb.length-1),a:Math.random()*Math.PI*2,w:o<0?0:.32/Math.pow(o+1,.55),f:(id==='sun'?(portrait?.085:.17):(portrait?.05:.075)*Math.min(1.35,sz)),pop:0});scene.add(g,s)});
+  for(const p of S.sys)if(p.r){const pts=[];for(let k=0;k<=96;k++){const a=k/96*Math.PI*2;pts.push(ndcAt(C[0]+Math.cos(a)*p.r*R,C[1]+Math.sin(a)*p.r*R*ty*camera.aspect,S.D+1))}
+    const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x8fa6ff,transparent:true,opacity:.28,depthWrite:false}));l.renderOrder=-4;S.orbits.push(l);scene.add(l)}
+  // Googoo small in the bottom corner, hovering
+  const d0=camera.position.distanceTo(LAUNCH.home);await anim(900,p=>{LAUNCH.gp=LAUNCH.home.clone().setY(1.4*HOME.s).lerp(ndcAt(portrait?-.42:-.66,-.8,d0),smooth(p));LAUNCH.gs=1-.45*smooth(p)});
+  if(!alive(tok)||SPACE!==S)return;LAUNCH.flat=0;await sayAsync('sp_all')}
+function spSolarTick(dt){const S=SPACE,[cx,cy]=S.C;
+  for(const p of S.sys){p.a+=p.w*dt*(p.pop>0?.25:1);let x=cx+Math.cos(p.a)*p.r*S.R,y=cy+Math.sin(p.a)*p.r*S.R*S.ty*camera.aspect;
+    if(p.id==='moon'){const e=S.sys.find(q=>q.id==='earth');p.a+=dt*.9;x=e.x+Math.cos(p.a)*.075;y=e.y+Math.sin(p.a)*.075*S.ty*camera.aspect}
+    p.x=x;p.y=y;p.pop=Math.max(0,p.pop-dt);const f=p.f*(1+.35*Math.sin(Math.min(1,p.pop/.6)*Math.PI)),d=S.D+(p.r?-Math.sin(p.a)*.5:0); // front half a little nearer: it passes in front of the sun
+    spPlace(p.s,x,y,f,d);spPlace(p.g,x,y,f*(p.id==='sun'?2.2:1.8),d+.01);p.s.renderOrder=p.r?Math.round(-Math.sin(p.a)*10):0;p.g.renderOrder=p.s.renderOrder-1}}
 function spCatch(e){const S=SPACE;if(!S)return;const r=renderer.domElement.getBoundingClientRect(),mx=(e.clientX-r.left)/r.width*2-1,my=-((e.clientY-r.top)/r.height*2-1);
+  if(S.solar&&S.sys){let best=null,bd=1e9;for(const p of S.sys){const dd=Math.hypot((p.x-mx)*camera.aspect,p.y-my),rad=p.f*.6+.07;if(dd<rad&&dd<bd){bd=dd;best=p}}
+    if(best){best.pop=.6;SFX.boing();spSay(best.i,game.token)}return}
   for(const st of S.stars){if(!st.ok)continue;const p=st.s.position.clone().project(camera);if(Math.hypot((p.x-mx)*camera.aspect,p.y-my)<.13){st.ok=false;S.caught++;
     emit('star',st.s.position.clone(),8,{size:.3,life:.7});SFX.beep();const n=Math.min(10,S.caught);say(n<=5?'cd_'+n:'cnt_'+n);st.pop=0;st.s.visible=false;break}}}
 function spaceTick(dt){const S=SPACE;if(!S)return;
-  if(S.slide&&S.sp){const L=S.slide;L.t=Math.min(1,L.t+dt/L.dur);const q=L.to<L.from&&L.to<-1?L.t*L.t:1-Math.pow(1-L.t,3),x=L.from+(L.to-L.from)*q;
-    spPlace(S.sp,x,L.y+Math.sin(performance.now()/900)*.012,L.f);spPlace(S.gl,x,L.y,L.f*1.55);S.sp.material.rotation+=dt*.03}
-  S.speed+=((S.slide&&S.slide.to<-1?1:0)-S.speed)*Math.min(1,dt*2);
+  if(S.slide&&S.sp){const L=S.slide;L.t=Math.min(1,L.t+dt/L.dur);const q=L.to<-1?L.t*L.t:1-Math.pow(1-L.t,3),x=L.from+(L.to-L.from)*q;
+    spPlace(S.sp,x,L.y+Math.sin(performance.now()/900)*.012,L.f);spPlace(S.gl,x,L.y,L.f*1.55);S.sp.material.rotation+=dt*.03;S.sp.visible=S.gl.visible=!(S.solar||L.to<-1&&L.t>=1)}
+  S.speed+=((S.slide&&S.slide.to<-1&&S.slide.t<1||LAUNCH.flat&&!S.solar?1:0)-S.speed)*Math.min(1,dt*2);
   const a=S.pts.geometry.attributes.position;for(let i=0;i<a.count;i++){const d=S.sf[i],v=.15+S.speed*30/d;a.array[i*3]-=S.right.x*v*dt;a.array[i*3+2]-=S.right.z*v*dt;
-    const p=new THREE.Vector3(a.array[i*3],a.array[i*3+1],a.array[i*3+2]).project(camera);if(p.x<-1.35){const q=ndcAt(1.3,p.y,d);a.array.set([q.x,q.y,q.z],i*3)}}a.needsUpdate=true;
+    _sv.set(a.array[i*3],a.array[i*3+1],a.array[i*3+2]).project(camera);if(_sv.x<-1.35){const q=ndcAt(1.3,_sv.y,d);a.array.set([q.x,q.y,q.z],i*3)}}a.needsUpdate=true;
   for(let k=S.stars.length-1;k>=0;k--){const st=S.stars[k];
     if(st.pop!==undefined){st.pop+=dt;if(st.pop>.1){scene.remove(st.s);st.s.material.dispose();S.stars.splice(k,1)}continue}
-    st.nx-=st.v*dt;spPlace(st.s,st.nx,st.ny+Math.sin(st.nx*4)*.03,.09);st.s.material.rotation+=dt*2;if(st.nx<-1.25){scene.remove(st.s);st.s.material.dispose();S.stars.splice(k,1)}}}
+    st.nx-=st.v*dt;spPlace(st.s,st.nx,st.ny+Math.sin(st.nx*4)*.03,.09);st.s.material.rotation+=dt*2;if(st.nx<-1.25){scene.remove(st.s);st.s.material.dispose();S.stars.splice(k,1)}}
+  if(S.solar&&S.sys)spSolarTick(dt)}
+const _sv=new THREE.Vector3();
 async function spaceTrip(tok){const fl=spEl('flash');spaceOn();const L=LAUNCH;
   L.rs=0;L.flame=0;L.ry=0;L.gvis=true;L.gs=1;L.jets=true;L.gp=L.home.clone().setY(1.4*HOME.s);L.hover=true;fl.style.opacity=0;await wait(500);if(!alive(tok))return;
   await sayAsync('sp_hello');
   for(let i=0;i<PLANETS.length;i++){if(!alive(tok)||!SPACE)return;await spArrive(i,tok);if(!alive(tok)||!SPACE)return;
-    spEl('spNext').hidden=i===PLANETS.length-1;spEl('spBtns').classList.add('show');
-    const go=await new Promise(ok=>SPACE.next=ok);spEl('spBtns').classList.remove('show');if(!alive(tok)||!SPACE)return;
-    if(go==='home')break;SFX.boing();await spWhoosh(tok)}
-  if(!alive(tok)||!SPACE)return;spEl('spBtns').classList.remove('show');
-  // home: flash, back in the bedroom, he jets down onto the rug
-  say('sp_home');await wait(900);fl.style.opacity=1;await wait(600);spaceOff();L.hover=false;fl.style.opacity=0;
+    spBtnsShow(true);const go=await new Promise(ok=>SPACE.next=ok);spBtnsShow(false);if(!alive(tok)||!SPACE)return;
+    if(go==='home')return spGoHome(tok);SFX.boing();if(i<PLANETS.length-1)await spWhoosh(tok)}
+  // after Neptune: the whole solar system; only the house button now
+  await spSolar(tok);if(!alive(tok)||!SPACE)return;spEl('spNext').hidden=true;spBtnsShow(true);await new Promise(ok=>SPACE.next=ok);spBtnsShow(false);spGoHome(tok)}
+function spBtnsShow(on){spEl('spBtns').classList.toggle('show',on)}
+async function spGoHome(tok){const L=LAUNCH,fl=spEl('flash');if(!alive(tok)||!SPACE)return;SPACE.say++;
+  say('sp_home');await wait(900);fl.style.opacity=1;await wait(600);spaceOff();spEl('spNext').hidden=false;L.hover=false;L.flat=0;L.gs=1;fl.style.opacity=0;
   await anim(1500,p=>{L.gp=L.home.clone().setY(8*HOME.s*(1-smooth(p)))});if(!alive(tok))return;
   L.jets=false;kick('squash',8);await sayAsync('cd_back');if(alive(tok))endGame()}
 spEl('spNext').onclick=()=>SPACE&&SPACE.next&&SPACE.next('next');spEl('spHome').onclick=()=>SPACE&&SPACE.next&&SPACE.next('home'); // not onBtn: that ends the game (the trip)
@@ -2252,6 +2287,7 @@ function loop(){
     a.vel+=(-(a.ang-tgt)*80-a.vel*7)*dt;a.ang+=a.vel*dt;a.sh.rotation.z=a.ang;
     const fx=armFwd?armFwd[i]:0;a.rxv+=(-(a.rx-fx)*70-a.rxv*8)*dt;a.rx+=a.rxv*dt;a.sh.rotation.x=a.rx;a.sh.position.z+=((armFwd?.6:0)-a.sh.position.z)*Math.min(1,dt*10)});
   peekDip+=((armFwd?1:0)-peekDip)*Math.min(1,dt*8);neck.position.y-=peekDip*.3;head.rotation.x=peekDip*.08;
+  if(LAUNCH&&LAUNCH.fv>.3){armWave=[1.5+Math.sin(t*3)*.08,1.5+Math.sin(t*3+1)*.08];bob=0} // flying flat: arms open
   if(GG)ggUpdate(dt,t,now,{bob,armWave,armFwd,headYaw,peekDip,sit:sitNow,walk:Math.hypot(x-ox,z-oz)/dt});
   if(ball.visible){bv.y-=9.8*dt;ball.position.addScaledVector(bv,dt);
     if(ball.position.y<BR){ball.position.y=BR;bv.y*=-.6;bv.x*=.85;bv.z*=.85;if(Math.abs(bv.y)>1)tone(300,200,.05,'sine',.1)}
