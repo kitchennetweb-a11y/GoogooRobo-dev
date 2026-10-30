@@ -1787,9 +1787,9 @@ async function launchRocket(){
 function launchTick(dt){const L=LAUNCH;
   if(ROCKET){ROCKET.visible=L.rs>.001;ROCKET.scale.setScalar(Math.max(.001,L.rs)*HOME.s);const j=L.shake;ROCKET.position.y=L.ry+(j?Math.random()*j:0);ROCKET.rotation.z=j?(Math.random()-.5)*j*1.5:0}
   if(rocketFlame){rocketFlame.g.visible=L.flame>.01&&!!ROCKET&&ROCKET.visible;if(rocketFlame.g.visible){rocketFlame.g.position.copy(ROCKET.position);rocketFlame.g.position.y+=.06*HOME.s;const f=L.flame*(.85+Math.random()*.3)*HOME.s;rocketFlame.g.scale.set(L.flame*HOME.s,f,L.flame*HOME.s)}}
-  robot.visible=L.gvis;if(L.gp){robot.position.copy(L.gp);robot.rotation.y=HOME.ry}const tt=performance.now()/1000;if(L.hover)robot.position.y+=Math.sin(tt*2)*.15*HOME.s;if(SPACE)spaceTick(dt);robot.scale.setScalar(L.gs*HOME.s);
+  robot.visible=L.gvis;if(L.gp){robot.position.copy(L.gp);robot.rotation.y=HOME.ry}const tt=performance.now()/1000;if(L.hover)robot.position.y+=Math.sin(tt*1.3)*.05*HOME.s;/* hovering: a slow, gentle up and down */if(SPACE)spaceTick(dt);robot.scale.setScalar(L.gs*HOME.s);
   // flying between planets: belly down, head first to the right (the way he flies), arms open, the whole body rocking gently (turned about his middle)
-  L.fv=(L.fv||0)+((L.flat?1:0)-(L.fv||0))*Math.min(1,dt*3);if(L.fv>.001){const f=L.fv,hh=(RB.y0+RB.h)*.5*robot.scale.x;
+  L.fv=(L.fv||0)+((L.flat?1:0)-(L.fv||0))*Math.min(1,dt*2.4);if(L.fv>.001){const f=L.fv,hh=(RB.y0+RB.h)*.5*robot.scale.x;
     _fq0.setFromEuler(_fe.set(0,HOME.ry,0));_fq1.copy(_fqF).multiply(_fq0);robot.quaternion.copy(_fq0).slerp(_fq1,f);
     robot.quaternion.premultiply(_fqs.setFromEuler(_fe.set(Math.sin(tt*1.6)*.14*f,Math.sin(tt*1.1)*.07*f,(FLY_UP+Math.sin(tt*1.3)*.05)*f))); // FLY_UP: head end raised (a diagonal, like the Iron Man picture)
     const a=(Math.PI/2-FLY_UP)*f;robot.position.x-=hh*Math.sin(a);robot.position.y+=hh*(1-Math.cos(a))}else robot.rotation.z=0
@@ -2047,11 +2047,11 @@ async function spSay(i,tok){const S=SPACE,[id,col,ck,word]=PLANETS[i],my=++S.say
   spEl('spCol').classList.remove('show');facePic='pl_'+id;setFace('pic',9000);
   await sayAsync('pn_'+id);if(!ok())return;await wait(450);if(!ok())return;await sayAsync('sp_whatcol');if(!ok())return;await wait(1500);if(!ok())return;
   const c=spEl('spCol');c.querySelector('i').style.background=col;c.querySelector('b').textContent=word;c.classList.add('show');await sayAsync('col_'+ck)}
-async function spArrive(i,tok){const S=SPACE,[id,col,,,sz]=PLANETS[i];S.i=i;
+async function spArrive(i,tok){const S=SPACE,[id,col,,,sz]=PLANETS[i];S.i=i;LAUNCH.flat=0; // he eases round to face Ryan while the planet slides in
   if(!S.sp){S.gl=new THREE.Sprite(new THREE.SpriteMaterial({map:TEX.glow,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,toneMapped:false}));
     S.sp=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthWrite:false,toneMapped:false}));S.gl.renderOrder=-2;S.sp.renderOrder=-1;S.gl.material.opacity=.55;scene.add(S.gl,S.sp)} // the glow under the planet
   for(let w=0;!S.tex[id]&&w<40;w++)await wait(100);S.sp.material.map=S.tex[id]||null;S.sp.material.needsUpdate=true;S.gl.material.color.set(col);
-  const [x,y,f]=spSpot();S.slide={from:1.9,to:x,y,f:f*sz,t:0,dur:1.1};await wait(1150);if(!alive(tok)||!SPACE)return;LAUNCH.flat=0;
+  const [x,y,f]=spSpot();S.slide={from:1.9,to:x,y,f:f*sz,t:0,dur:1.1};await wait(1150);if(!alive(tok)||!SPACE)return;
   await spSay(i,tok)}
 function spWhoosh(tok){const S=SPACE;S.say++;spEl('spCol').classList.remove('show');setFace('laugh',3000);S.caught=0;LAUNCH.flat=1;
   const [x,y,f]=spSpot();S.slide={from:S.slide?S.slide.to:x,to:-1.9,y,f:S.slide?S.slide.f:f,t:0,dur:.9};
