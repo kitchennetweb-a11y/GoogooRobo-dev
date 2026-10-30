@@ -93,6 +93,11 @@ body.words.face #faceWord.on{display:block}body.face #bubble{display:none} /* th
   bottom:calc(env(safe-area-inset-bottom,0px) + var(--b) + 26px);display:flex;flex-wrap:wrap;align-items:center;align-content:center;justify-content:center;gap:14px;pointer-events:none}
 @media (orientation:portrait){#deck{left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 96px);bottom:calc(env(safe-area-inset-bottom,0px) + 5*var(--b) + 4*var(--g) + 20px);align-content:flex-end}} /* upright: cards sit just above the robot's face (resize() puts him under them) */
 @media (orientation:portrait){#deck.story{flex-wrap:wrap}#deck.story .ec.scene{flex-basis:100%;order:-1;font-size:min(12vh,20vw)}} /* upright: story picture gets its own big row */
+#cdNum{position:fixed;z-index:6;left:0;right:0;top:18%;text-align:center;pointer-events:none;font:800 min(34vw,30vh)/1 Vazirmatn,"Baloo 2",sans-serif;color:#fff;
+  -webkit-text-stroke:.04em #d2501a;text-shadow:0 .06em 0 #8a3210,0 0 .3em rgba(255,140,60,.6);opacity:0;transform:scale(.4)}
+#cdNum.pop{animation:cdPop .9s cubic-bezier(.2,1.6,.4,1) forwards}
+@keyframes cdPop{0%{opacity:0;transform:scale(.4)}25%{opacity:1;transform:scale(1.1)}70%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.9)}}
+#flash{position:fixed;inset:0;z-index:7;background:#fff;opacity:0;pointer-events:none;transition:opacity .45s}
 @media (max-height:500px){#deck{top:calc(env(safe-area-inset-top,0px) + 76px);gap:10px}}
 .ec{pointer-events:auto;border:0;border-radius:28px;background:#fffffff0;box-shadow:0 8px 0 #22314a22;color:var(--ink);font:inherit;font-size:min(17vh,12vw);
   line-height:1.15;padding:8px 16px;cursor:pointer;touch-action:manipulation;max-width:100%}
@@ -160,7 +165,7 @@ body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:jtap .35s cubic-bezier(.3,
 <div id="pFg" class="off"></div>
 <button id="pgPrev" class="rb pg" hidden aria-label="Previous books"><svg viewBox="0 0 24 24"><path d="M15 4 L7 12 L15 20" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
 <button id="pgNext" class="rb pg" hidden aria-label="Next books"><svg viewBox="0 0 24 24"><path d="M9 4 L17 12 L9 20" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div id="pgDots" hidden></div>
-<div id="deck" hidden></div>
+<div id="deck" hidden></div><div id="cdNum" dir="rtl"></div><div id="flash"></div>
 <div id="card" hidden><div class="em" id="cardEm"></div><div class="fa" id="cardFa"></div></div>
 <div id="fade"></div>
 <div id="btns" hidden><!-- side buttons; showScreen() moves the current screen's ones into #colL/#colR -->
@@ -824,7 +829,7 @@ function ggUpdate(dt,t,now,o){toRest(); // rest pose first, so the mixer saves r
   const sqz=st.squash*.04;gg.scale.set(1+sqz,1-sqz,1+sqz);gg.position.y=seated?0:Math.max(0,o.bob)*.6;gg.rotation.set(0,spinY*wDance,st.lean*.05);
   // ear propellers + glow
   const fly=st.mode==='fly',glow=fly||talk.rec||dz;
-  jetTick(dt,fly);
+  jetTick(dt,fly||!!(LAUNCH&&LAUNCH.jets));
   for(const e of EARS){const fx=e.userData.fx;fx.bl.visible=false;fx.gl.visible=glow;
     if(glow){fx.gl.material.color.copy(bulbMat.emissive);fx.gl.material.opacity=.55+.45*Math.abs(Math.sin(t*(dz?9:4)))}}}
 
@@ -851,6 +856,7 @@ const TEX={
   puff:spriteTex(x=>{const g=x.createRadialGradient(64,64,4,64,64,60);g.addColorStop(0,'#b7e48aee');g.addColorStop(1,'#b7e48a00');x.fillStyle=g;x.fillRect(0,0,128,128)}),
   spark:spriteTex(x=>{const g=x.createRadialGradient(64,64,2,64,64,50);g.addColorStop(0,'#fff');g.addColorStop(.3,'#7ef');g.addColorStop(1,'#7ef0');x.fillStyle=g;x.fillRect(0,0,128,128)}),
   z:spriteTex(x=>{x.fillStyle='#fff';x.font='bold 100px sans-serif';x.textAlign='center';x.fillText('z',64,100)}),
+  smoke:spriteTex(x=>{const g=x.createRadialGradient(64,64,6,64,64,62);g.addColorStop(0,'#ffffffee');g.addColorStop(.6,'#e8e4ee99');g.addColorStop(1,'#e8e4ee00');x.fillStyle=g;x.fillRect(0,0,128,128)}),
   heart:spriteTex(x=>{x.fillStyle='#ff6b8b';x.beginPath();x.moveTo(64,110);x.bezierCurveTo(-10,60,30,0,64,40);x.bezierCurveTo(98,0,138,60,64,110);x.fill()}),
 };
 function emit(type,pos,n,opts={}){
@@ -1065,7 +1071,7 @@ function animateItems(t,dt){
 // ----- game state -----
 const game={type:null,token:0,awaiting:null,busy:false,listening:false,onHeard:null,score:0};
 const deck=document.getElementById('deck');
-function endGame(){if(game.type==='dark')setLights(true);faceOff();game.token++;game.type=null;game.awaiting=null;game.busy=false;game.listening=false;game.onHeard=null;clearItems();
+function endGame(){if(game.type==='launch')launchEnd();if(game.type==='dark')setLights(true);faceOff();game.token++;game.type=null;game.awaiting=null;game.busy=false;game.listening=false;game.onHeard=null;clearItems();
   if(!deck.hidden){deck.hidden=true;resize()}
   if(st.mode==='game')setMode('idle')}
 // Cards: items [{pic (string, or array -> separate tappable spans), fa?, cls?, ...}]; onTap(item, button, spanIndex)
@@ -1567,10 +1573,10 @@ const PAINT={
       taps:[{r:[.39,.1,.61,.44],w:'w_window'},{r:[.11,.36,.28,.58],w:'w_chair'}]}},
   bed:{keep:[],portrait:{img:'assets/rooms/bed_portrait.webp',night:'assets/rooms/bed_portrait_night.webp',size:[810,1440],focus:[.5,.55],fov:50,horizon:.26,wall:.425,goo:[.5,.76,.26],rug:[.5,.72,.46,.12],
       light:{sun:['#fff0dc',1.15],dir:[5,8,-2],hemi:['#e2e9ff','#8a5a3a',.75],fill:['#ffe6c8',.45],shadow:.32,exp:.95},beam:[.25,.2,60,.05,.8,.07],dust:[.15,.1,.85,.55],lamps:[[.842,.316,.05]],
-      taps:[{r:[.26,.23,.79,.45],f:'bed'},{r:[.79,.29,.9,.43],f:'lamp'},{r:[.1,.1,.42,.29],w:'w_window'},{r:[.87,.1,.94,.18],w:'w_rocket'},{r:[.12,.04,.21,.09],w:'w_moon'}]},
+      taps:[{r:[.26,.23,.79,.45],f:'bed'},{r:[.79,.29,.9,.43],f:'lamp'},{r:[.1,.1,.42,.29],w:'w_window'},{r:[.87,.1,.94,.18],f:'rocket'},{r:[.12,.04,.21,.09],w:'w_moon'}]},
     landscape:{img:'assets/rooms/bed_landscape.webp',night:'assets/rooms/bed_landscape_night.webp',size:[1440,810],focus:[.5,.6],fov:50,horizon:.4,wall:.5,goo:[.5,.85,.34],rug:[.5,.833,.32,.14],
       light:{sun:['#fff0dc',1.15],dir:[5,8,-2],hemi:['#e2e9ff','#8a5a3a',.75],fill:['#ffe6c8',.45],shadow:.32,exp:.95},beam:[.3,.2,60,.05,.7,.07],dust:[.15,.1,.85,.55],lamps:[[.699,.36,.04]],
-      taps:[{r:[.34,.22,.65,.57],f:'bed'},{r:[.66,.31,.75,.55],f:'lamp'},{r:[.19,.03,.41,.36],w:'w_window'},{r:[.76,.04,.83,.18],w:'w_rocket'}]}}};
+      taps:[{r:[.34,.22,.65,.57],f:'bed'},{r:[.66,.31,.75,.55],f:'lamp'},{r:[.19,.03,.41,.36],w:'w_window'},{r:[.76,.04,.83,.18],f:'rocket'}]}}};
 const PAINT0=JSON.parse(JSON.stringify(PAINT)); // the built-in pictures (Design mode: "painted room" on again)
 let PNT=null,PK='',PW=null,libPage=0,libPages=[[]],libStoryP=0,libSlide=null,libSel=-1,libIdx={};const POSE=[],_pv=V3(),_pq=new THREE.Quaternion();
 const pOf=r=>{const B=PAINT[r];return B?B[portrait?'portrait':'landscape']||B.portrait||B.landscape||null:null}; // no picture for this orientation: the other one (cover fit, still no bars)
@@ -1718,6 +1724,7 @@ function discoTick(t){LCOL.forEach(([l],i)=>l.color.setHSL((t*.35+i*.33)%1,1,.5)
   scene.background.setHSL(t*.35%1,.5,.12);if(st.mode==='idle'){setMode('dance');music(true)}}
 async function tapFurniture(id){
   if(game.type||st.mode==='sleep'&&id!=='lamp')return;
+  if(id==='rocket')return launchRocket();
   const g=furnById(id);if(g)g.userData.wig=.7;st.lastPoke=performance.now();
   if(id==='lamp'){setLights(!lightsOn);SFX.beep();await sayAsync('w_lamp');say(lightsOn?'x_cheragh_roshan':'x_cheragh_khamoosh');return}
   if(id==='bed'){goHome();await sayAsync('w_bed');await sayAsync('x_in_takhte_mane');if(st.mode!=='game'&&curRoom==='bed'){setMode('sleep');setFace('sleep',1e9);music(false);ggClip(...YAWN)}return}
@@ -1727,6 +1734,50 @@ async function tapFurniture(id){
     teddy:()=>{SFX.giggle();emit('heart',furnById('teddy').position.clone().setY(1.8),5,{size:.3,life:1.2,g:.5})},cow:()=>{SFX.giggle();emit('heart',furnById('cow').position.clone().setY(2.5),5,{size:.3,life:1.2,g:.5})},star:()=>{[1047,1319,1568].forEach((f,i)=>tone(f,f,.2,'triangle',.08,i*.15))}}[id]||SFX.boing)();
   setFace('shock',500);kick('squash',4);if(HAS.has('w_'+id)||FURN[id])await sayAsync('w_'+id);setFace('laugh',800);
 }
+// ----- Rocket launch (bedroom toy rocket): the rocket appears, Googoo jets into its window, counts down 5..1 in Farsi, blast-off.
+// The space trip itself comes later (docs/space-plan.md); for now he flies back down. Rocket: models/space_rocket.glb (tools/rocket_blender.py). -----
+let LAUNCH=null,ROCKET=null,rocketFlame=null;
+const smooth=x=>x*x*(3-2*x),anim=(ms,f)=>new Promise(ok=>{const t0=performance.now(),step=()=>{const p=Math.min(1,(performance.now()-t0)/ms);if(LAUNCH)f(p);p<1&&LAUNCH?requestAnimationFrame(step):ok()};step()});
+const loadRocket=()=>ROCKET?Promise.resolve(ROCKET):new Promise(ok=>new THREE.GLTFLoader().load('models/space_rocket.glb',g=>{ROCKET=g.scene;ROCKET.traverse(o=>{if(o.isMesh)o.castShadow=true});ok(ROCKET)},undefined,()=>ok(null)));
+function cdShow(txt){const e=document.getElementById('cdNum');e.textContent=txt;e.classList.remove('pop');void e.offsetWidth;e.classList.add('pop')}
+async function launchRocket(){
+  const tok=startGame('launch'),R=await loadRocket();if(!R||!alive(tok)){if(alive(tok))endGame();return}
+  goHome();const home=robot.position.clone().setY(0),rp=new THREE.Vector3(home.x+(portrait?1.35:2.1)*HOME.s,0,home.z-(portrait?.9:.3)); // upright phones: closer and a bit behind him, clear of the side buttons
+  LAUNCH={jets:false,rs:0,ry:0,shake:0,flame:0,gs:1,gp:null,gvis:true,home};
+  R.position.copy(rp);R.rotation.y=-.25;R.scale.setScalar(.001);scene.add(R);
+  if(!rocketFlame)rocketFlame=mkJet('','',3.6,.62);
+  loadVoices(['w_rocket','fly','cd_5','cd_4','cd_3','cd_2','cd_1','cd_go','cd_back']);const boom=loadAsnd('launch');
+  // 1. the toy rocket grows on the rug
+  SFX.boing();emit('star',rp.clone().setY(1.5),12,{size:.35,life:1});say('w_rocket');setFace('shock',1200);
+  await anim(700,p=>{LAUNCH.rs=p<.7?smooth(p/.7)*1.12:1.12-.12*smooth((p-.7)/.3)});if(!alive(tok))return;await wait(900);if(!alive(tok))return;
+  // 2. Googoo jets up and in through the window, getting small
+  const win=rp.clone().add(new THREE.Vector3(Math.sin(-.25)*.85*HOME.s,1.55*HOME.s,Math.cos(-.25)*.85*HOME.s)),c=new THREE.Vector3((home.x+win.x)/2,4.6*HOME.s,home.z+1);
+  LAUNCH.jets=true;setFace('laugh',2600);say('fly');
+  await anim(1700,p=>{const q=smooth(p),a=home.clone().lerp(c,q),b=c.clone().lerp(win,q);LAUNCH.gp=a.lerp(b,q);LAUNCH.gs=1-.88*smooth(Math.max(0,(p-.55)/.45))});
+  if(!alive(tok))return;LAUNCH.gvis=false;LAUNCH.jets=false;SFX.beep();
+  // 3. countdown: the rocket shakes more with every number
+  for(const n of [5,4,3,2,1]){if(!alive(tok))return;cdShow('۰۱۲۳۴۵'[n]);LAUNCH.shake=.012*(6-n);emit('smoke',rp.clone().setY(.15),9-n,{size:.6,life:1.2,g:.3,grow:.9});
+    await Promise.all([sayAsync('cd_'+n),wait(1000)])}
+  if(!alive(tok))return;
+  // 4. blast-off
+  cdShow('برو!');say('cd_go');boom.then(b=>{if(b&&LAUNCH&&alive(tok)){const s=AC.createBufferSource();s.buffer=b;s.connect(AC.destination);s.start();LAUNCH.boom=s}});
+  await anim(250,p=>{LAUNCH.flame=p});LAUNCH.shake=.08;
+  let puffT=0;const fl=document.getElementById('flash');
+  await anim(2400,p=>{LAUNCH.ry=14*HOME.s*Math.pow(p,2.2);LAUNCH.shake=.08*(1-p);
+    if(p-puffT>.04&&p<.6){puffT=p;emit('smoke',rp.clone().setY(.2),4,{size:.9,life:1.6,g:.2,grow:1.1,vel:()=>new THREE.Vector3((Math.random()-.5)*4,Math.random()*.6,(Math.random()-.5)*3)})}
+    if(p>.72)fl.style.opacity=1});
+  if(!alive(tok))return;await wait(700);if(!alive(tok))return;
+  // 5. (until the space trip exists) back home: the flash fades and Googoo jets down onto the rug
+  LAUNCH.flame=0;LAUNCH.rs=0;LAUNCH.ry=0;LAUNCH.gvis=true;LAUNCH.gs=1;LAUNCH.jets=true;fl.style.opacity=0;
+  await anim(1500,p=>{LAUNCH.gp=home.clone().setY(8*HOME.s*(1-smooth(p)))});if(!alive(tok))return;
+  LAUNCH.jets=false;kick('squash',8);await sayAsync('cd_back');if(alive(tok))endGame()}
+function launchTick(dt){const L=LAUNCH;
+  if(ROCKET){ROCKET.visible=L.rs>.001;ROCKET.scale.setScalar(Math.max(.001,L.rs)*HOME.s);const j=L.shake;ROCKET.position.y=L.ry+(j?Math.random()*j:0);ROCKET.rotation.z=j?(Math.random()-.5)*j*1.5:0}
+  if(rocketFlame){rocketFlame.g.visible=L.flame>.01&&!!ROCKET&&ROCKET.visible;if(rocketFlame.g.visible){rocketFlame.g.position.copy(ROCKET.position);rocketFlame.g.position.y+=.06*HOME.s;const f=L.flame*(.85+Math.random()*.3)*HOME.s;rocketFlame.g.scale.set(L.flame*HOME.s,f,L.flame*HOME.s)}}
+  robot.visible=L.gvis;if(L.gp)robot.position.copy(L.gp);robot.scale.setScalar(L.gs*HOME.s);jetTick(0,L.jets&&L.gvis)}
+function launchEnd(){const L=LAUNCH;if(!L)return;LAUNCH=null;try{L.boom&&L.boom.stop()}catch(e){}
+  if(ROCKET)scene.remove(ROCKET);if(rocketFlame)rocketFlame.g.visible=false;robot.visible=true;robot.scale.setScalar(HOME.s);jetTick(0,false);
+  document.getElementById('flash').style.opacity=0;document.getElementById('cdNum').classList.remove('pop')}
 function animateFurniture(t,dt){for(const g of furnGroup.children){const u=g.userData;
   if(u.spin)g.rotation.y+=u.spin*dt;
   if(u.wig>0){u.wig-=dt;g.scale.set(1+Math.sin(u.wig*25)*.06*u.wig,1-Math.sin(u.wig*25)*.06*u.wig,1+Math.sin(u.wig*25)*.06*u.wig)}else g.scale.set(1,1,1)}}
@@ -2150,7 +2201,7 @@ function loop(){
   if(talk.an){const b=talk.buf||(talk.buf=new Float32Array(talk.an.fftSize));talk.an.getFloatTimeDomainData(b);let q=0;for(const v of b)q+=v*v;talk.level=Math.sqrt(q/b.length)}
   mouthOpen=talk.playing?Math.min(1,talk.level*7):now<mouthT?Math.abs(Math.sin(now/70)):0;
   const fk=face+(face==='pic'?facePic:'')+(blink>0)+(mouthOpen>.05?Math.round(mouthOpen*8):0);if(fk!==faceKey||face==='dizzy'){faceKey=fk;drawFace(t)}} // redraw the face only when it changes
-  if(libFly&&libFly.t<1)stepFly(dt);faceStep(dt);paintTick(dt,t);
+  if(libFly&&libFly.t<1)stepFly(dt);faceStep(dt);paintTick(dt,t);if(LAUNCH)launchTick(dt);
   renderer.render(scene,camera);
 }
 loop();

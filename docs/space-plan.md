@@ -51,4 +51,5 @@ Then a single picture in the same chat: "Now one more picture in the exact same 
 
 Put the three pictures (space upright, space wide, planet sheet) and Neptune into `Downloads\GooGoo Robo background\space\`.
 
-- **Launch rocket:** `models/space_rocket.glb` (Tripo, deeper orange, black window made with `tools/rocket_black_window.py`). In the game it stands a little shorter than Googoo (about 3.6 units to his 4).
+- **Launch rocket:** `models/space_rocket.glb` (rebuilt cleanly in Blender to the Tripo rocket's proportions: `tools/rocket_blender.py`). In the game it stands a little shorter than Googoo (about 3.6 units to his 4).
+- **Bedroom launch (built 2026-10-29):** tap the toy rocket on the bedroom shelf. The rocket grows on the rug, Googoo jets into its window, counts down ۵..۱ (clips cd_5..cd_1, cd_go), and it blasts off (assets/sounds/launch.mp3, ElevenLabs paid). Until the space scene exists, a white flash brings him back down (cd_back). Code: launchRocket / launchTick / launchEnd in src.
