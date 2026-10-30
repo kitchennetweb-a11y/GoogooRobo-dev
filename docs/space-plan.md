@@ -50,3 +50,5 @@ Attach `Sister.png` (or one of the word sheets) as the style reference, so the p
 Then a single picture in the same chat: "Now one more picture in the exact same style, on its own on a white background: Neptune, a deep blue planet with soft darker blue swirls and one dark spot."
 
 Put the three pictures (space upright, space wide, planet sheet) and Neptune into `Downloads\GooGoo Robo background\space\`.
+
+- **Launch rocket:** `models/space_rocket.glb` (Tripo, deeper orange, black window made with `tools/rocket_black_window.py`). In the game it stands a little shorter than Googoo (about 3.6 units to his 4).
