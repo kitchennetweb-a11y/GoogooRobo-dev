@@ -1955,7 +1955,7 @@ function playBack(buf){
 const ray=new THREE.Raycaster(),ptr=new THREE.Vector2();let down=null;
 function hit(e){const r=renderer.domElement.getBoundingClientRect();ptr.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);
   ray.setFromCamera(ptr,camera);return ray.intersectObjects([itemsGroup,bubbleGroup,robot,ball,furnGroup,libGroup,sky],true).find(h=>{for(let o=h.object;o;o=o.parent)if(!o.visible)return false;return true})}
-renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,moved:false,h:hit(e)}});
+renderer.domElement.addEventListener('pointerdown',e=>{if(LAUNCH){down=null;return}down={x:e.clientX,y:e.clientY,moved:false,h:hit(e)}}); // rocket trip: Googoo and the room don't react (stars have their own tap)
 renderer.domElement.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-down.x;
   if(Math.abs(dx)>12){down.moved=true;st.spinVel+=(e.movementX||0)*.02;}});
 addEventListener('pointerup',e=>{if(!down)return;
