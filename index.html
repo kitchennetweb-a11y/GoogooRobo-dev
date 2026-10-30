@@ -1617,14 +1617,14 @@ const PAINT={
 const HW={on:true,el:null,room:null,key:'',fly:null,flyT:8,busy:false,hat:null,tf:''};try{HW.on=localStorage.getItem('pash-hw')!=='0'}catch(e){}
 // [picture, u, v (its feet on the painting), height (part of the painting's height), word, effect]  glow = orange flicker, green = cauldron, bob = floats
 const HWP={
-  home:{landscape:[['jack',.86,.405,.09,'w_pumpkin','glow'],['candles',.95,.402,.07,'w_candle','glow'],['pumpkins2',.17,.72,.13,'w_pumpkin'],['blackcat',.8,.67,.13,'w_blackcat'],['ghost',.62,.22,.12,'w_ghost','bob'],['broom',.42,.56,.2,'w_broom']],
-        portrait:[['jack',.9,.357,.06,'w_pumpkin','glow'],['candles',.42,.405,.045,'w_candle','glow'],['pumpkins2',.15,.63,.08,'w_pumpkin'],['blackcat',.85,.61,.08,'w_blackcat'],['ghost',.68,.2,.08,'w_ghost','bob'],['broom',.27,.45,.12,'w_broom']]},
-  play:{landscape:[['cauldron',.86,.78,.14,'w_cauldron','green'],['monster',.45,.62,.11,'w_monster'],['candybowl',.33,.68,.07,'w_candy'],['jack',.72,.275,.07,'w_pumpkin','glow'],['ghost2',.55,.16,.11,'w_ghost','bob'],['owlhat',.1,.55,.1,'w_owl']],
-        portrait:[['cauldron',.2,.82,.09,'w_cauldron','green'],['monster',.5,.61,.07,'w_monster'],['candybowl',.85,.69,.05,'w_candy'],['jack',.17,.452,.05,'w_pumpkin','glow'],['owlhat',.29,.452,.06,'w_owl'],['ghost2',.42,.2,.08,'w_ghost','bob']]},
-  bed:{landscape:[['jack',.735,.478,.07,'w_pumpkin','glow'],['pumpkins2',.17,.465,.1,'w_pumpkin'],['cauldron',.85,.82,.14,'w_cauldron','green'],['ghost',.44,.16,.1,'w_ghost','bob'],['blackcat',.15,.74,.12,'w_blackcat'],['witchhat',.45,.49,.07,'w_witchhat'],['lantern',.9,.3,.09,'w_candle','glow']],
-       portrait:[['jack',.83,.392,.045,'w_pumpkin','glow'],['pumpkins2',.12,.61,.08,'w_pumpkin'],['cauldron',.85,.86,.09,'w_cauldron','green'],['ghost',.62,.17,.07,'w_ghost','bob'],['blackcat',.86,.6,.07,'w_blackcat'],['witchhat',.4,.37,.045,'w_witchhat']]},
-  library:{landscape:[['jack',.5,.307,.06,'w_pumpkin','glow'],['candles',.9,.62,.06,'w_candle','glow'],['ghost',.25,.22,.1,'w_ghost','bob'],['blackcat',.73,.77,.1,'w_blackcat'],['broom',.3,.75,.18,'w_broom'],['monster',.62,.8,.09,'w_monster']],
-           portrait:[['jack',.65,.372,.04,'w_pumpkin','glow'],['ghost',.25,.24,.07,'w_ghost','bob'],['candles',.12,.56,.04,'w_candle','glow'],['blackcat',.72,.83,.06,'w_blackcat'],['cauldron',.3,.85,.07,'w_cauldron','green']]}};
+  home:{landscape:[['jack',.86,.405,.09,'w_pumpkin','glow'],['candles',.95,.402,.07,'w_candle','glow'],['pumpkins2',.17,.72,.13,'w_pumpkin'],['blackcat',.8,.67,.13,'w_blackcat'],['ghost',.62,.22,.12,'w_ghost','bob'],['broom',.33,.6,.2,'w_broom']],
+        portrait:[['jack',.75,.6,.06,'w_pumpkin','glow'],['candles',.42,.405,.045,'w_candle','glow'],['pumpkins2',.24,.66,.07,'w_pumpkin'],['blackcat',.7,.69,.07,'w_blackcat'],['ghost',.68,.2,.08,'w_ghost','bob'],['broom',.33,.47,.11,'w_broom']]},
+  play:{landscape:[['cauldron',.86,.78,.14,'w_cauldron','green'],['monster',.68,.56,.1,'w_monster'],['candybowl',.33,.68,.07,'w_candy'],['jack',.4,.66,.06,'w_pumpkin','glow'],['ghost2',.55,.16,.11,'w_ghost','bob'],['owlhat',.1,.55,.1,'w_owl']],
+        portrait:[['cauldron',.28,.8,.08,'w_cauldron','green'],['monster',.72,.63,.06,'w_monster'],['candybowl',.68,.7,.05,'w_candy'],['jack',.42,.6,.05,'w_pumpkin','glow'],['owlhat',.28,.452,.055,'w_owl'],['ghost2',.42,.2,.08,'w_ghost','bob']]},
+  bed:{landscape:[['jack',.735,.478,.07,'w_pumpkin','glow'],['pumpkins2',.17,.465,.1,'w_pumpkin'],['cauldron',.85,.82,.14,'w_cauldron','green'],['ghost',.44,.16,.1,'w_ghost','bob'],['blackcat',.15,.74,.12,'w_blackcat'],['witchhat',.36,.47,.07,'w_witchhat'],['lantern',.9,.3,.09,'w_candle','glow']],
+       portrait:[['jack',.7,.44,.045,'w_pumpkin','glow'],['pumpkins2',.25,.61,.06,'w_pumpkin'],['cauldron',.85,.86,.09,'w_cauldron','green'],['ghost',.62,.17,.07,'w_ghost','bob'],['blackcat',.75,.66,.06,'w_blackcat'],['witchhat',.4,.37,.045,'w_witchhat']]},
+  library:{landscape:[['jack',.5,.307,.06,'w_pumpkin','glow'],['candles',.9,.62,.06,'w_candle','glow'],['ghost',.25,.32,.1,'w_ghost','bob'],['blackcat',.73,.77,.1,'w_blackcat'],['broom',.3,.75,.18,'w_broom'],['monster',.17,.84,.09,'w_monster']],
+           portrait:[['jack',.65,.372,.04,'w_pumpkin','glow'],['ghost',.25,.24,.07,'w_ghost','bob'],['broom',.27,.83,.1,'w_broom'],['blackcat',.72,.83,.06,'w_blackcat'],['cauldron',.3,.85,.07,'w_cauldron','green']]}};
 const HWCOL=[['zard','#f5c518'],['abi','#2f74d0'],['ghermez','#e0402a'],['naranji','#f08a1c'],['abiroshan','#79cfe2']];
 function hwWeb(left){const n=7,R=100,sp=[];let d='';for(let i=0;i<n;i++){const a=i/(n-1)*Math.PI/2;d+=`M0 0L${(R*Math.cos(a)).toFixed(1)} ${(R*Math.sin(a)).toFixed(1)}`}
   for(let r=18;r<R;r+=16){let s='';for(let i=0;i<n;i++){const a=i/(n-1)*Math.PI/2,k=r*(i%(n-1)?.93:1);s+=(i?'Q':'M')+(i?`${(r*1.02*Math.cos(a-.13)).toFixed(1)} ${(r*1.02*Math.sin(a-.13)).toFixed(1)} `:'')+`${(k*Math.cos(a)).toFixed(1)} ${(k*Math.sin(a)).toFixed(1)}`}d+=s}
@@ -1659,11 +1659,11 @@ function hwTick(dt){if(!HW.el||HW.el.hidden)return;const T=pU.uT.value,Z=pU.uZ.v
   if(tf!==HW.tf){HW.tf=tf;HW.el.querySelector('#hwRoom').style.transform=tf}
   const f=HW.el.querySelector('#hwFly');
   if(!HW.fly){HW.flyT-=dt;if(HW.flyT<0&&!game.type){const bat=Math.random()<.7,dir=Math.random()<.5?1:-1;HW.fly={bat,dir,t:0,dur:bat?6:8,y:.12+Math.random()*.3,w:bat?'w_bat':'w_witch',loop:0,fr:0};
-      f.src='assets/hw/'+(bat?'bat1':'witch')+'.webp';f.style.height=(bat?11:16)*Math.min(innerWidth,innerHeight)/100+'px';f.style.display='block'}return}
+      f.src='assets/hw/'+(bat?'bat1':'witch')+'.webp';const m=Math.min(innerWidth,innerHeight)/100;f.style.width=bat?17*m+'px':'auto';f.style.height=bat?'auto':19*m+'px';f.style.display='block'}return}
   const F=HW.fly;F.t+=dt;const p=F.t/F.dur,W=innerWidth+300,x=F.dir>0?-150+p*W:innerWidth+150-p*W,y=innerHeight*(F.y+Math.sin(p*9)*.03);
   if(F.loop){F.loop+=dt*2.2;if(F.loop>=Math.PI*2+1)F.loop=0}const l=F.loop?F.loop-1:0,lr=l>0?60:0;
   if(F.bat&&(F.fr+=dt)>.14){F.fr=0;f.dataset.f=f.dataset.f==='2'?'1':'2';f.src='assets/hw/bat'+f.dataset.f+'.webp'}
-  f.style.transform=`translate(${x+Math.sin(l)*lr}px,${y-(1-Math.cos(l))*lr}px) translate(-50%,-50%) scaleX(${-F.dir}) rotate(${l>0?l*57.3*F.dir:0}deg)`;
+  f.style.transform=`translate(${x+Math.sin(l)*lr}px,${y-(1-Math.cos(l))*lr}px) translate(-50%,-50%) scaleX(${F.dir}) rotate(${l>0?l*57.3*F.dir:0}deg)`;
   if(p>=1){HW.fly=null;f.style.display='none';HW.flyT=14+Math.random()*12}}
 const PAINT0=JSON.parse(JSON.stringify(PAINT)); // the built-in pictures (Design mode: "painted room" on again)
 let PNT=null,PK='',PW=null,libPage=0,libPages=[[]],libStoryP=0,libSlide=null,libSel=-1,libIdx={};const POSE=[],_pv=V3(),_pq=new THREE.Quaternion();
