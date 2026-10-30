@@ -267,11 +267,12 @@ const VOICE={},VLOAD={},HAS=new Set();
 const MANIFEST=fetch('audio/manifest.json').then(r=>r.json()).then(m=>{for(const k in m){HAS.add(k);if(m[k])LINES[k]=m[k]}}).catch(()=>{});
 function loadVoice(k){if(VOICE[k])return Promise.resolve(VOICE[k]);if(!HAS.has(k))return Promise.resolve(null);
   return VLOAD[k]||(VLOAD[k]=fetch('audio/'+k+'.mp3').then(r=>{if(!r.ok)throw 0;return r.arrayBuffer()}).then(b=>new Promise((ok,no)=>ac().decodeAudioData(b,ok,no)))
-    .then(b=>VOICE[k]=b).catch(()=>{delete VLOAD[k];return null}))}
+    .then(b=>{VOICE[k]=b;if(!isCore(k)){VUSE.push(k);if(VUSE.length>80){const o=VUSE.shift();delete VOICE[o];delete VLOAD[o]}}return b}).catch(()=>{delete VLOAD[k];return null}))}
 const loadVoices=keys=>Promise.all(keys.map(loadVoice));
+const isCore=k=>!/^(w|ww|wn|where|this|say|want|song|surprise|st|book|ask|snd|hunt|count|night|dark|disco|lamp|invite)_/.test(k),VUSE=[]; // word clips: only the latest 80 stay decoded (a long play session filled the phone's memory)
 // core = every clip that isn't a per-word line; word clips load when needed
 // core = Pash's own reactions (pokes, greetings, variants), loaded one at a time so the phone stays responsive; word, game, book and story lines load when needed
-const loadCore=()=>MANIFEST.then(()=>[...HAS].filter(k=>!/^(w|ww|wn|where|this|say|want|song|surprise|st|book|ask|snd|hunt|count|night|dark|disco|lamp|invite)_/.test(k))
+const loadCore=()=>MANIFEST.then(()=>[...HAS].filter(isCore)
   .reduce((p,k)=>p.then(()=>loadVoice(k)),Promise.resolve()));
 let voiceSrc=null,voiceEnd=0,VAN=null,vPeak=.02;const vBuf=new Float32Array(512);
 // mouth level of the clip playing now (0..1), normalised to the clip's own peak so whispers move the mouth too; -1 = no voice
@@ -1795,22 +1796,26 @@ wordsEl.onchange=()=>{document.body.classList.toggle('words',wordsEl.checked);if
 
 // ---------- Talk-back: Pash repeats what you say in a funny voice ----------
 const talk={stream:null,src:null,proc:null,sink:null,on:false,rec:false,chunks:[],pre:[],quiet:0,noise:.008,idle:0,
-  playing:false,level:0,an:null,resumeAt:0,clips:0,pitch:1.65};
+  playing:false,level:0,an:null,resumeAt:0,clips:0,pitch:1.4}; // playback speed of the repeat: higher = squeakier and faster (was 1.65)
 const talkBtn=document.getElementById('bTalk');
 document.getElementById('micOk').onclick=()=>{document.getElementById('micHelp').hidden=true};
 // The mic stays on in the background. Pash only listens while he's idle (or asleep: a loud voice wakes him).
+const MIC_TAP="registerProcessor('mic-tap',class extends AudioWorkletProcessor{constructor(){super();this.b=new Float32Array(2048);this.n=0}"+
+  "process(i){const c=i[0]&&i[0][0];if(c)for(let k=0;k<c.length;k++){this.b[this.n++]=c[k];if(this.n===2048){this.port.postMessage(this.b,[this.b.buffer]);this.b=new Float32Array(2048);this.n=0}}return true}})";
 async function micOn(fromButton){
   const a=ac();await a.resume();
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('no mic api');
     audioSession('auto'); // back to the browser default while the mic is on (as it was before)
-    talk.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:false}}); // no auto gain: it pumps up quiet room sound (and the phone's levels) while the mic is on
+    talk.stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}); // no voice processing: echo cancellation puts phones in call mode (louder call volume for the whole game), auto gain pumps up room sound. He already ignores the mic while he talks
   }catch(e){audioSession('playback');if(fromButton){setFace('shock',900);document.getElementById('micHelp').hidden=false}return false}
   talk.src=a.createMediaStreamSource(talk.stream);
-  talk.proc=a.createScriptProcessor(2048,1,1);
+  try{ // mic samples arrive on the audio thread in 2048-sample blocks, queued, so a busy 3D frame doesn't drop bits of his voice (that made it choppy and robotic)
+    if(!talk.wl)talk.wl=a.audioWorklet.addModule(URL.createObjectURL(new Blob([MIC_TAP],{type:'application/javascript'})));await talk.wl;
+    talk.proc=new AudioWorkletNode(a,'mic-tap');talk.proc.port.onmessage=e=>onMic(e.data,a.sampleRate)}
+  catch(e){talk.wl=null;talk.proc=a.createScriptProcessor(2048,1,1);talk.proc.onaudioprocess=e=>onMic(e.inputBuffer.getChannelData(0),e.inputBuffer.sampleRate)} // older browsers
   talk.sink=a.createGain();talk.sink.gain.value=0;
   talk.src.connect(talk.proc);talk.proc.connect(talk.sink);talk.sink.connect(a.destination);
-  talk.proc.onaudioprocess=onMic;
   talk.on=true;talk.rec=false;talk.chunks=[];talk.pre=[];talk.resumeAt=performance.now()+800;
   talkBtn.classList.add('on');return true;
 }
@@ -1820,13 +1825,13 @@ async function startTalk(){ // Talk button = microphone on/off (for grown-ups)
 }
 function releaseMic(){
   talk.on=false;
-  try{talk.proc&&(talk.proc.onaudioprocess=null);talk.src&&talk.src.disconnect();talk.proc&&talk.proc.disconnect();talk.sink&&talk.sink.disconnect()}catch(e){}
+  try{talk.proc&&(talk.proc.onaudioprocess=null,talk.proc.port&&(talk.proc.port.onmessage=null));talk.src&&talk.src.disconnect();talk.proc&&talk.proc.disconnect();talk.sink&&talk.sink.disconnect()}catch(e){}
   if(talk.stream)talk.stream.getTracks().forEach(t=>t.stop());
   talk.stream=talk.src=talk.proc=talk.sink=null;talk.rec=false;talk.chunks=[];talk.pre=[];audioSession('playback');
 }
-function onMic(e){
+function onMic(d,sr){
   if(!talk.on)return;
-  const d=e.inputBuffer.getChannelData(0),sr=e.inputBuffer.sampleRate,secs=d.length/sr,now=performance.now();
+  const secs=d.length/sr,now=performance.now();
   const gameEar=st.mode==='game'&&game.listening;
   const canHear=(st.mode==='idle'&&!food&&!flipping&&jumpY<.05)||st.mode==='listen'||st.mode==='sleep'||gameEar;
   const pashBusy=AC.currentTime<voiceEnd+.4||!!bedSrc; // never react to Pash's own talking/singing
