@@ -2046,7 +2046,7 @@ const spSpot=()=>portrait?[0,.5,.52*camera.aspect]:[.52,.18,.42]; // where the p
 // a planet's line: name (English + Farsi), a small pause, "what colour is it?", a longer pause (his turn to answer), the colour
 async function spSay(i,tok){const S=SPACE,[id,col,ck,word]=PLANETS[i],my=++S.say,ok=()=>alive(tok)&&SPACE===S&&S.say===my;
   spEl('spCol').classList.remove('show');facePic='pl_'+id;setFace('pic',9000);
-  await sayAsync('pn_'+id);if(!ok())return;await wait(450);if(!ok())return;await sayAsync('sp_whatcol');if(!ok())return;await wait(1500);if(!ok())return;
+  await sayAsync('pn_'+id);if(!ok())return;await wait(200);if(!ok())return;await sayAsync('sp_whatcol');if(!ok())return;await wait(800);if(!ok())return;
   const c=spEl('spCol');c.querySelector('i').style.background=col;c.querySelector('b').textContent=word;c.classList.add('show');await sayAsync('col_'+ck)}
 async function spArrive(i,tok){const S=SPACE,[id,col,,,sz]=PLANETS[i];S.i=i;LAUNCH.flat=0; // he eases round to face Ryan while the planet slides in
   if(!S.sp){S.gl=new THREE.Sprite(new THREE.SpriteMaterial({map:TEX.glow,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,toneMapped:false}));
@@ -2080,7 +2080,7 @@ async function spSolar(tok){const S=SPACE;S.say++;spEl('spCol').classList.remove
   const tl=new THREE.TextureLoader(),tex={},got=Promise.all([...PLANETS.map(p=>p[0]),'saturn_ring'].map(id=>new Promise(ok=>tl.load('assets/space/3d/'+id+'.webp',t=>{tex[id]=t;ok()},undefined,ok))));
   await anim(1400,p=>{pU.uMul.value.setScalar(1-p)});await got;if(!alive(tok)||SPACE!==S)return;pU.uHas.value=0;pU.uFill.value.set('#000');pU.uMul.value.setScalar(1);
   // centre (NDC), widest orbit (NDC x), view from above (radians), orbit depth squash (keeps the near side from ballooning on a wide screen)
-  S.C=portrait?[0,.12]:[.08,.0];S.R=portrait?.92:.86;S.e=portrait?.95:.9;S.k=portrait?1:.58;S.uT={value:0};S.uSun={value:new THREE.Vector3()};S.sys=[];S.x=[];
+  S.C=portrait?[0,.12]:[.08,.0];S.R=portrait?.92:.86;S.e=portrait?.95:.9;S.k=portrait?1:.58;S.uT={value:0};S.cam={yaw:0,ty:0,e:S.e,te:S.e,vy:0,drag:null,lo:portrait?.45:.35,hi:portrait?1.35:.9};S.uSun={value:new THREE.Vector3()};S.sys=[];S.x=[];
   const G=S.G=new THREE.Group(),orb=PLANETS.filter(p=>p[0]!=='sun'&&p[0]!=='moon'),geo=new THREE.SphereGeometry(1,48,32);scene.add(G);
   PLANETS.forEach(([id,col,,,sz],k)=>{const o=orb.findIndex(p=>p[0]===id),sunP=id==='sun',
       m=new THREE.Mesh(geo,new THREE.ShaderMaterial({vertexShader:SS_V,fragmentShader:sunP?SS_SUN:SS_PL,
@@ -2091,8 +2091,8 @@ async function spSolar(tok){const S=SPACE;S.say++;spEl('spCol').classList.remove
       const ring=new THREE.Mesh(rg,new THREE.MeshBasicMaterial({map:tex.saturn_ring,transparent:true,side:THREE.DoubleSide,depthWrite:false,color:0xf2ecdf}));ring.rotation.x=-Math.PI/2;m.add(ring)}
     G.add(m);S.sys.push({i:k,id,m,r:o<0?0:.32+o*(1-.32)/(orb.length-1),a:Math.random()*Math.PI*2,w:o<0?0:.32/Math.pow(o+1,.55),
       f:sunP?(portrait?.08:.2):(portrait?.05:.075)*Math.min(1.35,sz),pop:0})});
-  for(const p of S.sys)if(p.r){const pts=[];for(let k=0;k<96;k++){const a=k/96*Math.PI*2;pts.push(new THREE.Vector3(Math.cos(a)*p.r,0,Math.sin(a)*p.r*S.k))}
-    const l=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x8fa6ff,transparent:true,opacity:.28,depthWrite:false}));G.add(l)}
+  for(const p of S.sys)if(p.r){const pts=[];for(let k=0;k<96;k++){const a=k/96*Math.PI*2;pts.push(new THREE.Vector3(Math.cos(a)*p.r,0,Math.sin(a)*p.r))}
+    const l=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x8fa6ff,transparent:true,opacity:.28,depthWrite:false}));G.add(l);(S.lines=S.lines||[]).push(l)}
   // fire: a glow and flames licking off the sun; ice: a comet with a sparkly tail every so often
   S.glow=ssSprite('#ffb030',{opacity:.9});S.fl=[...Array(16)].map(()=>({s:ssSprite('#ff8a1a'),t:Math.random(),a:Math.random()*6.3,v:.5+Math.random()*.5}));
   S.cm={t:-2,s:ssSprite('#ffffff'),tr:[...Array(36)].map(()=>({s:ssSprite('#bfeaff'),age:9})),k:0,acc:0};
@@ -2101,11 +2101,15 @@ async function spSolar(tok){const S=SPACE;S.say++;spEl('spCol').classList.remove
   const d0=camera.position.distanceTo(LAUNCH.home);await anim(900,p=>{LAUNCH.gp=LAUNCH.home.clone().setY(1.4*HOME.s).lerp(ndcAt(portrait?-.42:-.66,-.8,d0),smooth(p));LAUNCH.gs=1-.45*smooth(p)});
   if(!alive(tok)||SPACE!==S)return;LAUNCH.flat=0;await sayAsync('sp_all')}
 function spSolarTick(dt){const S=SPACE,G=S.G,d=S.D+2,h=spH(d),sc=S.R*h*camera.aspect/2,u=S.R*camera.aspect;S.uT.value+=dt;
-  G.position.copy(ndcAt(S.C[0],S.C[1],d));G.scale.setScalar(sc);G.quaternion.copy(camera.quaternion).multiply(_sq.setFromAxisAngle(_sx,S.e));G.updateMatrixWorld();
+  // slow camera: the view eases after the finger (at most .8 rad/s turning, .5 rad/s tilting) and coasts to a stop
+  const V=S.cam;if(V.drag)V.vy*=Math.exp(-dt*6);else{V.ty+=V.vy*dt;V.vy*=Math.exp(-dt*1.6)}
+  const dyaw=Math.max(-.8*dt,Math.min(.8*dt,(V.ty-V.yaw)*Math.min(1,dt*3)));V.yaw+=dyaw;V.e+=Math.max(-.5*dt,Math.min(.5*dt,(V.te-V.e)*Math.min(1,dt*3)));
+  S.k=portrait?1:Math.min(1,.38/Math.cos(V.e));for(const l of S.lines)l.scale.z=S.k; /* depth squash: keeps the near side from ballooning on a wide screen */
+  G.position.copy(ndcAt(S.C[0],S.C[1],d));G.scale.setScalar(sc);G.quaternion.copy(camera.quaternion).multiply(_sq.setFromAxisAngle(_sx,V.e));G.updateMatrixWorld();
   S.uSun.value.copy(G.position);const e=S.sys.find(q=>q.id==='earth');
   for(const p of S.sys){p.a+=p.w*dt*(p.pop>0?.25:1);p.pop=Math.max(0,p.pop-dt);const b=Math.sin(Math.min(1,p.pop/.6)*Math.PI),rad=p.f/u*(1+.35*b);
-    if(p.id==='moon'){p.a+=dt*.9;p.m.position.set(e.m.position.x+Math.cos(p.a)*.09,0,e.m.position.z+Math.sin(p.a)*.09)}else p.m.position.set(Math.cos(p.a)*p.r,0,Math.sin(p.a)*p.r*S.k);
-    p.m.scale.setScalar(rad);p.m.rotation.y+=dt*(p.r?.5:.08);if(p.m.material.uniforms.uPop)p.m.material.uniforms.uPop.value=b;
+    if(p.id==='moon'){p.a+=dt*.9;p.m.position.set(e.m.position.x+Math.cos(p.a)*.09,0,e.m.position.z+Math.sin(p.a)*.09)}else p.m.position.set(Math.cos(p.a+V.yaw)*p.r,0,Math.sin(p.a+V.yaw)*p.r*S.k);
+    p.m.scale.setScalar(rad);p.m.rotation.y+=dt*(p.r?.5:.08)-dyaw;if(p.m.material.uniforms.uPop)p.m.material.uniforms.uPop.value=b;
     p.m.getWorldPosition(_sv);const dist=_sv.distanceTo(camera.position);_sv.project(camera);p.x=_sv.x;p.y=_sv.y;p.fs=2*rad*sc/spH(dist)}
   const sunR=S.sys[0].m.scale.x*sc;_cr.set(1,0,0).applyQuaternion(camera.quaternion);_cu.set(0,1,0).applyQuaternion(camera.quaternion);
   S.glow.position.copy(G.position);S.glow.scale.setScalar(sunR*(3.4+.15*Math.sin(S.uT.value*2.3)));
@@ -2147,7 +2151,13 @@ async function spGoHome(tok){const L=LAUNCH,fl=spEl('flash');if(!alive(tok)||!SP
   await anim(1500,p=>{L.gp=L.home.clone().setY(8*HOME.s*(1-smooth(p)))});if(!alive(tok))return;
   L.jets=false;kick('squash',8);await sayAsync('cd_back');if(alive(tok))endGame()}
 spEl('spNext').onclick=()=>SPACE&&SPACE.next&&SPACE.next('next');spEl('spHome').onclick=()=>SPACE&&SPACE.next&&SPACE.next('home');spEl('spSkip').onclick=()=>SPACE&&SPACE.next&&SPACE.next('skip'); // not onBtn: that ends the game (the trip)
-renderer.domElement.addEventListener('pointerdown',e=>{if(SPACE)spCatch(e)});
+renderer.domElement.addEventListener('pointerdown',e=>{if(!SPACE)return;if(SPACE.solar&&SPACE.cam){SPACE.cam.drag={x:e.clientX,y:e.clientY,t:performance.now(),moved:false};return}spCatch(e)});
+// solar view: a tap says the planet, a drag (once the finger has moved 12px) turns and tilts the view
+addEventListener('pointermove',e=>{const V=SPACE&&SPACE.cam,d=V&&V.drag;if(!d)return;const r=renderer.domElement.getBoundingClientRect(),dx=e.clientX-d.x,dy=e.clientY-d.y;
+  if(!d.moved&&Math.hypot(dx,dy)<12)return;d.moved=true;d.x=e.clientX;d.y=e.clientY;const now=performance.now(),st=Math.max(.008,(now-d.t)/1000),w=-dx/r.width*Math.PI;d.t=now;
+  V.ty+=w;V.vy=Math.max(-.5,Math.min(.5,V.vy*.6+.4*w/st));V.te=Math.max(V.lo,Math.min(V.hi,V.te+dy/r.height*1.2))});
+addEventListener('pointerup',e=>{const V=SPACE&&SPACE.cam,d=V&&V.drag;if(!d)return;V.drag=null;if(!d.moved)spCatch(e)});
+addEventListener('pointercancel',()=>{if(SPACE&&SPACE.cam)SPACE.cam.drag=null});
 
 // ---------- Bedtime invite (after 3 finished games or ~6 min away from the bedroom) + hidden surprises ----------
 let doneN=0,awayT=0,bedInvite=false,surp=null,surpAt=Infinity;
