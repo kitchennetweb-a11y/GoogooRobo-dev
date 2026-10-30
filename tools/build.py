@@ -26,11 +26,11 @@ src = open(os.path.join(ROOT, 'src_pash-robot.html'), encoding='utf-8').read()
 page = HEAD + src + '\n</body></html>\n'
 open(os.path.join(ROOT, 'index.html'), 'w', encoding='utf-8', newline='').write(page)
 
-# sw.js cache versions: shell = hash of the page + manifest/stories, audio = hash of clip names and sizes
+# sw.js cache versions: shell = hash of the page + manifest/stories, audio = hash of clip names and contents
 # (a changed sw.js makes browsers install it, which drops the old caches)
 h = lambda s: hashlib.sha1(s.encode()).hexdigest()[:10]
 shell_v = h(page + json.dumps(keys) + open(os.path.join(ROOT, 'vocab', 'stories.json'), encoding='utf-8').read())
-audio_v = h(''.join(f'{k}:{os.path.getsize(os.path.join(ROOT, "audio", k + ".mp3"))}' for k in keys))
+audio_v = hashlib.sha1(b''.join(k.encode() + open(os.path.join(ROOT, 'audio', k + '.mp3'), 'rb').read() for k in keys)).hexdigest()[:10]  # contents: a re-made clip can have the same size
 swp = os.path.join(ROOT, 'sw.js')
 sw = re.sub(r"const SHELL_V='[^']*',AUDIO_V='[^']*'", f"const SHELL_V='{shell_v}',AUDIO_V='{audio_v}'", open(swp, encoding='utf-8').read())
 open(swp, 'w', encoding='utf-8', newline='').write(sw)
