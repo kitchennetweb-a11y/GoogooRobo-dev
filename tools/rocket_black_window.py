@@ -1,4 +1,4 @@
-# Rocket window glass -> black (base colour) and not metallic, a bit glossy (metal/rough map), rewritten into the GLB.
+# Rocket: window glass -> black, whole rocket matte and a bit darker (owner: less shine, less bright), rewritten into the GLB.
 # Usage: py -3.10 tools/rocket_black_window.py "C:/Users/ahmma/Downloads/Pash 3D/props/optimized/space_rocket.glb" models/space_rocket.glb
 import sys,json,struct,io
 import numpy as np
@@ -11,7 +11,9 @@ a=img(ci);k=np.clip((np.minimum(a[...,1],a[...,2])-a[...,0]-20)/40,0,1)[...,None
 from scipy import ndimage
 k=np.maximum(k,ndimage.grey_dilation(k[...,0],size=5)[...,None]*(np.minimum(a[...,1],a[...,2])>a[...,0]+5)[...,None]) # catch the pale rim of the glass too
 a=a*(1-k)+np.array([14,16,22])*k
-t=img(mi);t=t*(1-k)+np.array([255,70,0])*k   # glTF: G = roughness (glossy), B = metal (none)
+t=img(mi);t[...,1]=np.maximum(t[...,1],200);t[...,2]=0   # matte toy plastic everywhere (G = roughness), no metal (B)
+t=t*(1-k)+np.array([255,130,0])*k   # the glass: a little gloss, still soft
+a=a*.84   # a bit less bright: the white body glowed next to Googoo
 enc=lambda x:(lambda o:(Image.fromarray(x.astype(np.uint8)).save(o,'WEBP',quality=90),o.getvalue())[1])(io.BytesIO())
 new={J['images'][ci]['bufferView']:enc(a),J['images'][mi]['bufferView']:enc(t)};parts=[];off=0
 for i,v in enumerate(J['bufferViews']):
