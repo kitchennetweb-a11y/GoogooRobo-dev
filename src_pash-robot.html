@@ -816,7 +816,7 @@ function ggUpdate(dt,t,now,o){toRest(); // rest pose first, so the mixer saves r
   // head and chest: dizzy wobble, peekaboo bow, sleepy nod, zap shake
   const dzz=face==='dizzy'?Math.min(1,(faceUntil-now)/700):0;
   rot('Spine2',(pk*.18+(sleep?.12:0))*(1-wDance),0,.05*Math.cos(t*9)*dzz);
-  rot('Head',pk*.32+(sleep?.35+Math.sin(t*1.2)*.04:0)+.08*Math.sin(t*9)*dzz,o.headYaw*.8,st.head*.12+.12*Math.cos(t*9)*dzz+antAng*.025);
+  rot('Head',pk*.32+(o.headUp||0)+(sleep?.35+Math.sin(t*1.2)*.04:0)+.08*Math.sin(t*9)*dzz,o.headYaw*.8,st.head*.12+.12*Math.cos(t*9)*dzz+antAng*.025);
   // arms: the old arm angles become hand targets for IK (wave / up / out; peekaboo = hands to the face screen), kept out of the head
   const seated=CW.sit>.05,armOn=(o.armWave||o.armFwd)&&!dz&&!seated;if(armOn)lastArm={w:o.armWave,f:o.armFwd};wArm+=((armOn?1:0)-wArm)*Math.min(1,dt*8);
   if(wArm>.01){chestD();mP(B.Spine2,_cp);mQ(B.Head,_hd).multiply(_t.copy(B.Head.userData.w0).invert());_hc.set(0,.15,0).applyQuaternion(_hd).add(mP(B.Head,_ho));
@@ -1749,7 +1749,7 @@ async function tapFurniture(id){
 }
 // ----- Rocket launch (bedroom toy rocket): the rocket appears, Googoo jets into its window, counts down 5..1 in Farsi, blast-off.
 // Then the space trip (spaceTrip, below). Rocket: models/space_rocket.glb (tools/rocket_blender.py). -----
-let LAUNCH=null,ROCKET=null,rocketFlame=null;
+let LAUNCH=null,ROCKET=null,rocketFlame=null;const FLY_UP=.45;
 const _fe=new THREE.Euler(),_fq0=new THREE.Quaternion(),_fq1=new THREE.Quaternion(),_fqs=new THREE.Quaternion(),
   _fqF=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),Math.PI/2)); // flying pose: face down, head to +x
 const smooth=x=>x*x*(3-2*x),anim=(ms,f)=>new Promise(ok=>{const t0=performance.now(),step=()=>{const p=Math.min(1,(performance.now()-t0)/ms);if(LAUNCH)f(p);p<1&&LAUNCH?requestAnimationFrame(step):ok()};step()});
@@ -1791,8 +1791,8 @@ function launchTick(dt){const L=LAUNCH;
   // flying between planets: belly down, head first to the right (the way he flies), arms open, the whole body rocking gently (turned about his middle)
   L.fv=(L.fv||0)+((L.flat?1:0)-(L.fv||0))*Math.min(1,dt*3);if(L.fv>.001){const f=L.fv,hh=(RB.y0+RB.h)*.5*robot.scale.x;
     _fq0.setFromEuler(_fe.set(0,HOME.ry,0));_fq1.copy(_fqF).multiply(_fq0);robot.quaternion.copy(_fq0).slerp(_fq1,f);
-    robot.quaternion.premultiply(_fqs.setFromEuler(_fe.set(Math.sin(tt*1.6)*.14*f,Math.sin(tt*1.1)*.07*f,Math.sin(tt*1.3)*.05*f)));
-    robot.position.x-=hh*Math.sin(Math.PI/2*f);robot.position.y+=hh*(1-Math.cos(Math.PI/2*f))}else robot.rotation.z=0
+    robot.quaternion.premultiply(_fqs.setFromEuler(_fe.set(Math.sin(tt*1.6)*.14*f,Math.sin(tt*1.1)*.07*f,(FLY_UP+Math.sin(tt*1.3)*.05)*f))); // FLY_UP: head end raised (a diagonal, like the Iron Man picture)
+    const a=(Math.PI/2-FLY_UP)*f;robot.position.x-=hh*Math.sin(a);robot.position.y+=hh*(1-Math.cos(a))}else robot.rotation.z=0
   jetTick(0,L.jets&&L.gvis)}
 function launchEnd(){const L=LAUNCH;if(!L)return;LAUNCH=null;spaceOff();robot.rotation.z=0;spEl('spNext').hidden=false;try{L.boom&&L.boom.stop()}catch(e){}
   if(ROCKET)scene.remove(ROCKET);if(rocketFlame)rocketFlame.g.visible=false;robot.visible=true;robot.scale.setScalar(HOME.s);jetTick(0,false);
@@ -2290,8 +2290,8 @@ function loop(){
     a.vel+=(-(a.ang-tgt)*80-a.vel*7)*dt;a.ang+=a.vel*dt;a.sh.rotation.z=a.ang;
     const fx=armFwd?armFwd[i]:0;a.rxv+=(-(a.rx-fx)*70-a.rxv*8)*dt;a.rx+=a.rxv*dt;a.sh.rotation.x=a.rx;a.sh.position.z+=((armFwd?.6:0)-a.sh.position.z)*Math.min(1,dt*10)});
   peekDip+=((armFwd?1:0)-peekDip)*Math.min(1,dt*8);neck.position.y-=peekDip*.3;head.rotation.x=peekDip*.08;
-  if(LAUNCH&&LAUNCH.fv>.3){armWave=[1.5+Math.sin(t*3)*.08,1.5+Math.sin(t*3+1)*.08];bob=0} // flying flat: arms open
-  if(GG)ggUpdate(dt,t,now,{bob,armWave,armFwd,headYaw,peekDip,sit:sitNow,walk:Math.hypot(x-ox,z-oz)/dt});
+  if(LAUNCH&&LAUNCH.fv>.3){armWave=[.75+Math.sin(t*3)*.06,.75+Math.sin(t*3+1)*.06];bob=0} // flying: arms a little open, low along his body (Iron Man)
+  if(GG)ggUpdate(dt,t,now,{bob,armWave,armFwd,headYaw,peekDip,sit:sitNow,walk:Math.hypot(x-ox,z-oz)/dt,headUp:LAUNCH&&LAUNCH.fv?-.5*LAUNCH.fv:0}); // headUp: looks ahead while flying
   if(ball.visible){bv.y-=9.8*dt;ball.position.addScaledVector(bv,dt);
     if(ball.position.y<BR){ball.position.y=BR;bv.y*=-.6;bv.x*=.85;bv.z*=.85;if(Math.abs(bv.y)>1)tone(300,200,.05,'sine',.1)}
     const R=PNT&&PW&&PW.rug;if(R){const ex=(ball.position.x-R.x)/R.rx,ez=(ball.position.z-R.z)/R.rz,e=Math.hypot(ex,ez); // painted room: the ball stays on the painted rug (and on screen)
