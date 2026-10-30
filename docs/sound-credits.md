@@ -27,3 +27,7 @@ Real animal sounds play just after Googoo says an animal's name (`assets/sounds/
 
 No sound: zebra (owner skipped it), and the animals that make no sound (fish, rabbit, turtle, giraffe, butterfly, ant, ladybug, octopus, dinosaur).
 Note: the owner's earlier free-plan ElevenLabs meow is NOT used (a free-plan sound would need an ElevenLabs credit).
+
+## 3D planet surface maps
+
+`assets/space/3d/*.webp` (solar system finale): Solar System Scope textures, https://www.solarsystemscope.com/textures/ , CC BY 4.0. Resized to 1024/512 wide webp.
