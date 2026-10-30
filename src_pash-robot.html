@@ -100,6 +100,25 @@ body.words.face #faceWord.on{display:block}body.face #bubble{display:none} /* th
 body.space #acts,body.space #nav,body.space #score,body.space #bTalk{display:none!important}#spBtns [hidden]{display:none}
 #spBtns{position:fixed;z-index:5;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);display:flex;justify-content:space-between;align-items:flex-end;padding:0 max(18px,env(safe-area-inset-right,0px)) 0 max(18px,env(safe-area-inset-left,0px));pointer-events:none;opacity:0;transform:translateY(30px);transition:opacity .3s,transform .3s}
 #spBtns.show{opacity:1;transform:none}#spBtns.show button{pointer-events:auto}
+#hw{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}body.space #hw{display:none}
+#hwVig{position:absolute;inset:0;background:radial-gradient(ellipse 80% 75% at 50% 55%,transparent 50%,rgba(48,12,80,.55) 100%)}
+#hwRoom{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
+.hwp{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;touch-action:none}
+.hwp img{position:relative;height:100%;width:auto;display:block;filter:drop-shadow(0 3px 4px rgba(30,10,40,.35));user-select:none;-webkit-user-select:none}
+.hwp.bob{animation:hwBob 3.2s ease-in-out infinite}@keyframes hwBob{50%{transform:translate(-50%,-112%)}}
+.hwp.hop img{animation:hwHop .55s cubic-bezier(.3,1.6,.5,1)}@keyframes hwHop{30%{transform:translateY(-14%) scale(1.08,.94)}60%{transform:translateY(0) scale(.95,1.05)}}
+.hwp.bob.hop img{animation:hwSpin .9s ease-in-out}@keyframes hwSpin{60%{transform:rotate(360deg) scale(1.15)}100%{transform:rotate(360deg)}}
+.hwg{position:absolute;left:50%;top:55%;width:260%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(255,160,50,.55),rgba(255,120,30,.18) 40%,transparent 70%);transform:translate(-50%,-50%);mix-blend-mode:screen;animation:hwFlick 1.3s ease-in-out infinite alternate;pointer-events:none}
+.hwp.green .hwg{background:radial-gradient(circle,rgba(120,255,90,.5),rgba(80,220,60,.15) 40%,transparent 70%);top:35%}
+@keyframes hwFlick{0%{opacity:.6;transform:translate(-50%,-50%) scale(.92)}45%{opacity:.95}55%{opacity:.75}100%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}}
+.hwbub{position:absolute;bottom:70%;aspect-ratio:1;border-radius:50%;opacity:.9;animation:hwBub 1.6s ease-out both;box-shadow:inset -2px -2px 0 rgba(0,0,0,.15),inset 2px 2px 0 rgba(255,255,255,.5)}
+@keyframes hwBub{0%{transform:translateY(0) scale(.3)}100%{transform:translateY(-120px) scale(1.2);opacity:0}}
+.hwweb{position:absolute;top:0;width:min(30vw,30vh);pointer-events:auto}.hwweb.l{left:0}.hwweb.r{right:0;transform:scaleX(-1)}
+#hwSpider{position:absolute;right:calc(min(30vw,30vh)*.42);top:0;width:min(9vw,9vh);pointer-events:auto;animation:hwDangle 4s ease-in-out infinite;transform-origin:50% 0}
+#hwSpider i{display:block;width:1.5px;margin:0 auto;height:min(15vw,15vh);background:#f4efffbb}#hwSpider img{width:100%;display:block;margin-top:-6%}
+@keyframes hwDangle{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(8%) rotate(3deg)}}
+#hwSpider.drop{animation:hwDrop 1.2s cubic-bezier(.3,1.5,.5,1)}@keyframes hwDrop{40%{transform:translateY(55%)}}
+#hwFly{position:absolute;left:0;top:0;display:none;pointer-events:auto;filter:drop-shadow(0 4px 6px rgba(20,0,40,.4))}
 #spHome{width:64px;height:64px;font-size:32px;background:#fff}
 #spSkip{width:76px;height:76px;padding:6px;background:radial-gradient(circle at 35% 30%,#3a4a8a,#141a3a 75%);box-shadow:0 5px 0 #0a0e24,0 0 22px rgba(255,190,80,.55)}#spSkip img{width:100%;height:100%;object-fit:contain}
 #spNext{width:104px;height:104px;background:radial-gradient(circle at 35% 30%,#ff9a5c,#d2501a 70%);box-shadow:0 6px 0 #8a3210,0 0 30px rgba(255,140,60,.6);animation:spBob 1.6s ease-in-out infinite}
@@ -213,7 +232,7 @@ body.jelly .rb.jtap,body.jelly .ec.nav.jtap{animation:jtap .35s cubic-bezier(.3,
   <div id="pcLists"></div><h3>All words</h3>
   <div class="pc-tablewrap"><table><thead><tr><th>Word</th><th></th><th>Heard</th><th>Found</th><th>Mixed up</th><th>Said</th></tr></thead><tbody id="pcRows"></tbody></table></div>
   <p class="pc-note">Stored on this device only. "Found" counts right taps in Find, Colours and Feed; "Said" counts tries in Say it and Animals. Words he has heard fewer than 3 times are marked for more practice.</p>
-  <label class="pc-note"><input type="checkbox" id="pcWords"> Show words: a small Farsi caption for every line (off: pictures only)</label><br><button id="pcReset">Reset stats</button>
+  <label class="pc-note"><input type="checkbox" id="pcWords"> Show words: a small Farsi caption for every line (off: pictures only)</label><br><label class="pc-note"><input type="checkbox" id="pcHw"> Halloween: pumpkins, ghosts, bats and Googoo's witch hat</label><br><button id="pcReset">Reset stats</button>
 </div></div>
 <div id="micHelp" hidden><h2>Googoo can't hear here</h2>
 <p>This page blocks the microphone, so Googoo can't listen when it's opened inside Claude.</p>
@@ -1591,6 +1610,60 @@ const PAINT={
     landscape:{img:'assets/rooms/bed_landscape.webp',night:'assets/rooms/bed_landscape_night.webp',size:[1440,810],focus:[.5,.6],fov:50,horizon:.4,wall:.5,goo:[.5,.85,.34],rug:[.5,.833,.32,.14],
       light:{sun:['#fff0dc',1.15],dir:[5,8,-2],hemi:['#e2e9ff','#8a5a3a',.75],fill:['#ffe6c8',.45],shadow:.32,exp:.95},beam:[.3,.2,60,.05,.7,.07],dust:[.15,.1,.85,.55],lamps:[[.699,.36,.04]],
       taps:[{r:[.34,.22,.65,.57],f:'bed'},{r:[.66,.31,.75,.55],f:'lamp'},{r:[.19,.03,.41,.36],w:'w_window'},{r:[.76,.04,.83,.18],f:'rocket'}]}}};
+// ----- Halloween (parent corner switch, on by default until switched off): painted props in every room (assets/hw/*.webp, cut from two ChatGPT sheets),
+// cobwebs with a dangling spider, bats and a little witch flying past, a purple dusk tint with flickering orange glows, Googoo's witch hat (models/witch_hat.glb).
+// Tap anything: Googoo names it in Farsi (w_pumpkin ... x_boo, vocab/lines_words_v2.csv). Cute only: nothing jumps out. -----
+const HW={on:true,el:null,room:null,key:'',fly:null,flyT:8,busy:false,hat:null,tf:''};try{HW.on=localStorage.getItem('pash-hw')!=='0'}catch(e){}
+// [picture, u, v (its feet on the painting), height (part of the painting's height), word, effect]  glow = orange flicker, green = cauldron, bob = floats
+const HWP={
+  home:{landscape:[['jack',.86,.405,.09,'w_pumpkin','glow'],['candles',.95,.402,.07,'w_candle','glow'],['pumpkins2',.17,.72,.13,'w_pumpkin'],['blackcat',.8,.67,.13,'w_blackcat'],['ghost',.62,.22,.12,'w_ghost','bob'],['broom',.42,.56,.2,'w_broom']],
+        portrait:[['jack',.9,.357,.06,'w_pumpkin','glow'],['candles',.42,.405,.045,'w_candle','glow'],['pumpkins2',.15,.63,.08,'w_pumpkin'],['blackcat',.85,.61,.08,'w_blackcat'],['ghost',.68,.2,.08,'w_ghost','bob'],['broom',.27,.45,.12,'w_broom']]},
+  play:{landscape:[['cauldron',.86,.78,.14,'w_cauldron','green'],['monster',.45,.62,.11,'w_monster'],['candybowl',.33,.68,.07,'w_candy'],['jack',.72,.275,.07,'w_pumpkin','glow'],['ghost2',.55,.16,.11,'w_ghost','bob'],['owlhat',.1,.55,.1,'w_owl']],
+        portrait:[['cauldron',.2,.82,.09,'w_cauldron','green'],['monster',.5,.61,.07,'w_monster'],['candybowl',.85,.69,.05,'w_candy'],['jack',.17,.452,.05,'w_pumpkin','glow'],['owlhat',.29,.452,.06,'w_owl'],['ghost2',.42,.2,.08,'w_ghost','bob']]},
+  bed:{landscape:[['jack',.735,.478,.07,'w_pumpkin','glow'],['pumpkins2',.17,.465,.1,'w_pumpkin'],['cauldron',.85,.82,.14,'w_cauldron','green'],['ghost',.44,.16,.1,'w_ghost','bob'],['blackcat',.15,.74,.12,'w_blackcat'],['witchhat',.45,.49,.07,'w_witchhat'],['lantern',.9,.3,.09,'w_candle','glow']],
+       portrait:[['jack',.83,.392,.045,'w_pumpkin','glow'],['pumpkins2',.12,.61,.08,'w_pumpkin'],['cauldron',.85,.86,.09,'w_cauldron','green'],['ghost',.62,.17,.07,'w_ghost','bob'],['blackcat',.86,.6,.07,'w_blackcat'],['witchhat',.4,.37,.045,'w_witchhat']]},
+  library:{landscape:[['jack',.5,.307,.06,'w_pumpkin','glow'],['candles',.9,.62,.06,'w_candle','glow'],['ghost',.25,.22,.1,'w_ghost','bob'],['blackcat',.73,.77,.1,'w_blackcat'],['broom',.3,.75,.18,'w_broom'],['monster',.62,.8,.09,'w_monster']],
+           portrait:[['jack',.65,.372,.04,'w_pumpkin','glow'],['ghost',.25,.24,.07,'w_ghost','bob'],['candles',.12,.56,.04,'w_candle','glow'],['blackcat',.72,.83,.06,'w_blackcat'],['cauldron',.3,.85,.07,'w_cauldron','green']]}};
+const HWCOL=[['zard','#f5c518'],['abi','#2f74d0'],['ghermez','#e0402a'],['naranji','#f08a1c'],['abiroshan','#79cfe2']];
+function hwWeb(left){const n=7,R=100,sp=[];let d='';for(let i=0;i<n;i++){const a=i/(n-1)*Math.PI/2;d+=`M0 0L${(R*Math.cos(a)).toFixed(1)} ${(R*Math.sin(a)).toFixed(1)}`}
+  for(let r=18;r<R;r+=16){let s='';for(let i=0;i<n;i++){const a=i/(n-1)*Math.PI/2,k=r*(i%(n-1)?.93:1);s+=(i?'Q':'M')+(i?`${(r*1.02*Math.cos(a-.13)).toFixed(1)} ${(r*1.02*Math.sin(a-.13)).toFixed(1)} `:'')+`${(k*Math.cos(a)).toFixed(1)} ${(k*Math.sin(a)).toFixed(1)}`}d+=s}
+  return `<svg class="hwweb ${left?'l':'r'}" viewBox="0 0 100 100"><path d="${d}" fill="none" stroke="#f4efff" stroke-opacity=".75" stroke-width=".7" stroke-linecap="round"/></svg>`}
+function hwBuild(){if(HW.el)return;const e=HW.el=document.createElement('div');e.id='hw';
+  e.innerHTML=`<div id="hwVig"></div><div id="hwRoom"></div>${hwWeb(1)}${hwWeb(0)}<div id="hwSpider"><i></i><img src="assets/hw/spider.webp" alt=""></div><img id="hwFly" alt="">`;
+  document.getElementById('pFg').after(e);
+  e.querySelectorAll('.hwweb').forEach(w=>w.onpointerdown=ev=>{ev.stopPropagation();hwSay(w,'w_cobweb')});
+  const sp=e.querySelector('#hwSpider');sp.onpointerdown=ev=>{ev.stopPropagation();sp.classList.remove('drop');void sp.offsetWidth;sp.classList.add('drop');hwSay(null,'w_spider')};
+  const f=e.querySelector('#hwFly');f.onpointerdown=ev=>{ev.stopPropagation();if(HW.fly){HW.fly.loop=1;hwSay(null,HW.fly.w)}}}
+// Googoo says it (one at a time), the prop hops; ghost: boo first; cauldron: bubbles in a colour, then that colour
+async function hwSay(el,w,fx){if(HW.busy||game.type||st.mode==='sleep')return;HW.busy=true;st.lastPoke=performance.now();setFace('shock',400);kick('squash',3);
+  if(el){el.classList.remove('hop');void el.offsetWidth;el.classList.add('hop')}
+  try{if(fx==='bob'){SFX.giggle();await sayAsync('x_boo')}
+    await sayAsync(w);if(w==='w_blackcat')playAsnd('cat',AC.currentTime);
+    if(fx==='green'){const [ck,col]=HWCOL[Math.random()*HWCOL.length|0];hwBubbles(el,col);await wait(300);await sayAsync('col_'+ck)}
+    setFace('laugh',800)}finally{HW.busy=false}}
+function hwBubbles(el,col){for(let i=0;i<9;i++){const b=document.createElement('b');b.className='hwbub';b.style.cssText=`left:${20+Math.random()*60}%;background:${col};animation-delay:${i*.08}s;width:${10+Math.random()*12}px`;el.appendChild(b);setTimeout(()=>b.remove(),2200)}}
+// the props for this room and orientation, placed on the painting (paintFrame calls this after every layout)
+function hwLayout(){if(!HW.on||!PNT||!PW){if(HW.el)HW.el.hidden=true;return}hwBuild();HW.el.hidden=false;const list=(HWP[curRoom]||{})[portrait?'portrait':'landscape']||[],M=pU.uM.value,box=HW.el.querySelector('#hwRoom');
+  const key=curRoom+portrait+M.x+M.y+M.z+M.w;if(key===HW.key)return;HW.key=key;box.innerHTML='';
+  for(const [pic,u,v,h,w,fx] of list){const [x,y]=PW.S(u,v),d=document.createElement('div');d.className='hwp'+(fx?' '+fx:'');d.style.cssText=`left:${x}px;top:${y}px;height:${h*M.w}px`;
+    d.innerHTML=(fx==='glow'||fx==='green'?`<i class="hwg"></i>`:'')+`<img src="assets/hw/${pic}.webp" alt="" draggable="false" onerror="this.parentNode.remove()">`;
+    d.onpointerdown=ev=>{ev.stopPropagation();hwSay(d,w,fx)};box.appendChild(d)}}
+function hwSet(on){HW.on=on;try{localStorage.setItem('pash-hw',on?'1':'0')}catch(e){}HW.key='';hwLayout();if(PNT)paintLights();hwHat()}
+// Googoo's hat, on his head bone (tilted a little, a bit cheeky)
+function hwHat(){if(!B.Head)return;if(!HW.hat){HW.hat=1;new THREE.GLTFLoader().load('models/witch_hat.glb',g=>{const h=HW.hat=g.scene,s=new THREE.Vector3();h.traverse(o=>{if(o.isMesh)o.castShadow=true});
+    B.Head.getWorldScale(s);const k=robot.scale.x/s.x;h.scale.setScalar(2.2*k);h.position.set(0,1.02*k,.04*k);h.rotation.set(-.12,0,.16);B.Head.add(h);h.visible=HW.on},undefined,()=>{HW.hat=null})}
+  else if(HW.hat!==1)HW.hat.visible=HW.on}
+// every frame: the props follow the picture's pan/zoom; now and then a bat (or the little witch) flies across
+function hwTick(dt){if(!HW.el||HW.el.hidden)return;const T=pU.uT.value,Z=pU.uZ.value,tf=`translate(${T.z-T.x*Z}px,${T.w-T.y*Z}px) scale(${Z})`;
+  if(tf!==HW.tf){HW.tf=tf;HW.el.querySelector('#hwRoom').style.transform=tf}
+  const f=HW.el.querySelector('#hwFly');
+  if(!HW.fly){HW.flyT-=dt;if(HW.flyT<0&&!game.type){const bat=Math.random()<.7,dir=Math.random()<.5?1:-1;HW.fly={bat,dir,t:0,dur:bat?6:8,y:.12+Math.random()*.3,w:bat?'w_bat':'w_witch',loop:0,fr:0};
+      f.src='assets/hw/'+(bat?'bat1':'witch')+'.webp';f.style.height=(bat?11:16)*Math.min(innerWidth,innerHeight)/100+'px';f.style.display='block'}return}
+  const F=HW.fly;F.t+=dt;const p=F.t/F.dur,W=innerWidth+300,x=F.dir>0?-150+p*W:innerWidth+150-p*W,y=innerHeight*(F.y+Math.sin(p*9)*.03);
+  if(F.loop){F.loop+=dt*2.2;if(F.loop>=Math.PI*2+1)F.loop=0}const l=F.loop?F.loop-1:0,lr=l>0?60:0;
+  if(F.bat&&(F.fr+=dt)>.14){F.fr=0;f.dataset.f=f.dataset.f==='2'?'1':'2';f.src='assets/hw/bat'+f.dataset.f+'.webp'}
+  f.style.transform=`translate(${x+Math.sin(l)*lr}px,${y-(1-Math.cos(l))*lr}px) translate(-50%,-50%) scaleX(${-F.dir}) rotate(${l>0?l*57.3*F.dir:0}deg)`;
+  if(p>=1){HW.fly=null;f.style.display='none';HW.flyT=14+Math.random()*12}}
 const PAINT0=JSON.parse(JSON.stringify(PAINT)); // the built-in pictures (Design mode: "painted room" on again)
 let PNT=null,PK='',PW=null,libPage=0,libPages=[[]],libStoryP=0,libSlide=null,libSel=-1,libIdx={};const POSE=[],_pv=V3(),_pq=new THREE.Quaternion();
 const pOf=r=>{const B=PAINT[r];return B?B[portrait?'portrait':'landscape']||B.portrait||B.landscape||null:null}; // no picture for this orientation: the other one (cover fit, still no bars)
@@ -1639,11 +1712,12 @@ function paintLights(){const P=PNT;if(!P)return;const Lt=P.light||{},n=!lightsOn
   hemiL.color.set(n?'#8fa0d8':hm[0]);hemiL.groundColor.set(hm[1]);hemiL.intensity=n?.28:hm[2];fill.color.set(n?'#ffb870':fl[0]);fill.intensity=n?.38:fl[1];fill.position.set(HOME.x+3,4,HOME.z+8);
   windowGlow.intensity=0;renderer.toneMappingExposure=Lt.exp||.95;pFloor.material.opacity=(Lt.shadow??.35)*(n?.4:1);pBlob.material.opacity=n?.55:1;
   const nP=!!P.night;pMixT=n&&nP?1:0;pU.uNight.value=n?1:0;pU.uMul.value.set(n?(nP?'#e4e4f2':'#5a66a8'):'#ffffff');pU.uDustA.value=n?.25:1;pFg.classList.toggle('dark',n);(P.lamps||[]).forEach((l,i)=>i<4&&pU.uLamp.value[i].set(l[0],l[1],l[2],nP?.45:1)); // night picture: already dark, so a light tint and softer lamp glows
-  for(let i=(P.lamps||[]).length;i<4;i++)pU.uLamp.value[i].w=0}
+  for(let i=(P.lamps||[]).length;i<4;i++)pU.uLamp.value[i].w=0;
+  if(HW.on&&!n){pU.uMul.value.set('#b8a2e8');hemiL.color.set('#d9c6ff');fill.color.set('#ffa060')}} // Halloween: a purple dusk, orange from the pumpkins
 function paintVis(){const on=!!PNT;room.visible=!on;pBg.visible=pDust.visible=pFloor.visible=pBlob.visible=on;
   if(on)paintLights();else{paintRestore();pFg.classList.add('off');pgPrev.hidden=pgNext.hidden=pgDots.hidden=true;pGlow.visible=false;libSlide=null;clipL.constant=clipR.constant=1e6}}
 // called at the end of resize(): the cover fit, then the camera from the painting (horizon + his feet + his height), then everything that sits on the painting
-function paintFrame(){const P=pOf(curRoom),key=P?curRoom+'|'+(portrait?'p':'l')+'|'+P.img:'';PNT=P;if(key!==PK){PK=key;paintLoad(P);paintVis()}if(!P){PW=null;return}
+function paintFrame(){const P=pOf(curRoom),key=P?curRoom+'|'+(portrait?'p':'l')+'|'+P.img:'';PNT=P;if(key!==PK){PK=key;paintLoad(P);paintVis()}if(!P){PW=null;hwLayout();return}
   const w=innerWidth,h=innerHeight,[IW,IH]=P.size||[1056,1440],s=Math.max(w/IW,h/IH)*(P.zoom||1),pw=IW*s,ph=IH*s,cl=(v,a,b)=>Math.max(a,Math.min(b,v)),
     ox=cl(w/2-P.focus[0]*pw,w-pw,0),oy=cl(h/2-P.focus[1]*ph,h-ph,0),S=(u,v)=>[ox+u*pw,oy+v*ph],F=IH/2/Math.tan((P.fov||50)*Math.PI/360)*s;
   pU.uRes.value.set(w,h);pU.uM.value.set(ox,oy,pw,ph);pU.uAsp.value=IW/IH;pU.uDpr.value=renderer.getPixelRatio();pU.uFill.value.set(P.bg||'#e9dccb');
@@ -1677,7 +1751,7 @@ function paintFrame(){const P=pOf(curRoom),key=P?curRoom+'|'+(portrait?'p':'l')+
     if(!portrait)tx=w*.74;else{const db=deck.getBoundingClientRect().bottom+8,nt=document.getElementById('nav').getBoundingClientRect().top-8,need=db-hd[1];if(need>0)ty=Math.min(ay+need,ay+Math.max(0,nt-fy))}
     const z=Math.min(1.8,Math.max(1,tx/Math.max(1,ax-ox),(w-tx)/Math.max(1,ox+pw-ax),ty/Math.max(1,ay-oy),(h-ty)/Math.max(1,oy+ph-ay))),dx=tx-w/2-(ax-w/2)*z,dy=ty-h/2-(ay-h/2)*z;
     if(z>1||Math.abs(dx)>1||Math.abs(dy)>1){camera.zoom=z;camera.setViewOffset(w,h,-dx,-dy,w,h);camera.updateProjectionMatrix()}}
-  paintFg(P,w,h);paintUI();paintLights()}
+  paintFg(P,w,h);paintUI();paintLights();hwLayout()}
 function paintFg(P,w,h){const f=P.fg;if(!f){pFg.classList.add('off');delete pFg.dataset.on;return}const [IW,IH]=P.size||[1056,1440],[u0,v0,u1,v1]=f.crop,bh=f.h*h,k=bh/((v1-v0)*IH),bw=(u1-u0)*IW*k,r=f.at[1]==='r',b=f.at[0]==='b';
   Object.assign(pFg.style,{width:bw+'px',height:bh+'px',left:r?'auto':-bw*.22+'px',right:r?-bw*.22+'px':'auto',top:b?'auto':-bh*.1+'px',bottom:b?-bh*.12+'px':'auto',
     backgroundSize:`${IW*k}px ${IH*k}px`,backgroundPosition:`${-u0*IW*k}px ${-v0*IH*k}px`});pFg.dataset.on=1}
@@ -1868,6 +1942,8 @@ function renderParent(){
       if(i===1&&c.heard<3){const tag=document.createElement('span');tag.className='tag';tag.textContent='more practice';td.appendChild(tag)}tr.appendChild(td)});
     tb.appendChild(tr)}
 }
+{const e=document.getElementById('pcHw');e.checked=HW.on;e.onchange=()=>hwSet(e.checked)}
+document.getElementById('go').addEventListener('click',()=>setTimeout(()=>{hwHat();if(HW.on&&!game.type)say('x_halloween')},3500));
 const wordsEl=document.getElementById('pcWords');try{wordsEl.checked=localStorage.getItem('pash-words')==='1'}catch(e){}
 document.body.classList.toggle('words',wordsEl.checked);
 wordsEl.onchange=()=>{document.body.classList.toggle('words',wordsEl.checked);if(!wordsEl.checked)bubble.classList.remove('show');try{localStorage.setItem('pash-words',wordsEl.checked?'1':'0')}catch(e){}};
@@ -2365,7 +2441,7 @@ function loop(){
   if(talk.an){const b=talk.buf||(talk.buf=new Float32Array(talk.an.fftSize));talk.an.getFloatTimeDomainData(b);let q=0;for(const v of b)q+=v*v;talk.level=Math.sqrt(q/b.length)}
   mouthOpen=talk.playing?Math.min(1,talk.level*7):now<mouthT?Math.abs(Math.sin(now/70)):0;
   const fk=face+(face==='pic'?facePic:'')+(blink>0)+(mouthOpen>.05?Math.round(mouthOpen*8):0);if(fk!==faceKey||face==='dizzy'){faceKey=fk;drawFace(t)}} // redraw the face only when it changes
-  if(libFly&&libFly.t<1)stepFly(dt);faceStep(dt);paintTick(dt,t);if(LAUNCH)launchTick(dt);
+  if(libFly&&libFly.t<1)stepFly(dt);faceStep(dt);paintTick(dt,t);if(LAUNCH)launchTick(dt);hwTick(dt);
   renderer.render(scene,camera);
 }
 loop();

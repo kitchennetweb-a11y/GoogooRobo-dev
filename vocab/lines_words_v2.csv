@@ -799,3 +799,15 @@ w_sleep.mp3,[whispers] لالا!,لالا!,lâlâ!,night-night!,actions
 say_sleep.mp3,[excited] حالا تو بگو: لالا!,حالا تو بگو: لالا!,hâlâ to begu: lâlâ!,now you say: night-night!,actions
 where_sleep.mp3,[whispers] کی لالا کرده؟,کی لالا کرده؟,ki lâlâ karde?,who is sleeping?,actions
 this_sleep.mp3,[whispers] هیس! این لالا کرده!,هیس! این لالا کرده!,hiss! in lâlâ karde!,shh! this one is asleep!,actions
+w_pumpkin.mp3,[excited] کدو تنبل!,کدو تنبل!,kadu tanbal!,pumpkin!,halloween
+w_ghost.mp3,[happily] روح!,روح!,ruh!,ghost!,halloween
+w_witch.mp3,[excited] جادوگر!,جادوگر!,jâdugar!,witch!,halloween
+w_bat.mp3,[surprised] وای! خفاش!,وای! خفاش!,vây! khoffâsh!,wow! bat!,halloween
+w_spider.mp3,[excited] عنکبوت!,عنکبوت!,ankabut!,spider!,halloween
+w_cobweb.mp3,[happily] تارِ عنکبوت!,تار عنکبوت!,târ-e ankabut!,cobweb!,halloween
+w_cauldron.mp3,[excited] پاتیل!,پاتیل!,pâtil!,cauldron!,halloween
+w_witchhat.mp3,[happily] کلاهِ جادوگر!,کلاه جادوگر!,kolâh-e jâdugar!,witch's hat!,halloween
+w_blackcat.mp3,[excited] گربه‌ی سیاه!,گربه سیاه!,gorbe-ye siyâh!,black cat!,halloween
+w_monster.mp3,[excited] هیولا!,هیولا!,hayulâ!,monster!,halloween
+x_boo.mp3,[playfully] بوووو!,بو!,boo!,boo!,halloween
+x_halloween.mp3,[excited] هالووین مبارک!,هالووین مبارک!,hâlovin mobârak!,happy Halloween!,halloween
